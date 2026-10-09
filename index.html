@@ -395,6 +395,7 @@
     ]);
     boks(4.05, 0, 6.37, 4.09, 2.04, 7.04, M.hvitDør);                 // dør til tek. rom
     boks(TX1, 0, 5.20, TX2, 1.10, 5.30, M.innervegg);                 // tek. rom, nordvegg under trappa
+    vegg('x', nedreSving.z1 - 0.1, nedreSving.z1, TX1, TX2);          // mellom TV-hjørnet og trappa
 
     // ---------- Kjøkken (U-form) ----------
     const benkH = 0.9;
@@ -555,9 +556,13 @@
     boks(2.94, F, 6.00, 3.56, F + 2.03, 6.04, M.hvitDør);             // bad, slår ut i gangen
     boks(3.80, F, 7.30, 3.84, F + 2.03, 8.03, M.hvitDør);             // soverom 12
 
-    // trapp videre til 3. etasje, lukket mot gangen under løpet
+    // trapp videre til 3. etasje, med hvitt rekkverk mellom gangen og trapperommet
     trapp(F);
-    trappeside(F, [[nedreSving.z2, 0], [øvreSving.z1, 0], [øvreSving.z1, 11 * opptrinn], [nedreSving.z2, 3 * opptrinn]]);
+    for (let z = nedreSving.z2 + 0.06; z < øvreSving.z1; z += 0.12) {
+      boks(4.055, F, z - 0.015, 4.085, F + 0.95, z + 0.015, M.hvit);
+    }
+    boks(4.04, F + 0.95, nedreSving.z2, 4.10, F + 1.0, øvreSving.z1, M.hvit);
+    boks(4.04, F, øvreSving.z1 - 0.03, 4.10, F + 1.0, øvreSving.z1 + 0.03, M.hvit);
 
     // soverom 13 m² (mot hagen): køyeseng, garderobe, kommode
     boks(T, F, 3.45, 0.80, F + 2.2, 4.50, M.skap);
