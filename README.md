@@ -4,7 +4,8 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 
 - `index.html` – selve 3D-modellen (én selvstendig fil)
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
-- `video/` – 22 sekunders video-gjennomgang av huset (laget med `/brag-slim` fra selve 3D-modellen), åpnes med knappen «Se video» øverst til høyre
+- `video/` – videoer laget med `/brag-slim` fra selve 3D-modellen, åpnes med knappen «Se video» øverst til høyre:
+  omvisning i øyehøyde fra hoveddøra gjennom alle rom (1:31) og en kort presentasjon (0:22)
 
 ### Status
 
