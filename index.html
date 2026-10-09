@@ -37,8 +37,12 @@
 </head>
 <body>
   <div id="panel">
-    <h1>Huldervegen – 1. etasje</h1>
+    <h1>Huldervegen</h1>
     <div class="rad">
+      <button id="etg1">1. etasje</button>
+      <button id="etg2" class="på">2. etasje</button>
+    </div>
+    <div class="rad" style="margin-top:6px">
       <button id="vis3d" class="på">3D</button>
       <button id="ovenfra">Ovenfra</button>
       <button id="lave">Lave vegger</button>
@@ -60,6 +64,7 @@
     const D = 9.85;        // husets dybde
     const T = 0.2;         // yttervegg
     const H = 2.5;         // takhøyde
+    const F = H + 0.2;     // etasjehøyde, gulv til gulv
     const UTE = -0.35;     // terreng på inngangssiden
 
     // ---------- Renderer, scene, kamera ----------
@@ -130,6 +135,12 @@
       svart:     mat(0x1d1d1f, { roughness: 0.5 }),
       stål:      mat(0xbfc3c6, { metalness: 0.8, roughness: 0.3 }),
       sofa:      mat(0xcdc8c0),
+      sengetøy:  mat(0xe6e0d8),
+      finer:     veggMat(0xc99a5f, { roughness: 0.6 }),
+      badFlis:   mat(0xddd6cb, { roughness: 0.4 }),
+      flisBrun:  mat(0x8a7866),
+      flisStripe: veggMat(0x8a7866),
+      mørkGrå:   mat(0x4a4b4e),
       teppe:     mat(0xcfc8bb),
       bordplate: mat(0xb07a45, { roughness: 0.6 }),
       tvBenk:    mat(0xd6d0c8),
@@ -141,8 +152,10 @@
     };
 
     // ---------- Hjelpere ----------
+    let mål = scene;       // gruppa nye deler legges i (byttes til etg2 for 2. etasje)
+
     // Boks fra min-/maks-hjørner (meter). Returnerer meshet.
-    function boks(x1, y1, z1, x2, y2, z2, m, forelder = scene) {
+    function boks(x1, y1, z1, x2, y2, z2, m, forelder = mål) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(x2 - x1, y2 - y1, z2 - z1), m);
       mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
       mesh.castShadow = mesh.receiveShadow = true;
@@ -183,6 +196,40 @@
       if (til > pos) del(pos, til, y0, y0 + h);
     }
 
+    // Prisme fra et polygon i grunnplanet ([x, z]-punkter), fra y1 til y2.
+    function prisme(punkter, y1, y2, m, forelder = mål) {
+      const form = new THREE.Shape(punkter.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(form, { depth: y2 - y1, bevelEnabled: false }), m);
+      mesh.rotation.x = -Math.PI / 2;                  // formas y → -z, ekstrudering → +y
+      mesh.position.y = y1;
+      mesh.castShadow = mesh.receiveShadow = true;
+      forelder.add(mesh);
+      return mesh;
+    }
+
+    // Vindeltrinn: kakestykke fra hjørnet (px, pz) mellom vinklene a1 og a2 (radianer i xz-planet),
+    // avgrenset av rektangelet r. Returnerer polygonet som [x, z]-punkter.
+    function vifte(px, pz, r, a1, a2) {
+      const treff = a => {
+        const dx = Math.cos(a), dz = Math.sin(a);
+        let t = Infinity;
+        for (const X of [r.x1, r.x2]) if (Math.abs(dx) > 1e-9) {
+          const s = (X - px) / dx, z = pz + s * dz;
+          if (s > 1e-6 && z >= r.z1 - 1e-6 && z <= r.z2 + 1e-6) t = Math.min(t, s);
+        }
+        for (const Z of [r.z1, r.z2]) if (Math.abs(dz) > 1e-9) {
+          const s = (Z - pz) / dz, x = px + s * dx;
+          if (s > 1e-6 && x >= r.x1 - 1e-6 && x <= r.x2 + 1e-6) t = Math.min(t, s);
+        }
+        return [px + t * dx, pz + t * dz];
+      };
+      const hjørner = [[r.x1, r.z1], [r.x2, r.z1], [r.x2, r.z2], [r.x1, r.z2]]
+        .map(([x, z]) => [Math.atan2(z - pz, x - px), x, z])
+        .filter(([a]) => a > a1 + 1e-6 && a < a2 - 1e-6)
+        .sort((p, q) => p[0] - q[0]);
+      return [[px, pz], treff(a1), ...hjørner.map(([, x, z]) => [x, z]), treff(a2)];
+    }
+
     // Liggende spiler (gjerde/kledning) langs x eller z.
     function spilevegg(akse, a, b, fra, til, y0, h, m = M.spiler) {
       for (let y = y0 + 0.02; y < y0 + h; y += 0.075) {
@@ -196,13 +243,15 @@
       }
     }
 
+    // gruppe: 'etg1' / 'etg2' vises med sin etasje, 'ute' vises alltid
     const etiketter = [];
-    function etikett(tekst, areal, x, z, y = 1.3) {
+    function etikett(tekst, areal, x, z, y = 1.3, gruppe = 'etg1') {
       const div = document.createElement('div');
       div.className = 'etikett';
       div.innerHTML = `${tekst}<br><small>${areal}</small>`;
       const obj = new CSS2DObject(div);
       obj.position.set(x, y, z);
+      obj.userData.gruppe = gruppe;
       scene.add(obj);
       etiketter.push(obj);
     }
@@ -251,45 +300,59 @@
       { fra: 3.10, til: 3.90, nede: 0, oppe: 2.05, type: 'åpning' },
     ]);
     boks(3.12, 0, 7.35, 3.16, 2.03, 8.13, M.hvitDør);                 // innerdør, åpen inn i entré
-    vegg('z', 4.12, 4.22, 5.20, 7.25, [                               // tek. rom, vestvegg
-      { fra: 6.36, til: 7.05, nede: 0, oppe: 2.05, type: 'dør', farge: M.hvitDør },
-    ]);
-    vegg('x', 5.20, 5.30, 4.22, B - T);                               // tek. rom, nordvegg
 
     // Garderobe med speilskyvedører i entré
     boks(4.42, 0, 7.45, B - T, 2.4, 9.55, M.skap);
     boks(4.41, 0.05, 7.47, 4.42, 2.35, 9.53, M.speil);
 
-    // ---------- Trapp (stiger mot hagen, langs høyre vegg) ----------
-    const trinn = 13, opptrinn = 0.2, inntrinn = 0.2, trappBunn = 5.2, åpneTrinn = 3;
-    const u0 = åpneTrinn * inntrinn;                   // der den lukkede siden starter
-    for (let i = 0; i < trinn; i++) {
-      const z2 = trappBunn - i * inntrinn, z1 = z2 - inntrinn, y = (i + 1) * opptrinn;
-      const x1 = i < åpneTrinn ? 4.12 : 4.22;          // nederste trinn er åpne mot stua
-      boks(x1, 0, z1, B - T, y - 0.03, z2, M.hvit);
-      boks(x1 - 0.02, y - 0.03, z1 - 0.02, B - T, y, z2, M.eik);
+    // ---------- Trapp ----------
+    // Starter ved stua med tre vindeltrinn, går rett mot inngangen langs høyre vegg og svinger
+    // med tre vindeltrinn ut mot gangen i 2. etasje. Tek. rom ligger under den øverste delen.
+    const opptrinn = F / 14;
+    const TX1 = 4.12, TX2 = B - T;                                    // trappas bredde
+    const nedreSving = { x1: TX1, x2: TX2, z1: 3.30, z2: 4.20 };
+    const øvreSving = { x1: TX1, x2: TX2, z1: 6.40, z2: 7.18 };
+    const inntrinn = (øvreSving.z1 - nedreSving.z2) / 8;
+    const sjette = Math.PI / 6;
+    for (let i = 0; i < 3; i++) {                                     // trinn 1–3, inn fra stua
+      const y = (i + 1) * opptrinn, a1 = -Math.PI / 2 + i * sjette;
+      const flate = vifte(TX1, nedreSving.z2, nedreSving, a1, a1 + sjette);
+      prisme(flate, 0, y - 0.03, M.hvit);
+      prisme(flate, y - 0.03, y, M.eik);
     }
-    // lukket side under trappa (der skjenken står)
-    const sideForm = new THREE.Shape();
-    sideForm.moveTo(u0, 0);
-    sideForm.lineTo(trinn * inntrinn, 0);
-    sideForm.lineTo(trinn * inntrinn, trinn * opptrinn);
-    sideForm.lineTo(u0, u0 + opptrinn);
-    sideForm.closePath();
+    for (let j = 0; j < 8; j++) {                                     // trinn 4–11, rett løp
+      const z1 = nedreSving.z2 + j * inntrinn, y = (4 + j) * opptrinn;
+      boks(TX1, y - 0.25, z1, TX2, y - 0.03, z1 + inntrinn, M.hvit);
+      boks(TX1, y - 0.03, z1 - 0.02, TX2, y, z1 + inntrinn, M.eik);
+    }
+    for (let i = 0; i < 3; i++) {                                     // trinn 12–14, ut mot gangen
+      const y = (12 + i) * opptrinn, a1 = i * sjette;
+      const flate = vifte(TX1, øvreSving.z1, øvreSving, a1, a1 + sjette);
+      prisme(flate, y - 0.25, y - 0.03, M.hvit);
+      prisme(flate, y - 0.03, y, M.eik);
+    }
+    // Lukket side under trappa mot stua (skjenken står her), med døra til tek. rom.
+    const sideForm = new THREE.Shape([
+      [nedreSving.z2, 0], [6.36, 0], [6.36, 2.05], [7.05, 2.05], [7.05, 0], [7.25, 0],
+      [7.25, H], [øvreSving.z1, H], [øvreSving.z1, 11 * opptrinn], [nedreSving.z2, 3 * opptrinn],
+    ].map(([z, y]) => new THREE.Vector2(z, y)));
     const side = new THREE.Mesh(new THREE.ExtrudeGeometry(sideForm, { depth: 0.1, bevelEnabled: false }), M.innervegg);
-    side.rotation.y = Math.PI / 2;                    // former x → -z, ekstrudering → +x
-    side.position.set(4.12, 0, trappBunn);
+    side.rotation.y = -Math.PI / 2;                   // formas x → +z, ekstrudering → -x
+    side.position.set(TX1, 0, 0);
     side.castShadow = side.receiveShadow = true;
     scene.add(side);
-    // rekkverk med hvite spiler
-    for (let i = åpneTrinn; i < trinn; i++) {
-      const z = trappBunn - (i + 0.5) * inntrinn, y = (i + 1) * opptrinn;
-      boks(4.15, y, z - 0.015, 4.18, y + 0.9, z + 0.015, M.hvit);
+    boks(4.05, 0, 6.37, 4.09, 2.04, 7.04, M.hvitDør);                 // dør til tek. rom
+    boks(TX1, 0, 5.20, TX2, 1.10, 5.30, M.innervegg);                 // tek. rom, nordvegg under trappa
+    // rekkverk med hvite spiler oppå den lukkede siden
+    for (let j = 0; j < 8; j++) {
+      const z = nedreSving.z2 + (j + 0.5) * inntrinn, y = (4 + j) * opptrinn;
+      boks(4.055, y, z - 0.015, 4.085, y + 0.9, z + 0.015, M.hvit);
     }
-    const løp = trinn * inntrinn - u0;
-    const håndløper = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, Math.hypot(løp, løp * opptrinn / inntrinn)), M.hvit);
-    håndløper.position.set(4.165, u0 + løp / 2 + opptrinn / 2 + 0.95, trappBunn - u0 - løp / 2);
-    håndløper.rotation.x = Math.atan2(opptrinn, inntrinn);
+    boks(4.04, 0, 4.17, 4.10, 3 * opptrinn + 1.0, 4.23, M.hvit);      // stolpe nederst
+    const stigning = Math.atan2(opptrinn, inntrinn), løp = 7 * inntrinn;
+    const håndløper = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, løp / Math.cos(stigning)), M.hvit);
+    håndløper.position.set(4.07, 7.5 * opptrinn + 0.95, nedreSving.z2 + 4 * inntrinn);
+    håndløper.rotation.x = -stigning;                 // stiger mot +z
     scene.add(håndløper);
 
     // ---------- Kjøkken (U-form) ----------
@@ -332,8 +395,8 @@
       k.position.set(0.65 + i * 0.18, i % 2 ? 1.78 : 1.72, 5.75 + (i % 3 - 1) * 0.08);
       scene.add(k);
     }
-    // skjenk under trappa
-    boks(3.72, 0.12, 3.00, 4.12, 0.80, 4.40, M.svart);
+    // skjenk mot trappesiden
+    boks(3.62, 0.12, 4.40, 4.02, 0.80, 5.80, M.svart);
     // sofa i L langs hagevinduet og venstre vegg, sjeselong mot midten
     const sofa = (x1, z1, x2, z2, rygg) => {
       boks(x1, 0.05, z1, x2, 0.45, z2, M.sofa);
@@ -391,51 +454,187 @@
 
     // ---------- Himling (av/på) med hull for trappa ----------
     const tak = new THREE.Group();
-    boks(0, H, 0, B, H + 0.2, 2.4, M.tak, tak);
-    boks(0, H, 5.2, B, H + 0.2, D, M.tak, tak);
-    boks(0, H, 2.4, 4.12, H + 0.2, 5.2, M.tak, tak);
-    tak.visible = false;
+    // trappehull: x TX1–TX2, z 3,30–7,18
+    const dekke = [[0, B, 0, 3.30], [0, B, 7.18, D], [0, TX1, 3.30, 7.18], [TX2, B, 3.30, 7.18]];
+    for (const [x1, x2, z1, z2] of dekke) boks(x1, H, z1, x2, F, z2, M.tak, tak);
     scene.add(tak);
-    const takDeler = [tak];
-    scene.traverse(o => { if (o.userData.tak) { o.visible = false; takDeler.push(o); } });
+    const takUte = [];                                                // tak over inngangsterrasse og bod
+    scene.traverse(o => { if (o.userData.tak) takUte.push(o); });
+
+    // =====================================================================
+    // ---------- 2. etasje (gulv på y = F) ----------
+    // =====================================================================
+    const etg2 = new THREE.Group();
+    scene.add(etg2);
+    mål = etg2;
+
+    // etasjeskiller med trappehull, parkett og flis på bad
+    for (const [x1, x2, z1, z2] of dekke) {
+      boks(x1, H, z1, x2, F - 0.01, z2, M.tak);
+      boks(x1, F - 0.01, z1, x2, F, z2, M.eik);
+    }
+    boks(T, F, 4.64, 2.85, F + 0.005, 7.18, M.badFlis);
+    // kledning over dekkekanten
+    boks(0, H, -0.01, B, F, 0.1, M.kledning);
+    boks(0, H, D - 0.1, B, F, D + 0.01, M.kledning);
+    boks(-0.01, H, 0, 0.1, F, D, M.kledning);
+    boks(B - 0.1, H, 0, B + 0.01, F, D, M.kledning);
+
+    // yttervegger
+    const hage2 = [
+      { fra: 0.47, til: 2.57, nede: 0.35, oppe: 2.30, type: 'vindu', poster: [1.18] },
+      { fra: 3.24, til: 4.67, nede: 0.90, oppe: 2.20, type: 'vindu', poster: [4.30] },
+    ];
+    vegg('x', 0, 0.1, 0, B, hage2, M.kledning, F);
+    vegg('x', 0.1, T, T, B - T, hage2.map(o => ({ ...o, type: 'åpning' })), M.innervegg, F);
+    const front2 = [
+      { fra: 0.99, til: 3.16, nede: 0.85, oppe: 2.20, type: 'vindu', poster: [1.75] },
+      { fra: 3.37, til: 4.13, nede: 0.00, oppe: 2.20, type: 'glassdør' },
+    ];
+    vegg('x', D - 0.1, D, 0, B, front2, M.kledning, F);
+    vegg('x', D - T, D - 0.1, T, B - T, front2.map(o => ({ ...o, type: 'åpning' })), M.innervegg, F);
+    vegg('z', 0, 0.1, 0, D, [], M.kledning, F);
+    vegg('z', 0.1, T, T, D - T, [], M.innervegg, F);
+    vegg('z', B - 0.1, B, 0, D, [], M.kledning, F);
+    vegg('z', B - T, B - 0.1, T, D - T, [], M.innervegg, F);
+
+    // innervegger og sjakter
+    const dør = (fra, til) => ({ fra, til, nede: 0, oppe: 2.05, type: 'åpning' });
+    vegg('z', 2.85, 2.94, T, 7.18, [dør(3.63, 4.39), dør(5.42, 6.04)], M.innervegg, F); // soverom 13 og bad | gang
+    vegg('x', 4.55, 4.64, T, 2.85, [], M.innervegg, F);                                 // soverom 13 | bad
+    vegg('x', 3.20, 3.30, 2.94, B - T, [dør(3.08, 3.84)], M.innervegg, F);              // soverom 7 | gang
+    vegg('x', 7.18, 7.30, T, B - T, [dør(3.11, 3.84)], M.innervegg, F);                 // gang | soverom 12
+    boks(2.17, F, 6.75, 2.85, F + H, 7.18, M.innervegg);                                // sjakt ved badet
+    boks(3.96, F, 7.30, B - T, F + H, 7.83, M.innervegg);                               // sjakt over tek. rom
+    // dørblad, åpne
+    boks(2.09, F, 4.35, 2.85, F + 2.03, 4.39, M.hvitDør);             // soverom 13
+    boks(3.80, F, 2.44, 3.84, F + 2.03, 3.20, M.hvitDør);             // soverom 7
+    boks(2.94, F, 6.00, 3.56, F + 2.03, 6.04, M.hvitDør);             // bad, slår ut i gangen
+    boks(3.80, F, 7.30, 3.84, F + 2.03, 8.03, M.hvitDør);             // soverom 12
+
+    // rekkverk rundt trappehullet
+    for (let z = 3.36; z < 6.40; z += 0.12) boks(4.055, F, z - 0.015, 4.085, F + 0.95, z + 0.015, M.hvit);
+    boks(4.04, F + 0.95, 3.30, 4.10, F + 1.0, 6.40, M.hvit);
+    boks(4.04, F, 6.37, 4.10, F + 1.0, 6.43, M.hvit);
+
+    // soverom 13 m² (mot hagen): køyeseng, garderobe, kommode
+    boks(T, F, 3.45, 0.80, F + 2.2, 4.50, M.skap);
+    boks(T, F, 1.00, 1.15, F + 0.35, 3.00, M.hvit);
+    boks(T + 0.05, F + 0.35, 1.05, 1.10, F + 0.50, 2.95, M.sengetøy);
+    boks(T, F + 1.20, 1.00, 1.15, F + 1.55, 3.00, M.hvit);
+    boks(T, F, 3.00, 1.15, F + 1.55, 3.40, M.hvit);                   // trappehylle
+    for (const [x, z] of [[1.10, 1.00], [1.10, 2.95]]) boks(x, F, z, x + 0.05, F + 1.55, z + 0.05, M.hvit);
+    boks(2.37, F, 1.20, 2.85, F + 0.80, 2.30, M.hvit);
+    boks(1.30, F, 1.60, 2.20, F + 0.01, 3.00, M.teppe);
+
+    // soverom 7 m²: sprinkelseng, lenestol, hylle
+    const krybbe = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.85, 24), M.hvit);
+    krybbe.position.set(4.55, F + 0.425, 1.10); krybbe.castShadow = true; etg2.add(krybbe);
+    boks(3.05, F + 0.25, 0.40, 3.75, F + 0.45, 1.05, M.mørkGrå);
+    boks(3.05, F + 0.45, 0.30, 3.75, F + 0.95, 0.42, M.mørkGrå);
+    boks(3.00, F, 1.30, 3.35, F + 0.60, 1.70, M.finer);
+    const rundTeppe = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.01, 32), M.teppe);
+    rundTeppe.position.set(4.0, F + 0.005, 2.3); etg2.add(rundTeppe);
+
+    // bad 7,5 m²: dusjhjørne, dobbel servant, høyskap, vegghengt WC, vaskesøyle
+    boks(T, F, 4.64, 0.95, F + 0.01, 5.45, M.flisBrun);
+    boks(0.93, F, 4.64, 0.95, F + 1.95, 5.45, M.glass);
+    boks(T, F, 5.43, 0.95, F + 1.95, 5.45, M.glass);
+    boks(T, F, 5.75, T + 0.01, F + H, 6.05, M.flisStripe);              // stripe i brun flis
+    boks(0.55, F + 0.45, 6.70, 2.00, F + 0.90, 7.18, M.hvit);
+    boks(0.60, F + 1.15, 7.03, 1.95, F + 1.90, 7.18, M.hvit);
+    boks(0.60, F + 1.17, 7.02, 1.95, F + 1.88, 7.03, M.speil);
+    boks(T, F + 0.30, 6.75, 0.50, F + 2.10, 7.18, M.hvit);
+    boks(2.75, F, 6.10, 2.85, F + 1.10, 6.55, M.hvit);
+    boks(2.30, F + 0.20, 6.15, 2.75, F + 0.42, 6.50, M.hvit);
+    boks(1.98, F, 4.64, 2.85, F + 1.75, 5.09, M.hvit);
+    for (const y of [0.5, 1.25]) {
+      const luke = new THREE.Mesh(new THREE.CircleGeometry(0.17, 24), M.mørkGrå);
+      luke.position.set(2.41, F + y, 5.10); etg2.add(luke);
+    }
+
+    // soverom 12 m² (mot gata): dobbeltseng, nattbord, garderobe med finer
+    boks(4.25, F, 7.83, B - T, F + 2.30, D - T, M.finer);
+    boks(T, F, 7.70, 2.25, F + 0.55, 9.30, M.sengetøy);
+    boks(T, F, 7.70, T + 0.10, F + 1.00, 9.30, M.hvit);
+    boks(T, F + 0.40, 9.33, T + 0.45, F + 0.55, 9.63, M.hvit);
+    boks(1.80, F, 7.80, 3.00, F + 0.01, 9.20, M.teppe);
+
+    // altan 4 m² over inngangsterrassen
+    boks(2.80, H + 0.1, D, B, F - 0.02, 11.70, M.terrasse);
+    spilevegg('x', 11.62, 11.70, 2.80, B, F - 0.02, 1.0);
+    spilevegg('z', 2.80, 2.88, D, 11.62, F - 0.02, 1.0);
+    spilevegg('z', B - 0.08, B, D, 11.62, F - 0.02, 1.0);
+    boks(2.78, F + 1.0, 11.56, B, F + 1.06, 11.72, M.terrasse);
+    boks(2.78, F + 1.0, D, 2.94, F + 1.06, 11.72, M.terrasse);
+    boks(B - 0.14, F + 1.0, D, B, F + 1.06, 11.72, M.terrasse);
+    for (const x of [3.1, 4.0]) {
+      boks(x, F + 0.42, 10.95, x + 0.5, F + 0.47, 11.45, M.mørkGrå);
+      boks(x, F + 0.47, 11.40, x + 0.5, F + 0.90, 11.45, M.mørkGrå);
+    }
+    boks(3.65, F + 0.30, 10.50, 4.05, F + 0.55, 10.90, M.mørkGrå);
+
+    // flatt tak (av/på)
+    const tak2 = new THREE.Group();
+    boks(-0.05, F + H, -0.05, B + 0.05, F + H + 0.25, D + 0.05, M.tak, tak2);
+    etg2.add(tak2);
+
+    mål = scene;
 
     // ---------- Romnavn ----------
-    etikett('Terrasse', '25 m²', 2.6, -2.6);
+    etikett('Terrasse', '25 m²', 2.6, -2.6, 1.3, 'ute');
     etikett('Stue', '35 m²', 2.6, 3.0);
     etikett('Kjøkken', '8 m²', 1.5, 8.0);
     etikett('Entré', '4,5 m²', 3.7, 8.6);
     etikett('Tek. rom', '2 m²', 4.6, 6.3);
     etikett('Terrasse', '4 m²', 4.1, 10.8, 1.0);
-    etikett('Bod', '5 m²', 4.0, 13.1);
+    etikett('Bod', '5 m²', 4.0, 13.1, 1.3, 'ute');
+    etikett('Soverom', '13 m²', 1.6, 2.3, F + 1.3, 'etg2');
+    etikett('Soverom', '7 m²', 4.0, 1.8, F + 1.3, 'etg2');
+    etikett('Gang m/trapp', '8,5 m²', 3.45, 5.2, F + 1.3, 'etg2');
+    etikett('Bad', '7,5 m²', 1.4, 5.9, F + 1.3, 'etg2');
+    etikett('Soverom', '12 m²', 2.6, 8.5, F + 1.3, 'etg2');
+    etikett('Altan', '4 m²', 4.0, 10.8, F + 1.3, 'etg2');
 
     // ---------- Visninger ----------
+    const vis = { etg2: true, lave: false, tak: false, etiketter: true };
+    const fokus = () => midt.clone().setY(vis.etg2 ? F : 0);
+
+    function oppdater() {
+      etg2.visible = vis.etg2;
+      tak.visible = vis.tak && !vis.etg2;
+      tak2.visible = vis.tak;
+      takUte.forEach(o => { o.visible = vis.tak || vis.etg2; });
+      kutt.constant = vis.lave ? (vis.etg2 ? F : 0) + 1.1 : 100;
+      for (const o of etiketter) {
+        const g = o.userData.gruppe;
+        o.visible = vis.etiketter && (g === 'ute' || (g === 'etg2') === vis.etg2);
+      }
+    }
     function sett3d() {
-      camera.position.set(11, 13, -5);
-      controls.target.copy(midt);
+      camera.position.copy(fokus()).add(new THREE.Vector3(8.4, 13, -9.9));
+      controls.target.copy(fokus());
       controls.update();
     }
     function settOvenfra() {
-      camera.position.set(midt.x, 24, midt.z + 0.01);
-      controls.target.copy(midt);
+      camera.position.copy(fokus()).add(new THREE.Vector3(0, 24, 0.01));
+      controls.target.copy(fokus());
       controls.update();
     }
+    oppdater();
     sett3d();
 
     const knapp = id => document.getElementById(id);
-    knapp('vis3d').onclick = () => { sett3d(); knapp('vis3d').classList.add('på'); knapp('ovenfra').classList.remove('på'); };
-    knapp('ovenfra').onclick = () => { settOvenfra(); knapp('ovenfra').classList.add('på'); knapp('vis3d').classList.remove('på'); };
-    knapp('lave').onclick = e => {
-      const på = e.currentTarget.classList.toggle('på');
-      kutt.constant = på ? 1.1 : 100;
-    };
-    knapp('tak').onclick = e => {
-      const på = e.currentTarget.classList.toggle('på');
-      takDeler.forEach(o => { o.visible = på; });
-    };
-    knapp('etiketter').onclick = e => {
-      const på = e.currentTarget.classList.toggle('på');
-      etiketter.forEach(o => { o.visible = på; });
-    };
+    const velg = (på, av) => { knapp(på).classList.add('på'); knapp(av).classList.remove('på'); };
+    let ovenfra = false;
+    const settVisning = () => (ovenfra ? settOvenfra : sett3d)();
+    knapp('vis3d').onclick = () => { ovenfra = false; sett3d(); velg('vis3d', 'ovenfra'); };
+    knapp('ovenfra').onclick = () => { ovenfra = true; settOvenfra(); velg('ovenfra', 'vis3d'); };
+    knapp('etg1').onclick = () => { vis.etg2 = false; velg('etg1', 'etg2'); oppdater(); settVisning(); };
+    knapp('etg2').onclick = () => { vis.etg2 = true; velg('etg2', 'etg1'); oppdater(); settVisning(); };
+    for (const id of ['lave', 'tak', 'etiketter']) {
+      knapp(id).onclick = e => { vis[id] = e.currentTarget.classList.toggle('på'); oppdater(); };
+    }
 
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
