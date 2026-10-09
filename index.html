@@ -184,12 +184,14 @@
 
     // ---------- Hjelpere ----------
     let mål = scene;       // gruppa nye deler legges i (byttes til etg2 for 2. etasje)
+    const veggbokser = []; // vegger og skap som kortes ned med «Lave vegger»
 
     // Boks fra min-/maks-hjørner (meter). Returnerer meshet.
     function boks(x1, y1, z1, x2, y2, z2, m, forelder = mål) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(x2 - x1, y2 - y1, z2 - z1), m);
       mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
       mesh.castShadow = mesh.receiveShadow = true;
+      if (m.clippingPlanes) veggbokser.push({ mesh, y1, y2 });
       forelder.add(mesh);
       return mesh;
     }
@@ -443,9 +445,14 @@
     boks(T, benkH, 6.50, T + 0.01, 1.45, D - T, M.flis);
     boks(0.80, benkH, D - T - 0.01, 2.88, 1.05, D - T, M.flis);
     boks(2.87, benkH, 7.95, 2.88, 1.45, D - T, M.flis);
+    boks(0.80, 1.05, D - T - 0.01, 0.91, 1.45, D - T, M.flis);        // flis ved siden av vinduet
+    boks(2.18, 1.05, D - T - 0.01, 2.88, 1.45, D - T, M.flis);
     boks(T, 1.45, 6.50, 0.55, 2.25, D - T, M.skap);
     boks(0.55, 1.62, 7.55, 0.56, 1.98, 8.05, M.svart);                // mikro
-    boks(2.53, 1.45, 7.95, 2.88, 2.25, 9.05, M.skap);
+    boks(2.53, 1.45, 7.95, 2.88, 2.25, D - T, M.skap);
+    // hjørneskap rundt vinduet, langs ytterveggen
+    boks(0.55, 1.45, D - T - 0.35, 0.91, 2.25, D - T, M.skap);
+    boks(2.18, 1.45, D - T - 0.35, 2.53, 2.25, D - T, M.skap);
 
     // ---------- Stue og spisestue ----------
     // spisebord mot venstre vegg, 6 stoler, taklampe med glasskuler
@@ -789,7 +796,16 @@
       himling2.visible = vis.tak && vis.etasje === 2;
       tak3.visible = vis.tak;
       takUte.forEach(o => { o.visible = vis.tak || vis.etasje >= 2; });
-      kutt.constant = vis.lave ? (vis.etasje - 1) * F + 1.1 : 100;
+      // Bokser kortes ned i stedet for å klippes, så de forblir lukkede og ikke flimrer.
+      // Klippeplanet brukes bare for de få formene som ikke er bokser (trappesider o.l.).
+      const kuttHøyde = vis.lave ? (vis.etasje - 1) * F + 1.1 : Infinity;
+      kutt.constant = vis.lave ? kuttHøyde + 0.002 : 100;
+      for (const { mesh, y1, y2 } of veggbokser) {
+        const topp = Math.min(y2, kuttHøyde);
+        mesh.visible = topp > y1;
+        mesh.scale.y = mesh.visible ? (topp - y1) / (y2 - y1) : 1;
+        mesh.position.y = mesh.visible ? (y1 + topp) / 2 : (y1 + y2) / 2;
+      }
       for (const o of etiketter) {
         const g = o.userData.gruppe;
         o.visible = vis.etiketter && (g === 'ute' || g === `etg${vis.etasje}`);
