@@ -33,13 +33,14 @@
     }
     #videoknapp:hover { background: #3a271b; }
     #video {
-      position: fixed; inset: 0; z-index: 5; display: none;
-      align-items: center; justify-content: center; background: rgba(20,14,10,.78);
+      width: 100vw; height: 100vh; max-width: none; max-height: none;
+      margin: 0; padding: 0; border: 0; background: transparent;
     }
-    #video.åpen { display: flex; }
+    #video[open] { display: flex; align-items: center; justify-content: center; }
+    #video::backdrop { background: rgba(20,14,10,.78); }
     #video video { width: min(92vw, 160vh); max-height: 86vh; border-radius: 12px; background: #000; }
     #video button {
-      position: absolute; top: 12px; right: 12px; font: inherit; font-size: 22px; line-height: 1;
+      position: fixed; top: 12px; right: 12px; font: inherit; font-size: 22px; line-height: 1;
       width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; cursor: pointer;
     }
   </style>
@@ -72,12 +73,12 @@
   </div>
 
   <button id="videoknapp" aria-haspopup="dialog">▶ Se video</button>
-  <div id="video" role="dialog" aria-label="Video: gjennomgang av huset">
-    <button id="lukkVideo" aria-label="Lukk">×</button>
+  <dialog id="video" aria-label="Video: gjennomgang av huset">
+    <button id="lukkVideo" aria-label="Lukk" autofocus>×</button>
     <video id="filmen" controls playsinline preload="none" poster="video/huldervegen.jpg">
       <source src="video/huldervegen.mp4" type="video/mp4">
     </video>
-  </div>
+  </dialog>
 
   <script type="module">
     import * as THREE from 'three';
@@ -825,13 +826,13 @@
       knapp(id).onclick = e => { vis[id] = e.currentTarget.classList.toggle('på'); oppdater(); };
     }
 
-    // Videogjennomgang i et lag over modellen
+    // Videogjennomgang i en modal dialog: fokus holdes i dialogen, Esc lukker,
+    // og nettleseren gir fokus tilbake til knappen etterpå.
     const videoLag = knapp('video'), filmen = knapp('filmen');
-    const lukkVideo = () => { filmen.pause(); videoLag.classList.remove('åpen'); };
-    knapp('videoknapp').onclick = () => { videoLag.classList.add('åpen'); filmen.play().catch(() => {}); };
-    knapp('lukkVideo').onclick = lukkVideo;
-    videoLag.onclick = e => { if (e.target === videoLag) lukkVideo(); };
-    window.addEventListener('keydown', e => { if (e.key === 'Escape') lukkVideo(); });
+    knapp('videoknapp').onclick = () => { videoLag.showModal(); filmen.play().catch(() => {}); };
+    knapp('lukkVideo').onclick = () => videoLag.close();
+    videoLag.onclick = e => { if (e.target === videoLag) videoLag.close(); };   // klikk utenfor videoen
+    videoLag.addEventListener('close', () => filmen.pause());
 
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
