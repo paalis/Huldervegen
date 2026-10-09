@@ -36,10 +36,16 @@
       width: 100vw; height: 100vh; max-width: none; max-height: none;
       margin: 0; padding: 0; border: 0; background: transparent;
     }
-    #video[open] { display: flex; align-items: center; justify-content: center; }
+    #video[open] { display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; }
     #video::backdrop { background: rgba(20,14,10,.78); }
-    #video video { width: min(92vw, 160vh); max-height: 86vh; border-radius: 12px; background: #000; }
-    #video button {
+    #video video { width: min(92vw, 150vh); max-height: 80vh; border-radius: 12px; background: #000; }
+    #videovalg { display: flex; gap: 6px; background: rgba(255,255,255,.12); padding: 4px; border-radius: 10px; }
+    #videovalg button {
+      font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: transparent;
+      border: 0; border-radius: 7px; padding: 7px 14px; cursor: pointer;
+    }
+    #videovalg button[aria-pressed="true"] { background: #fff; color: #2a1d14; }
+    #lukkVideo {
       position: fixed; top: 12px; right: 12px; font: inherit; font-size: 22px; line-height: 1;
       width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; cursor: pointer;
     }
@@ -75,9 +81,11 @@
   <button id="videoknapp" aria-haspopup="dialog">▶ Se video</button>
   <dialog id="video" aria-label="Video: gjennomgang av huset">
     <button id="lukkVideo" aria-label="Lukk" autofocus>×</button>
-    <video id="filmen" controls playsinline preload="none" poster="video/huldervegen.jpg">
-      <source src="video/huldervegen.mp4" type="video/mp4">
-    </video>
+    <div id="videovalg">
+      <button data-film="omvisning" aria-pressed="true">Omvisning · 1:31</button>
+      <button data-film="huldervegen" aria-pressed="false">Kort video · 0:22</button>
+    </div>
+    <video id="filmen" controls playsinline preload="none"></video>
   </dialog>
 
   <script type="module">
@@ -845,6 +853,14 @@
     // Videogjennomgang i en modal dialog: fokus holdes i dialogen, Esc lukker,
     // og nettleseren gir fokus tilbake til knappen etterpå.
     const videoLag = knapp('video'), filmen = knapp('filmen');
+    const valg = [...document.querySelectorAll('#videovalg button')];
+    const velgFilm = navn => {
+      valg.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.film === navn)));
+      filmen.poster = `video/${navn}.jpg`;
+      filmen.src = `video/${navn}.mp4`;
+    };
+    valg.forEach(b => { b.onclick = () => { velgFilm(b.dataset.film); filmen.play().catch(() => {}); }; });
+    velgFilm('omvisning');
     knapp('videoknapp').onclick = () => { videoLag.showModal(); filmen.play().catch(() => {}); };
     knapp('lukkVideo').onclick = () => videoLag.close();
     videoLag.onclick = e => { if (e.target === videoLag) videoLag.close(); };   // klikk utenfor videoen
