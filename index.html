@@ -9,7 +9,7 @@
     #panel {
       position: absolute; top: 12px; left: 12px; z-index: 2;
       background: rgba(255,255,255,.92); border-radius: 10px; padding: 10px 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15); max-width: calc(100vw - 48px);
+      box-shadow: 0 2px 10px rgba(0,0,0,.15); max-width: calc(100vw - 160px);
     }
     #panel h1 { font-size: 15px; margin: 0 0 8px; }
     #panel .rad { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -25,6 +25,23 @@
       pointer-events: none; white-space: nowrap;
     }
     .etikett small { color: #666; }
+    #videoknapp {
+      position: absolute; top: 12px; right: 12px; z-index: 2;
+      font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: #4b3324;
+      border: 0; border-radius: 10px; padding: 9px 14px; cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,.2);
+    }
+    #videoknapp:hover { background: #3a271b; }
+    #video {
+      position: fixed; inset: 0; z-index: 5; display: none;
+      align-items: center; justify-content: center; background: rgba(20,14,10,.78);
+    }
+    #video.åpen { display: flex; }
+    #video video { width: min(92vw, 160vh); max-height: 86vh; border-radius: 12px; background: #000; }
+    #video button {
+      position: absolute; top: 12px; right: 12px; font: inherit; font-size: 22px; line-height: 1;
+      width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; cursor: pointer;
+    }
   </style>
   <script type="importmap">
     {
@@ -52,6 +69,14 @@
     </div>
     <p>Dra for å rotere, høyreklikk/to fingre for å flytte, scroll for zoom.<br>
        Mål fra planskisse (ca.), ikke oppmålt.</p>
+  </div>
+
+  <button id="videoknapp" aria-haspopup="dialog">▶ Se video</button>
+  <div id="video" role="dialog" aria-label="Video: gjennomgang av huset">
+    <button id="lukkVideo" aria-label="Lukk">×</button>
+    <video id="filmen" controls playsinline preload="none" poster="video/huldervegen.jpg">
+      <source src="video/huldervegen.mp4" type="video/mp4">
+    </video>
   </div>
 
   <script type="module">
@@ -799,6 +824,14 @@
       knapp(id).onclick = e => { vis[id] = e.currentTarget.classList.toggle('på'); oppdater(); };
     }
 
+    // Videogjennomgang i et lag over modellen
+    const videoLag = knapp('video'), filmen = knapp('filmen');
+    const lukkVideo = () => { filmen.pause(); videoLag.classList.remove('åpen'); };
+    knapp('videoknapp').onclick = () => { videoLag.classList.add('åpen'); filmen.play().catch(() => {}); };
+    knapp('lukkVideo').onclick = lukkVideo;
+    videoLag.onclick = e => { if (e.target === videoLag) lukkVideo(); };
+    window.addEventListener('keydown', e => { if (e.key === 'Escape') lukkVideo(); });
+
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -811,6 +844,9 @@
       renderer.render(scene, camera);
       etikettRenderer.render(scene, camera);
     });
+
+    // Brukes av opptaksskriptet for videoen (styrer kamera og visning bilde for bilde).
+    window.huldervegen = { THREE, scene, camera, renderer, controls, vis, oppdater, tak3, F };
   </script>
 </body>
 </html>
