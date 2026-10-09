@@ -4,8 +4,451 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Huldervegen</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #e9eef2; font-family: system-ui, sans-serif; }
+    #panel {
+      position: absolute; top: 12px; left: 12px; z-index: 2;
+      background: rgba(255,255,255,.92); border-radius: 10px; padding: 10px 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15); max-width: calc(100vw - 48px);
+    }
+    #panel h1 { font-size: 15px; margin: 0 0 8px; }
+    #panel .rad { display: flex; flex-wrap: wrap; gap: 6px; }
+    #panel button {
+      font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px;
+      border: 1px solid #b9b2a8; background: #fff; cursor: pointer;
+    }
+    #panel button.på { background: #4b3324; color: #fff; border-color: #4b3324; }
+    #panel p { font-size: 11px; color: #666; margin: 8px 0 0; }
+    .etikett {
+      font-size: 12px; line-height: 1.2; text-align: center; color: #222;
+      background: rgba(255,255,255,.85); padding: 2px 6px; border-radius: 4px;
+      pointer-events: none; white-space: nowrap;
+    }
+    .etikett small { color: #666; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-  <p>3D-modellen kommer her.</p>
+  <div id="panel">
+    <h1>Huldervegen – 1. etasje</h1>
+    <div class="rad">
+      <button id="vis3d" class="på">3D</button>
+      <button id="ovenfra">Ovenfra</button>
+      <button id="lave">Lave vegger</button>
+      <button id="tak">Tak</button>
+      <button id="etiketter" class="på">Etiketter</button>
+    </div>
+    <p>Dra for å rotere, høyreklikk/to fingre for å flytte, scroll for zoom.<br>
+       Mål fra planskisse (ca.), ikke oppmålt.</p>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+    // Koordinater i meter. Origo = hagesidens ytre hjørne til venstre på planskissen.
+    // x: bredde (0 → 5,27), z: dybde fra hage (0) mot inngang (9,85), y: opp. Gulv inne = 0.
+    const B = 5.27;        // husets bredde
+    const D = 9.85;        // husets dybde
+    const T = 0.2;         // yttervegg
+    const H = 2.5;         // takhøyde
+    const UTE = -0.35;     // terreng på inngangssiden
+
+    // ---------- Renderer, scene, kamera ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.localClippingEnabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const etikettRenderer = new CSS2DRenderer();
+    etikettRenderer.setSize(window.innerWidth, window.innerHeight);
+    Object.assign(etikettRenderer.domElement.style, { position: 'absolute', top: '0', pointerEvents: 'none' });
+    document.body.appendChild(etikettRenderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe9eef2);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+    const midt = new THREE.Vector3(B / 2, 0, 4.9);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    controls.minDistance = 2;
+    controls.maxDistance = 60;
+
+    // ---------- Lys ----------
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a6a, 1.6));
+    const sol = new THREE.DirectionalLight(0xfff3e0, 2.2);
+    sol.position.set(-8, 14, -6);
+    sol.target.position.copy(midt);
+    sol.castShadow = true;
+    sol.shadow.mapSize.set(2048, 2048);
+    Object.assign(sol.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 50 });
+    sol.shadow.bias = -0.0005;
+    scene.add(sol, sol.target);
+
+    // ---------- Materialer ----------
+    // Kutteplan for «lave vegger»: alt over konstanten klippes bort.
+    const kutt = new THREE.Plane(new THREE.Vector3(0, -1, 0), 100);
+    const mat = (color, opt = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...opt });
+    const veggMat = (color, opt = {}) => mat(color, { clippingPlanes: [kutt], clipShadows: true, side: THREE.DoubleSide, ...opt });
+
+    const M = {
+      innervegg: veggMat(0xb8afa4),
+      kledning:  veggMat(0x4b3324),
+      ramme:     veggMat(0x5e4838),
+      hvitRamme: veggMat(0xf1efeb),
+      glass:     veggMat(0xa9cbe0, { transparent: true, opacity: 0.3, roughness: 0.05, depthWrite: false }),
+      ytterdør:  veggMat(0x3f2a1f),
+      hvitDør:   veggMat(0xf6f5f2),
+      bodDør:    veggMat(0x7a4a36),
+      speil:     veggMat(0xd5dde2, { metalness: 0.9, roughness: 0.08 }),
+      eik:       mat(0xdcbf95),
+      fliser:    mat(0x3a322d),
+      grått:     mat(0xc9c4bc),
+      terrasse:  mat(0x6a4630),
+      spiler:    mat(0x6e4c33),
+      asfalt:    mat(0x707070),
+      gress:     mat(0x8a9a78),
+      hvit:      mat(0xf3f2ef, { roughness: 0.5 }),
+      benk:      mat(0xa8713c, { roughness: 0.6 }),
+      flis:      mat(0xece5da),
+      svart:     mat(0x1d1d1f, { roughness: 0.5 }),
+      stål:      mat(0xbfc3c6, { metalness: 0.8, roughness: 0.3 }),
+      sofa:      mat(0xcdc8c0),
+      teppe:     mat(0xcfc8bb),
+      bordplate: mat(0xb07a45, { roughness: 0.6 }),
+      tvBenk:    mat(0xd6d0c8),
+      kugle:     mat(0x8a8f94, { transparent: true, opacity: 0.75, roughness: 0.1, metalness: 0.3 }),
+      flett:     mat(0x8f8676),
+      tak:       veggMat(0xf4f3f0),
+      skap:      veggMat(0xf3f2ef, { roughness: 0.5 }),
+      porteTak:  mat(0xb9bcbd),
+    };
+
+    // ---------- Hjelpere ----------
+    // Boks fra min-/maks-hjørner (meter). Returnerer meshet.
+    function boks(x1, y1, z1, x2, y2, z2, m, forelder = scene) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(x2 - x1, y2 - y1, z2 - z1), m);
+      mesh.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+      mesh.castShadow = mesh.receiveShadow = true;
+      forelder.add(mesh);
+      return mesh;
+    }
+
+    // Vegg langs x (akse 'x', okkuperer z a..b) eller langs z (akse 'z', okkuperer x a..b).
+    // Åpninger: { fra, til, nede, oppe, type: 'vindu' | 'dør' | 'glassdør' | 'åpning', farge }
+    function vegg(akse, a, b, fra, til, åpninger = [], m = M.innervegg, y0 = 0, h = H) {
+      const del = (s1, s2, y1, y2, mm = m) => akse === 'x'
+        ? boks(s1, y1, a, s2, y2, b, mm)
+        : boks(a, y1, s1, b, y2, s2, mm);
+      const midt = (a + b) / 2;
+      const tynn = (s1, s2, y1, y2, mm, tykk = 0.04) => akse === 'x'
+        ? boks(s1, y1, midt - tykk / 2, s2, y2, midt + tykk / 2, mm)
+        : boks(midt - tykk / 2, y1, s1, midt + tykk / 2, y2, s2, mm);
+
+      let pos = fra;
+      for (const o of [...åpninger].sort((p, q) => p.fra - q.fra)) {
+        if (o.fra > pos) del(pos, o.fra, y0, y0 + h);
+        if (o.nede > 0) del(o.fra, o.til, y0, y0 + o.nede);
+        if (o.oppe < h) del(o.fra, o.til, y0 + o.oppe, y0 + h);
+        const ramme = o.ramme ?? M.ramme, r = 0.05;
+        const y1 = y0 + o.nede, y2 = y0 + o.oppe;
+        if (o.type === 'vindu' || o.type === 'glassdør') {
+          tynn(o.fra, o.til, y1, y2, M.glass, 0.02).castShadow = false;
+          tynn(o.fra, o.fra + r, y1, y2, ramme, 0.08);
+          tynn(o.til - r, o.til, y1, y2, ramme, 0.08);
+          tynn(o.fra, o.til, y2 - r, y2, ramme, 0.08);
+          tynn(o.fra, o.til, y1, y1 + r, ramme, 0.08);
+          for (const s of o.poster ?? []) tynn(s - r / 2, s + r / 2, y1, y2, ramme, 0.08);
+        } else if (o.type === 'dør') {
+          tynn(o.fra, o.til, y1, y2, o.farge ?? M.ytterdør, 0.05);
+        }
+        pos = o.til;
+      }
+      if (til > pos) del(pos, til, y0, y0 + h);
+    }
+
+    // Liggende spiler (gjerde/kledning) langs x eller z.
+    function spilevegg(akse, a, b, fra, til, y0, h, m = M.spiler) {
+      for (let y = y0 + 0.02; y < y0 + h; y += 0.075) {
+        const y2 = Math.min(y + 0.048, y0 + h);
+        if (akse === 'x') boks(fra, y, a, til, y2, b, m); else boks(a, y, fra, b, y2, til, m);
+      }
+      const stolpe = 0.06;
+      for (let s = fra; s < til; s += 1.2) {
+        if (akse === 'x') boks(s, y0, a, Math.min(s + stolpe, til), y0 + h, b, m);
+        else boks(a, y0, s, b, y0 + h, Math.min(s + stolpe, til), m);
+      }
+    }
+
+    const etiketter = [];
+    function etikett(tekst, areal, x, z, y = 1.3) {
+      const div = document.createElement('div');
+      div.className = 'etikett';
+      div.innerHTML = `${tekst}<br><small>${areal}</small>`;
+      const obj = new CSS2DObject(div);
+      obj.position.set(x, y, z);
+      scene.add(obj);
+      etiketter.push(obj);
+    }
+
+    // ---------- Terreng og gulv ----------
+    boks(-12, UTE - 0.1, -12, 18, UTE, 22, M.gress).castShadow = false;
+    boks(-0.6, UTE, D, 2.82, UTE + 0.01, 14.55, M.asfalt);           // gårdsplass foran
+    boks(0, -0.2, 0, B, 0, D, M.grått);                               // betongdekke
+    boks(T, 0, T, B - T, 0.01, D - T, M.eik);                         // eikeparkett
+    boks(2.98, 0.01, 7.35, 4.42, 0.015, D - T, M.fliser);             // entré, mørke fliser
+    boks(0, -0.2, -4.72, B, -0.05, 0, M.terrasse);                    // terrasse 25 m²
+    for (let x = 0.05; x < B; x += 0.15) boks(x, -0.05, -4.72, x + 0.12, -0.03, 0, M.terrasse);
+
+    // ---------- Yttervegger (indre lag greige, ytre lag kledning) ----------
+    const hageÅpninger = [
+      { fra: 0.30, til: 3.20, nede: 0.12, oppe: 2.30, type: 'vindu', poster: [1.75] },
+      { fra: 3.35, til: 4.20, nede: 0.00, oppe: 2.30, type: 'glassdør' },
+      { fra: 4.25, til: 4.95, nede: 0.12, oppe: 2.30, type: 'vindu' },
+    ];
+    vegg('x', 0, 0.1, 0, B, hageÅpninger, M.kledning);
+    vegg('x', 0.1, T, T, B - T, hageÅpninger.map(o => ({ ...o, type: 'åpning' })));
+
+    const frontÅpninger = [
+      { fra: 0.91, til: 2.18, nede: 0.95, oppe: 2.10, type: 'vindu', poster: [1.75] },
+      { fra: 3.15, til: 3.90, nede: 0.00, oppe: 2.10, type: 'dør' },
+    ];
+    vegg('x', D - 0.1, D, 0, B, frontÅpninger, M.kledning);
+    vegg('x', D - T, D - 0.1, T, B - T, frontÅpninger.map(o => ({ ...o, type: 'åpning' })));
+    // rundt vindu i ytterdøra
+    const koøye = new THREE.Mesh(new THREE.CircleGeometry(0.13, 24), M.glass);
+    koøye.position.set(3.525, 1.5, D - 0.02);
+    scene.add(koøye);
+
+    vegg('z', 0, 0.1, 0, D, [], M.kledning);
+    vegg('z', 0.1, T, T, D - T);
+    vegg('z', B - 0.1, B, 0, D, [], M.kledning);
+    vegg('z', B - T, B - 0.1, T, D - T);
+
+    // ---------- Innervegger ----------
+    vegg('z', 2.88, 2.98, 7.25, D - T);                               // kjøkken | entré
+    boks(2.28, 0, 6.80, 2.98, H, 7.25, M.innervegg);                  // pilar med speil
+    const speil = new THREE.Mesh(new THREE.CircleGeometry(0.22, 32), M.speil);
+    speil.position.set(2.63, 1.5, 6.79); speil.rotation.y = Math.PI;
+    scene.add(speil);
+    vegg('x', 7.25, 7.35, 2.98, B - T, [                              // stue | entré / tek. rom
+      { fra: 3.10, til: 3.90, nede: 0, oppe: 2.05, type: 'åpning' },
+    ]);
+    boks(3.12, 0, 7.35, 3.16, 2.03, 8.13, M.hvitDør);                 // innerdør, åpen inn i entré
+    vegg('z', 4.12, 4.22, 5.20, 7.25, [                               // tek. rom, vestvegg
+      { fra: 6.36, til: 7.05, nede: 0, oppe: 2.05, type: 'dør', farge: M.hvitDør },
+    ]);
+    vegg('x', 5.20, 5.30, 4.22, B - T);                               // tek. rom, nordvegg
+
+    // Garderobe med speilskyvedører i entré
+    boks(4.42, 0, 7.45, B - T, 2.4, 9.55, M.skap);
+    boks(4.41, 0.05, 7.47, 4.42, 2.35, 9.53, M.speil);
+
+    // ---------- Trapp (stiger mot hagen, langs høyre vegg) ----------
+    const trinn = 13, opptrinn = 0.2, inntrinn = 0.2, trappBunn = 5.2, åpneTrinn = 3;
+    const u0 = åpneTrinn * inntrinn;                   // der den lukkede siden starter
+    for (let i = 0; i < trinn; i++) {
+      const z2 = trappBunn - i * inntrinn, z1 = z2 - inntrinn, y = (i + 1) * opptrinn;
+      const x1 = i < åpneTrinn ? 4.12 : 4.22;          // nederste trinn er åpne mot stua
+      boks(x1, 0, z1, B - T, y - 0.03, z2, M.hvit);
+      boks(x1 - 0.02, y - 0.03, z1 - 0.02, B - T, y, z2, M.eik);
+    }
+    // lukket side under trappa (der skjenken står)
+    const sideForm = new THREE.Shape();
+    sideForm.moveTo(u0, 0);
+    sideForm.lineTo(trinn * inntrinn, 0);
+    sideForm.lineTo(trinn * inntrinn, trinn * opptrinn);
+    sideForm.lineTo(u0, u0 + opptrinn);
+    sideForm.closePath();
+    const side = new THREE.Mesh(new THREE.ExtrudeGeometry(sideForm, { depth: 0.1, bevelEnabled: false }), M.innervegg);
+    side.rotation.y = Math.PI / 2;                    // former x → -z, ekstrudering → +x
+    side.position.set(4.12, 0, trappBunn);
+    side.castShadow = side.receiveShadow = true;
+    scene.add(side);
+    // rekkverk med hvite spiler
+    for (let i = åpneTrinn; i < trinn; i++) {
+      const z = trappBunn - (i + 0.5) * inntrinn, y = (i + 1) * opptrinn;
+      boks(4.15, y, z - 0.015, 4.18, y + 0.9, z + 0.015, M.hvit);
+    }
+    const løp = trinn * inntrinn - u0;
+    const håndløper = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, Math.hypot(løp, løp * opptrinn / inntrinn)), M.hvit);
+    håndløper.position.set(4.165, u0 + løp / 2 + opptrinn / 2 + 0.95, trappBunn - u0 - løp / 2);
+    håndløper.rotation.x = Math.atan2(opptrinn, inntrinn);
+    scene.add(håndløper);
+
+    // ---------- Kjøkken (U-form) ----------
+    const benkH = 0.9;
+    // langs venstre vegg, med komfyr og stekeovn
+    boks(T, 0, 6.50, 0.80, benkH - 0.04, D - T, M.hvit);
+    boks(T, benkH - 0.04, 6.50, 0.82, benkH, D - T, M.benk);
+    boks(0.25, benkH, 8.22, 0.75, benkH + 0.01, 8.80, M.svart);       // induksjon
+    boks(0.80, 0.15, 8.22, 0.81, 0.75, 8.80, M.svart);                // stekeovn
+    // langs vinduet
+    boks(0.80, 0, D - T - 0.6, 2.88, benkH - 0.04, D - T, M.hvit);
+    boks(0.80, benkH - 0.04, D - T - 0.62, 2.88, benkH, D - T, M.benk);
+    // langs entréveggen, med vask og høyskap
+    boks(2.28, 0, 7.95, 2.88, benkH - 0.04, D - T - 0.6, M.hvit);
+    boks(2.26, benkH - 0.04, 7.95, 2.88, benkH, D - T - 0.6, M.benk);
+    boks(2.40, benkH - 0.02, 8.30, 2.75, benkH + 0.005, 8.70, M.stål); // vask
+    boks(2.28, 0, 7.25, 2.88, 2.25, 7.95, M.skap);                    // høyskap/kjøleskap
+    // fliser og overskap
+    boks(T, benkH, 6.50, T + 0.01, 1.45, D - T, M.flis);
+    boks(0.80, benkH, D - T - 0.01, 2.88, 1.05, D - T, M.flis);
+    boks(2.87, benkH, 7.95, 2.88, 1.45, D - T, M.flis);
+    boks(T, 1.45, 6.50, 0.55, 2.25, D - T, M.skap);
+    boks(0.55, 1.62, 7.55, 0.56, 1.98, 8.05, M.svart);                // mikro
+    boks(2.53, 1.45, 7.95, 2.88, 2.25, 9.05, M.skap);
+
+    // ---------- Stue og spisestue ----------
+    // spisebord mot venstre vegg, 6 stoler, taklampe med glasskuler
+    boks(T, 0.72, 5.30, 2.30, 0.76, 6.20, M.bordplate);
+    for (const x of [0.45, 2.05]) boks(x, 0, 5.40, x + 0.06, 0.72, 6.10, M.svart);
+    for (const x of [0.70, 1.30, 1.90]) {
+      for (const [z1, z2, rz1, rz2] of [[4.80, 5.25, 4.76, 4.84], [6.25, 6.70, 6.66, 6.74]]) {
+        boks(x - 0.2, 0.42, z1, x + 0.2, 0.48, z2, M.svart);
+        boks(x - 0.2, 0.48, rz1, x + 0.2, 0.92, rz2, M.svart);
+        for (const dx of [-0.17, 0.15]) for (const dz of [z1 + 0.02, z2 - 0.04]) boks(x + dx, 0, dz, x + dx + 0.02, 0.42, dz + 0.02, M.svart);
+      }
+    }
+    boks(0.6, 1.85, 5.73, 1.95, 1.87, 5.77, M.svart);
+    for (let i = 0; i < 8; i++) {
+      const k = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), M.kugle);
+      k.position.set(0.65 + i * 0.18, i % 2 ? 1.78 : 1.72, 5.75 + (i % 3 - 1) * 0.08);
+      scene.add(k);
+    }
+    // skjenk under trappa
+    boks(3.72, 0.12, 3.00, 4.12, 0.80, 4.40, M.svart);
+    // sofa i L langs hagevinduet og venstre vegg, sjeselong mot midten
+    const sofa = (x1, z1, x2, z2, rygg) => {
+      boks(x1, 0.05, z1, x2, 0.45, z2, M.sofa);
+      if (rygg === 'x1') boks(x1, 0.45, z1, x1 + 0.22, 0.85, z2, M.sofa);
+      if (rygg === 'z1') boks(x1, 0.45, z1, x2, 0.85, z1 + 0.22, M.sofa);
+    };
+    sofa(T + 0.05, 0.45, 2.90, 1.40, 'z1');
+    sofa(T + 0.05, 1.40, 1.20, 3.60, 'x1');
+    sofa(1.20, 2.70, 2.10, 3.60);
+    boks(1.00, 0.01, 1.10, 3.50, 0.02, 4.00, M.teppe);
+    const bord = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.04, 32), M.svart);
+    bord.position.set(2.1, 0.45, 2.1); bord.castShadow = true; scene.add(bord);
+    // TV-benk og TV på høyre vegg mellom hagevindu og trapp
+    boks(B - T - 0.45, 0, 0.45, B - T, 0.55, 2.35, M.tvBenk);
+    boks(B - T - 0.08, 0.95, 0.65, B - T - 0.04, 1.75, 2.15, M.svart);
+
+    // ---------- Terrasse mot hagen (25 m²) ----------
+    spilevegg('z', 0, 0.06, -4.72, 0, -0.05, 1.6);
+    spilevegg('z', B - 0.06, B, -4.72, 0, -0.05, 2.0);
+    spilevegg('x', -4.72, -4.66, 0.85, B, -0.05, 1.2);
+    // hengestol, loungesett og sofa
+    boks(0.75, -0.05, -3.55, 0.85, 2.0, -3.45, M.svart);
+    boks(0.75, 1.95, -3.55, 1.45, 2.0, -3.45, M.svart);
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.75), M.svart);
+    egg.position.set(1.4, 0.95, -3.1); egg.rotation.x = -0.5; egg.castShadow = true; scene.add(egg);
+    boks(2.60, 0.62, -2.10, 3.90, 0.66, -1.20, M.flett);
+    boks(2.70, -0.05, -2.00, 3.80, 0.62, -1.30, M.flett);
+    for (const z of [-2.0, -1.3]) boks(1.80, -0.05, z - 0.1, 2.45, 0.75, z + 0.45, M.flett);
+    boks(4.45, -0.05, -3.30, B - 0.1, 0.45, -0.70, M.flett);
+    boks(B - 0.3, 0.45, -3.30, B - 0.1, 0.80, -0.70, M.flett);
+
+    // ---------- Inngangsparti: terrasse 4 m², bod 5 m², gårdsplass ----------
+    boks(3.06, UTE, D, B, -0.03, 11.66, M.terrasse);
+    for (const [x1, y2] of [[2.64, UTE + 0.11], [2.85, UTE + 0.22]]) boks(x1, UTE, 10.2, 3.06, y2, 11.4, M.terrasse);
+    spilevegg('z', B - 0.08, B, D, 11.66, -0.03, 1.0);               // lav vegg mot utsikten
+    boks(4.55, -0.03, 10.40, B - 0.1, 0.42, 11.10, M.benk);          // benk
+    boks(3.06, H, D, B, H + 0.1, 11.66, M.porteTak).userData.tak = true;
+    // bod
+    const bodY0 = UTE;
+    spilevegg('x', 11.66, 11.74, 2.82, B, bodY0, H - UTE);
+    spilevegg('x', 14.47, 14.55, 2.82, B, bodY0, H - UTE);
+    spilevegg('z', B - 0.08, B, 11.74, 14.47, bodY0, H - UTE);
+    vegg('z', 2.82, 2.90, 11.66, 14.55, [
+      { fra: 13.00, til: 13.70, nede: 0, oppe: 2.1, type: 'dør', farge: M.bodDør },
+    ], M.spiler, bodY0, H - UTE);
+    boks(2.82, H, 11.66, B, H + 0.1, 14.55, M.porteTak).userData.tak = true;
+    // naboens spilevegg og stoler under kjøkkenvinduet
+    spilevegg('z', -0.1, 0, D, 14.55, UTE, 1.8);
+    for (const x of [0.75, 1.85]) {
+      boks(x - 0.28, UTE, 10.05, x + 0.28, UTE + 0.45, 10.55, M.flett);
+      boks(x - 0.28, UTE + 0.45, 10.05, x + 0.28, UTE + 0.8, 10.15, M.flett);
+    }
+    const lite = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.03, 24), M.tvBenk);
+    lite.position.set(1.3, UTE + 0.5, 10.3); scene.add(lite);
+
+    // ---------- Himling (av/på) med hull for trappa ----------
+    const tak = new THREE.Group();
+    boks(0, H, 0, B, H + 0.2, 2.4, M.tak, tak);
+    boks(0, H, 5.2, B, H + 0.2, D, M.tak, tak);
+    boks(0, H, 2.4, 4.12, H + 0.2, 5.2, M.tak, tak);
+    tak.visible = false;
+    scene.add(tak);
+    const takDeler = [tak];
+    scene.traverse(o => { if (o.userData.tak) { o.visible = false; takDeler.push(o); } });
+
+    // ---------- Romnavn ----------
+    etikett('Terrasse', '25 m²', 2.6, -2.6);
+    etikett('Stue', '35 m²', 2.6, 3.0);
+    etikett('Kjøkken', '8 m²', 1.5, 8.0);
+    etikett('Entré', '4,5 m²', 3.7, 8.6);
+    etikett('Tek. rom', '2 m²', 4.6, 6.3);
+    etikett('Terrasse', '4 m²', 4.1, 10.8, 1.0);
+    etikett('Bod', '5 m²', 4.0, 13.1);
+
+    // ---------- Visninger ----------
+    function sett3d() {
+      camera.position.set(11, 13, -5);
+      controls.target.copy(midt);
+      controls.update();
+    }
+    function settOvenfra() {
+      camera.position.set(midt.x, 24, midt.z + 0.01);
+      controls.target.copy(midt);
+      controls.update();
+    }
+    sett3d();
+
+    const knapp = id => document.getElementById(id);
+    knapp('vis3d').onclick = () => { sett3d(); knapp('vis3d').classList.add('på'); knapp('ovenfra').classList.remove('på'); };
+    knapp('ovenfra').onclick = () => { settOvenfra(); knapp('ovenfra').classList.add('på'); knapp('vis3d').classList.remove('på'); };
+    knapp('lave').onclick = e => {
+      const på = e.currentTarget.classList.toggle('på');
+      kutt.constant = på ? 1.1 : 100;
+    };
+    knapp('tak').onclick = e => {
+      const på = e.currentTarget.classList.toggle('på');
+      takDeler.forEach(o => { o.visible = på; });
+    };
+    knapp('etiketter').onclick = e => {
+      const på = e.currentTarget.classList.toggle('på');
+      etiketter.forEach(o => { o.visible = på; });
+    };
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      etikettRenderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    renderer.setAnimationLoop(() => {
+      controls.update();
+      renderer.render(scene, camera);
+      etikettRenderer.render(scene, camera);
+    });
+  </script>
 </body>
 </html>

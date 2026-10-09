@@ -5,6 +5,12 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 - `index.html` – selve 3D-modellen (én selvstendig fil)
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
 
+### Status
+
+- **1. etasje** er modellert: stue, kjøkken, entré, tek. rom, trapp, terrasse mot hagen (25 m²),
+  inngangsterrasse (4 m²) og bod (5 m²). Mål er hentet fra meglerens planskisse (Cubicasa, ca. 67 px/m)
+  og er omtrentlige; møblering og materialer er tolket fra bildene.
+
 ## Claude-skills for Three.js
 
 `.claude/skills/` inneholder seks Three.js-skills kopiert fra
