@@ -14,6 +14,9 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
   og svinger ut mot gangen i 2. etasje.
 - **2. etasje** er modellert: tre soverom (13, 7 og 12 m²), bad (7,5 m²), gang med trapp (8,5 m²)
   og altan (4 m²) over inngangsterrassen.
+- **3. etasje** er modellert: stue (15,5 m²), soverom (8 m²), vaskerom (4,5 m²), bod (1 m², hevet gulv
+  over trappa) og takterrasse (17 m²). Trappa fra 2. til 3. etasje ligger rett over den nederste.
+- Sideveggene på terrassen i 1. etasje og på takterrassen er høye inntil huset og skrår ned utover.
 
 ## Claude-skills for Three.js
 
