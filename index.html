@@ -106,7 +106,8 @@
 
     const etikettRenderer = new CSS2DRenderer();
     etikettRenderer.setSize(window.innerWidth, window.innerHeight);
-    Object.assign(etikettRenderer.domElement.style, { position: 'absolute', top: '0', pointerEvents: 'none' });
+    // egen stablingskontekst, ellers legger etikettenes z-index seg over panel og videolag
+    Object.assign(etikettRenderer.domElement.style, { position: 'absolute', top: '0', pointerEvents: 'none', zIndex: '1' });
     document.body.appendChild(etikettRenderer.domElement);
 
     const scene = new THREE.Scene();
