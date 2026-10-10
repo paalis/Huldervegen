@@ -551,14 +551,12 @@
       g.position.set(x, 0, z);
       mål.add(g);
     }
-    // ovalt spisebord på søyle, seks stoler, taklampe med røykfargede glasskuler langs bordet
+    // ovalt spisebord på søyle, seks stoler langs langsidene, taklampe med røykfargede glasskuler langs bordet
     // bordet står på tvers av rommet, med langsiden parallelt med hagefasaden
     oval(1.55, 5.35, 0.85, 0.50, 0.72, 0.75, M.mørkEik);
     boks(1.15, 0, 5.29, 1.95, 0.72, 5.41, M.mørkEik);
     boks(1.49, 0, 5.05, 1.61, 0.72, 5.65, M.mørkEik);
-    for (const x of [1.20, 1.90]) { stol(x, 4.60, 0); stol(x, 6.10, Math.PI); }
-    stol(0.50, 5.35, Math.PI / 2);
-    stol(2.60, 5.35, -Math.PI / 2);
+    for (const x of [1.00, 1.55, 2.10]) { stol(x, 4.60, 0); stol(x, 6.10, Math.PI); } // tre på hver langside
     boks(1.00, 1.88, 5.33, 2.10, 1.90, 5.37, M.svart);
     for (const x of [1.20, 1.90]) boks(x, 1.90, 5.345, x + 0.01, H, 5.355, M.svart);
     for (let i = 0; i < 8; i++) {
@@ -768,15 +766,14 @@
     }
 
     // soverom 13 m² (mot hagen): hvite garderobeskap med speildør og hjørneskap mot badet,
-    // kommode og seng langs veggen, nattbord ved vinduet
+    // kommode og seng langs veggen, skjøvet helt inntil vindusveggen, nattbord ved vinduet
     garderobe(0.75, 3.97, 2.05, 4.55);
     boks(1.19, F + 0.05, 3.965, 1.61, F + 2.30, 3.97, M.speil);
     garderobe(T, 3.40, 0.75, 4.55);
     boks(T, F, 2.62, 0.68, F + 0.98, 3.38, M.hvit);                   // kommode
-    seng(T + 0.02, 0.55, 1.40, 2.55);
-    boks(T + 0.02, F + 0.40, 2.40, 0.40, F + 0.85, 2.55, M.mørkGrå);  // puter mot kommoden
+    seng(T + 0.02, T + 0.02, 1.40, T + 2.02);
     boks(1.45, F, 0.28, 1.90, F + 0.50, 0.68, M.hvit);                // nattbord
-    boks(1.05, F + 0.12, 0.20, 2.65, F + 0.42, 0.27, M.hvit);         // radiator
+    boks(1.45, F + 0.12, 0.20, 2.65, F + 0.42, 0.27, M.hvit);         // radiator, ved siden av senga
     for (const z of [1.30, 1.75]) boks(2.825, F + 1.25, z, 2.85, F + 1.85, z + 0.35, M.svart);
 
     // soverom 7 m² (mot hagen, lyseblått): seng under vinduet fra vegg til vegg, svart nattbord,
@@ -792,7 +789,7 @@
     }
 
     // bad 7,5 m²: dusjhjørne med glassdører, vegghengt dobbel servant mellom to høyskap,
-    // speil med lysrør, WC på flislagt innkassing, vaskesøyle med runde åpninger
+    // speil med lysrør, vegghengt WC på sjakta ved servanten (brun stripeflis), vaskesøyle med runde åpninger
     boks(T, F, 4.64, 0.95, F + 0.01, 5.45, M.flis);                   // lys mosaikk i dusjen
     boks(0.93, F, 4.64, 0.95, F + 1.95, 5.45, M.glass);
     boks(T, F, 5.43, 0.95, F + 1.95, 5.45, M.glass);
@@ -803,9 +800,9 @@
     boks(0.66, F + 1.10, 7.17, 1.74, F + 1.85, 7.18, M.speil);
     boks(0.70, F + 1.90, 7.08, 1.66, F + 1.95, 7.18, M.stål);         // lysrør over speilet
     for (const x1 of [T + 0.03, 1.78]) boks(x1, F + 0.30, 6.80, x1 + 0.37, F + 2.10, 7.18, M.hvit);
-    boks(2.60, F, 6.10, 2.85, F + H, 6.75, M.flisStripe);             // innkassing for WC
-    boks(2.18, F + 0.25, 6.24, 2.60, F + 0.42, 6.61, M.hvit);         // WC
-    boks(2.595, F + 1.00, 6.32, 2.60, F + 1.15, 6.53, M.stål);        // skylleplate
+    boks(2.17, F, 6.745, 2.85, F + H, 6.75, M.flisStripe);            // stripeflis på sjakta
+    boks(2.42, F + 0.25, 6.20, 2.78, F + 0.42, 6.745, M.hvit);        // WC, mot dusjen
+    boks(2.52, F + 1.00, 6.74, 2.68, F + 1.15, 6.745, M.stål);        // skylleplate
     for (const [lx, lz] of [[1.98, 4.66], [2.80, 4.66], [1.98, 5.03], [2.80, 5.03]]) boks(lx, F, lz, lx + 0.04, F + 0.15, lz + 0.04, M.stål);
     boks(1.98, F + 0.15, 4.64, 2.85, F + 1.90, 5.09, M.hvit);         // vaskesøyle
     for (const [x, y] of [[2.20, 1.00], [2.62, 1.00], [2.20, 1.50], [2.62, 1.50]]) {
@@ -814,12 +811,13 @@
     }
 
     // soverom 12 m² (mot gata): innebygd garderobe med skyvedører i eik mellom sjakta og
-    // fasaden, dobbeltseng mot veggen, TV på stativ, brune gardiner
+    // fasaden, dobbeltseng mot veggen med nattbord på hver side, TV på stativ, brune gardiner
     boks(4.47, F, 7.85, B - T, F + 2.35, 9.45, M.finer);
     boks(4.465, F + 0.02, 8.645, 4.47, F + 2.30, 8.655, M.stål);     // skinne mellom dørene
     boks(4.47, F + 2.35, 7.85, B - T, F + H, 9.45, standardVegg);
-    seng(T + 0.02, 7.85, 2.20, 9.25, M.sengetøy);
-    boks(T + 0.02, F, 7.38, 0.62, F + 0.45, 7.78, M.finer);           // nattbord
+    seng(T + 0.02, 7.82, 2.20, 9.22, M.sengetøy);
+    for (const [z1, z2] of [[7.38, 7.78], [9.26, 9.63]])               // nattbord på hver side
+      boks(T + 0.02, F, z1, 0.62, F + 0.45, z2, M.finer);
     boks(1.05, F + 0.12, 9.58, 3.10, F + 0.42, 9.65, M.hvit);         // radiator
     boks(2.60, F + 0.65, 7.55, 2.64, F + 1.40, 8.80, M.svart);        // TV på stativ
     boks(2.70, F, 8.15, 2.74, F + 0.65, 8.20, M.svart);
@@ -940,20 +938,20 @@
     boks(0.80, G, 7.00, 0.84, G + 2.03, 7.62, M.hvitDør);             // dørblad soverom, inn mot skapet
     boks(3.73, G, 7.36, 3.77, G + 2.03, 8.05, M.hvitDør);             // dørblad vaskerom
 
-    // stue 15,5 m²: lysegrå sofa med sjeselong under vinduet, digitalpiano med krakk mot
-    // venstre vegg, teppe og to små svarte bord, TV på benk ved døra til soverommet
-    // rett, lav og dyp sofa langs vinduet (ingen sjeselong): tre store, løse ryggputer langs
-    // hele ryggen, en pute på tvers mot armlenet, og pyntputer i brunt mønster og mørk grønn
-    boks(0.65, G + 0.15, 3.40, 2.90, G + 0.42, 4.40, M.lysGrå);       // sete
-    boks(0.65, G + 0.42, 3.40, 2.90, G + 0.60, 3.55, M.lysGrå);       // lav ryggramme
-    for (const [x1, x2] of [[0.77, 1.47], [1.48, 2.18], [2.19, 2.89]]) // ryggputer
+    // stue 15,5 m²: lysegrå sofa under vinduet, helt inntil veggen med pianoet, digitalpiano med
+    // krakk mot venstre vegg, teppe og to små svarte bord, TV på benk ved døra til soverommet
+    // rett, lav og dyp sofa (ingen sjeselong): tre store, løse ryggputer langs hele ryggen,
+    // en pute på tvers mot armlenet, og pyntputer i brunt mønster og mørk grønn
+    boks(0.20, G + 0.15, 3.40, 2.45, G + 0.42, 4.40, M.lysGrå);       // sete
+    boks(0.20, G + 0.42, 3.40, 2.45, G + 0.60, 3.55, M.lysGrå);       // lav ryggramme
+    for (const [x1, x2] of [[0.32, 1.02], [1.03, 1.73], [1.74, 2.44]]) // ryggputer
       boks(x1, G + 0.42, 3.55, x2, G + 0.92, 3.82, M.lysGrå);
-    boks(0.65, G + 0.42, 3.55, 0.75, G + 0.55, 4.40, M.lysGrå);       // armlene
-    boks(0.75, G + 0.42, 3.85, 0.98, G + 0.80, 4.35, M.lysGrå);       // pute på tvers mot armlenet
-    boks(1.50, G + 0.42, 3.82, 1.92, G + 0.80, 3.98, M.puteBrun);     // pyntputer
-    boks(1.95, G + 0.42, 3.82, 2.35, G + 0.78, 3.98, M.puteGrønn);
-    boks(2.40, G + 0.42, 3.85, 2.80, G + 0.62, 4.15, M.lysGrå);       // liten pute på setet
-    for (const [x, z] of [[0.70, 3.45], [2.83, 3.45], [0.70, 4.33], [2.83, 4.33]]) boks(x, G, z, x + 0.04, G + 0.15, z + 0.04, M.stål);
+    boks(0.20, G + 0.42, 3.55, 0.30, G + 0.55, 4.40, M.lysGrå);       // armlene mot veggen
+    boks(0.30, G + 0.42, 3.85, 0.53, G + 0.80, 4.35, M.lysGrå);       // pute på tvers mot armlenet
+    boks(1.05, G + 0.42, 3.82, 1.47, G + 0.80, 3.98, M.puteBrun);     // pyntputer
+    boks(1.50, G + 0.42, 3.82, 1.90, G + 0.78, 3.98, M.puteGrønn);
+    boks(1.95, G + 0.42, 3.85, 2.35, G + 0.62, 4.15, M.lysGrå);       // liten pute på setet
+    for (const [x, z] of [[0.25, 3.45], [2.38, 3.45], [0.25, 4.33], [2.38, 4.33]]) boks(x, G, z, x + 0.04, G + 0.15, z + 0.04, M.stål);
     boks(0.90, G, 4.20, 2.60, G + 0.015, 5.90, M.ryeTeppe);
     for (const [x1, z1, h] of [[1.25, 4.50, 0.50], [1.50, 4.80, 0.43]]) ramme3(x1, z1, x1 + 0.42, z1 + 0.42, G, G + h);
     boks(1.25, G + 0.48, 4.50, 1.67, G + 0.50, 4.92, M.svart);
