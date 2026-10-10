@@ -204,6 +204,13 @@
       badvegg:   veggMat(0xdcd9d3, { roughness: 0.4 }),
       gardinBrun: veggMat(0x8b7b6c),
       seng:      mat(0x55575b),
+      // 3. etasje, etter bildene
+      vegg3:     veggMat(0xcfc8bd),
+      hvitFlis:  veggMat(0xeeeeeb, { roughness: 0.3 }),
+      lysGrå:    mat(0xb7babd),
+      mørkBrun:  mat(0x3b2e27, { roughness: 0.6 }),
+      lysEik:    mat(0xd2ab74, { roughness: 0.6 }),
+      ryeTeppe:  mat(0xc4bcb0),
     };
 
     // ---------- Hjelpere ----------
@@ -853,82 +860,135 @@
     boks(-0.01, F + H, 0, 0.1, G, D, M.kledning);
     boks(B - 0.1, F + H, 0, B + 0.01, G, D, M.kledning);
 
-    // takterrasse 17 m²: brystning mot hagen, skrå sidevegger som på terrassen nede
+    // takterrasse 17 m²: brystning mot hagen og tette, skrå sidevegger i stående panel
     boks(0, G - 0.005, 0.1, B, G, Z3, M.spiler);
     for (let x = 0.05; x < B; x += 0.15) boks(x, G, 0.1, Math.min(x + 0.12, B), G + 0.03, Z3, M.terrasse);
     boks(0, G, 0, B, G + 1.0, 0.1, M.kledning);
     boks(-0.02, G + 1.0, -0.02, B + 0.02, G + 1.05, 0.14, M.porteTak);
     const takSide = [[0.1, 1.05], [0.6, 1.05], [2.6, 2.0], [Z3, 2.0]];
-    spileveggProfil('z', 0, 0.08, takSide, G);
-    spileveggProfil('z', B - 0.08, B, takSide, G);
-    boks(0.10, G, 1.50, 0.95, G + 0.45, 3.00, M.flett);              // sofa mot venstre vegg
-    boks(0.10, G + 0.45, 1.50, 0.30, G + 0.85, 3.00, M.flett);
-    boks(1.20, G, 2.00, 1.80, G + 0.42, 2.60, M.flett);
-    for (const [z1, z2] of [[1.05, 1.80], [2.30, 3.05]]) boks(B - 0.85, G, z1, B - 0.10, G + 0.65, z2, M.flett);
-    boks(B - 0.55, G, 1.88, B - 0.15, G + 0.35, 2.22, M.flett);
+    for (const xMaks of [0.08, B]) {                                  // omriss som [z, y], tykkelse 0.08 mot -x
+      const form = new THREE.Shape([[0.1, 0], ...takSide, [Z3, 0]].map(([z, y]) => new THREE.Vector2(z, y)));
+      const side = new THREE.Mesh(new THREE.ExtrudeGeometry(form, { depth: 0.08, bevelEnabled: false }), M.spiler);
+      side.rotation.y = -Math.PI / 2;                                 // formas x → +z, ekstrudering → -x
+      side.position.set(xMaks, G, 0);
+      side.castShadow = side.receiveShadow = true;
+      mål.add(side);
+    }
+    // svart metall-hjørnesofa i hjørnet mot stuevinduet, bord, høye plantekrukker,
+    // oppbevaringskasse mot brystningen og grå rottingsofa ved den andre sideveggen
+    const ramme3 = (x1, z1, x2, z2, y1, y2) => {                       // åpen ramme av svarte profiler
+      const t = 0.04;
+      for (const [lx, lz] of [[x1, z1], [x2 - t, z1], [x1, z2 - t], [x2 - t, z2 - t]]) boks(lx, y1, lz, lx + t, y2, lz + t, M.svart);
+      boks(x1, y2 - t, z1, x2, y2, z1 + t, M.svart); boks(x1, y2 - t, z2 - t, x2, y2, z2, M.svart);
+      boks(x1, y2 - t, z1, x1 + t, y2, z2, M.svart); boks(x2 - t, y2 - t, z1, x2, y2, z2, M.svart);
+    };
+    for (const [z1, z2] of [[0.85, 1.55], [1.55, 2.25]]) {               // langs sideveggen
+      ramme3(0.10, z1, 0.80, z2, G, G + 0.40);
+      boks(0.10, G + 0.40, z1, 0.16, G + 0.75, z2, M.svart);
+    }
+    for (const [x1, x2] of [[0.10, 0.80], [0.80, 1.50], [1.50, 2.20]]) {  // langs stuevinduet
+      ramme3(x1, 2.25, x2, 2.95, G, G + 0.40);
+      boks(x1, G + 0.40, 2.89, x2, G + 0.75, 2.95, M.svart);
+    }
+    ramme3(0.95, 1.30, 1.60, 1.95, G, G + 0.38);
+    boks(0.95, G + 0.36, 1.30, 1.60, G + 0.38, 1.95, M.svart);
+    for (const [x, z, h] of [[0.15, 0.20, 0.85], [0.55, 0.20, 0.55]]) boks(x, G, z, x + 0.35, G + h, z + 0.35, M.flett);
+    boks(1.60, G, 0.12, 3.10, G + 0.60, 0.72, M.mørkGrå);            // oppbevaringskasse
+    boks(4.40, G, 1.00, B - 0.10, G + 0.42, 2.90, M.flett);            // rottingsofa
+    boks(B - 0.30, G + 0.42, 1.00, B - 0.10, G + 0.78, 2.90, M.flett);
+    for (const z of [1.00, 2.75]) boks(4.40, G + 0.42, z, B - 0.30, G + 0.62, z + 0.15, M.flett);
+    boks(3.65, G, 1.65, 4.20, G + 0.35, 2.25, M.flett);                // rottingbord
 
-    // yttervegger
+    // yttervegger, hvite vindusrammer og karmer som i resten av huset
     const terrasse3 = [
-      { fra: 0.25, til: 2.54, nede: 0.30, oppe: 2.30, type: 'vindu', poster: [1.00] },
-      { fra: 2.96, til: 3.73, nede: 0.00, oppe: 2.30, type: 'glassdør' },
-      { fra: 4.34, til: 4.96, nede: 0.90, oppe: 2.20, type: 'vindu' },
+      { fra: 0.25, til: 2.54, nede: 0.30, oppe: 2.30, type: 'vindu', poster: [0.80], ramme: M.hvitRamme },
+      { fra: 2.96, til: 3.73, nede: 0.00, oppe: 2.30, type: 'glassdør', ramme: M.hvitRamme },
+      { fra: 4.34, til: 4.96, nede: 0.90, oppe: 2.20, type: 'vindu', ramme: M.hvitRamme },
     ];
+    standardVegg = M.vegg3;
     vegg('x', Z3, Z3 + 0.1, 0, B, terrasse3, M.kledning, G);
-    vegg('x', Z3 + 0.1, Z3 + T, T, B - T, terrasse3.map(o => ({ ...o, type: 'åpning' })), M.innervegg, G);
+    vegg('x', Z3 + 0.1, Z3 + T, T, B - T, terrasse3.map(o => ({ ...o, type: 'karm' })), standardVegg, G);
     const front3 = [
-      { fra: 0.70, til: 2.58, nede: 0.90, oppe: 2.20, type: 'vindu', poster: [1.30] },
-      { fra: 2.97, til: 3.95, nede: 0.90, oppe: 2.20, type: 'vindu' },
+      { fra: 0.70, til: 2.58, nede: 0.90, oppe: 2.20, type: 'vindu', poster: [1.30], ramme: M.hvitRamme },
+      { fra: 2.97, til: 3.95, nede: 0.90, oppe: 2.20, type: 'vindu', ramme: M.hvitRamme },
     ];
     vegg('x', D - 0.1, D, 0, B, front3, M.kledning, G);
-    vegg('x', D - T, D - 0.1, T, B - T, front3.map(o => ({ ...o, type: 'åpning' })), M.innervegg, G);
+    vegg('x', D - T, D - 0.1, T, B - T, front3.map(o => ({ ...o, type: 'karm' })), standardVegg, G);
     vegg('z', 0, 0.1, Z3, D, [], M.kledning, G);
-    vegg('z', 0.1, T, Z3 + T, D - T, [], M.innervegg, G);
+    vegg('z', 0.1, T, Z3 + T, D - T, [], standardVegg, G);
     vegg('z', B - 0.1, B, Z3, D, [], M.kledning, G);
-    vegg('z', B - T, B - 0.1, Z3 + T, D - T, [], M.innervegg, G);
+    vegg('z', B - T, B - 0.1, Z3 + T, D - T, [], standardVegg, G);
 
     // innervegger, bod over trappa og sjakter
     vegg('z', 4.02, TX1, Z3 + T, 6.60, [                              // stue | bod og trapperom
       { fra: 3.60, til: 4.30, nede: 0, oppe: 2.05, type: 'dør', farge: M.hvitDør },
-    ], M.innervegg, G);
+    ], standardVegg, G);
     boks(TX1, G + 0.45, Z3 + T, TX2, G + 0.60, 4.86, M.eik);          // bod med hevet gulv over trappa
-    boks(TX1, G + 0.45, 4.86, TX2, G + H, 4.98, M.innervegg);         // bod | trapperom
-    vegg('x', 6.90, 7.00, T, 2.17, [dør(0.80, 1.50)], M.innervegg, G); // stue | soverom
-    boks(2.17, G, 6.90, 2.93, G + H, 7.38, M.innervegg);              // sjakt
-    vegg('z', 2.85, 2.95, 7.38, D - T, [], M.innervegg, G);           // soverom | vaskerom
-    vegg('x', 7.27, 7.36, 2.93, 4.03, [dør(3.08, 3.77)], M.innervegg, G); // stue | vaskerom
-    boks(4.03, G, 7.27, B - T, G + H, 8.04, M.innervegg);             // sjakt
-    boks(1.46, G, 7.00, 1.50, G + 2.03, 7.70, M.hvitDør);             // dørblad soverom
+    boks(TX1, G + 0.45, 4.86, TX2, G + H, 4.98, standardVegg);        // bod | trapperom
+    vegg('x', 6.90, 7.00, T, 2.17, [dør(0.80, 1.50)], standardVegg, G); // stue | soverom
+    boks(2.17, G, 6.90, 2.93, G + H, 7.38, standardVegg);             // sjakt
+    vegg('z', 2.85, 2.95, 7.38, D - T, [], standardVegg, G);          // soverom | vaskerom
+    vegg('x', 7.27, 7.36, 2.93, 4.03, [dør(3.08, 3.77)], standardVegg, G); // stue | vaskerom
+    boks(4.03, G, 7.27, B - T, G + H, 8.04, standardVegg);            // sjakt
+    boks(0.80, G, 7.00, 0.84, G + 2.03, 7.62, M.hvitDør);             // dørblad soverom, inn mot skapet
     boks(3.73, G, 7.36, 3.77, G + 2.03, 8.05, M.hvitDør);             // dørblad vaskerom
 
-    // stue 15,5 m²: hjørnesofa, salongbord, TV
-    boks(T, G + 0.10, Z3 + 0.25, 2.50, G + 0.45, Z3 + 1.15, M.marine);
-    boks(T, G + 0.45, Z3 + 0.25, 2.50, G + 0.85, Z3 + 0.45, M.marine);
-    boks(T, G + 0.10, Z3 + 1.15, 1.10, G + 0.45, 5.80, M.marine);
-    boks(T, G + 0.45, Z3 + 1.15, T + 0.20, G + 0.85, 5.80, M.marine);
-    boks(1.00, G, 4.30, 2.60, G + 0.01, 5.70, M.teppe);
-    boks(1.20, G + 0.40, 4.55, 2.30, G + 0.44, 5.25, M.betong);
-    boks(1.75, G + 0.15, 6.45, 2.85, G + 0.55, 6.89, M.hvit);         // TV-benk mot sjakta
-    boks(1.85, G + 1.00, 6.85, 2.75, G + 1.55, 6.89, M.svart);
+    // stue 15,5 m²: lysegrå sofa med sjeselong under vinduet, digitalpiano med krakk mot
+    // venstre vegg, teppe og to små svarte bord, TV på benk ved døra til soverommet
+    boks(0.65, G + 0.12, 3.40, 2.80, G + 0.45, 4.30, M.lysGrå);
+    boks(0.65, G + 0.45, 3.40, 2.80, G + 0.85, 3.62, M.lysGrå);
+    boks(0.65, G + 0.45, 3.62, 0.85, G + 0.65, 4.30, M.lysGrå);
+    boks(1.95, G + 0.12, 4.30, 2.80, G + 0.45, 5.20, M.lysGrå);       // sjeselong
+    for (const [x, z] of [[0.70, 3.45], [2.72, 3.45], [0.70, 4.22], [1.98, 5.12], [2.72, 5.12]]) boks(x, G, z, x + 0.04, G + 0.12, z + 0.04, M.stål);
+    boks(0.90, G, 4.20, 2.60, G + 0.015, 5.90, M.ryeTeppe);
+    for (const [x1, z1, h] of [[1.25, 4.50, 0.50], [1.50, 4.80, 0.43]]) ramme3(x1, z1, x1 + 0.42, z1 + 0.42, G, G + h);
+    boks(1.25, G + 0.48, 4.50, 1.67, G + 0.50, 4.92, M.svart);
+    boks(T, G, 4.40, 0.55, G + 0.78, 5.80, M.svart);                  // digitalpiano
+    boks(T, G + 0.78, 4.40, 0.35, G + 1.05, 5.80, M.svart);
+    boks(0.70, G, 4.80, 1.05, G + 0.50, 5.40, M.svart);               // pianokrakk
+    boks(T, G + 1.35, 4.80, T + 0.025, G + 2.05, 5.30, M.svart);      // bilde over pianoet
+    boks(T + 0.025, G + 1.38, 4.83, T + 0.03, G + 2.02, 5.27, M.hvit);
+    boks(1.70, G, 6.45, 2.85, G + 0.45, 6.89, M.lysEik);              // TV-benk
+    boks(1.85, G + 0.47, 6.60, 2.75, G + 1.10, 6.64, M.svart);        // TV på fot
 
-    // soverom 8 m²: seng, nattbord, skrivebord
-    boks(1.85, G, 7.40, 2.85, G + 0.50, 9.20, M.sengetøy);
-    boks(2.30, G, 9.22, 2.75, G + 0.55, 9.62, M.finer);
-    boks(T, G + 0.72, 8.20, T + 0.60, G + 0.75, 9.50, M.finer);
-    boks(0.85, G + 0.45, 8.70, 1.25, G + 0.50, 9.10, M.svart);
-    boks(1.20, G + 0.50, 8.70, 1.25, G + 0.95, 9.10, M.svart);
+    // soverom 8 m², brukt som kontor: buet skrivebord i eik langs veggen mot vaskerommet,
+    // grå kontorstol, skjermer, teppe, mørkt garderobeskap ved døra og radiator under vinduet
+    boks(2.05, G + 0.70, 7.70, 2.85, G + 0.74, 9.45, M.lysEik);
+    for (const z of [7.80, 9.30]) boks(2.40, G, z, 2.48, G + 0.70, z + 0.08, M.mørkGrå);
+    boks(2.55, G + 0.74, 8.30, 2.60, G + 1.20, 9.10, M.svart);         // buet skjerm
+    boks(2.30, G + 0.74, 9.25, 2.35, G + 1.30, 9.55, M.svart);         // stående skjerm
+    for (const z of [7.75, 9.35]) boks(2.55, G + 0.74, z, 2.80, G + 1.05, z + 0.25, M.svart);  // høyttalere
+    boks(1.35, G + 0.42, 8.30, 1.85, G + 0.50, 8.80, M.mørkGrå);       // kontorstol
+    boks(1.35, G + 0.50, 8.25, 1.85, G + 1.05, 8.32, M.mørkGrå);
+    boks(1.55, G, 8.50, 1.65, G + 0.42, 8.60, M.mørkGrå);
+    boks(0.85, G, 7.75, 2.00, G + 0.01, 9.30, M.ryeTeppe);
+    boks(2.83, G + 1.25, 7.95, 2.85, G + 2.25, 8.95, M.svart);         // stort bilde over pulten
+    boks(T, G, 7.00, 0.78, G + 2.00, 7.60, M.mørkBrun);               // garderobeskap
+    boks(0.75, G + 0.12, 9.58, 2.55, G + 0.62, 9.65, M.hvit);          // radiator
+    for (const z of [8.30, 8.55, 8.80]) boks(T + 0.05, G, z, T + 0.35, G + 1.00, z + 0.06, M.mørkBrun); // gitarer
 
-    // vaskerom 4,5 m²: utslagsvask, skap, WC, vaskemaskin på sokkel og tørketrommel
+    // vaskerom 4,5 m²: hvite fliser, mørk mosaikk på gulvet, vaskemaskin og tørketrommel
+    // under overskap, utslagsvask med skap ved vinduet, WC
+    const L3 = 0.004;
+    const flis3 = (akse, a, b, fra, til, åpninger) =>
+      vegg(akse, a, b, fra, til, åpninger.map(o => ({ ...o, type: 'åpning' })), M.hvitFlis, G);
+    flis3('z', 2.95, 2.95 + L3, 7.36, D - T, []);
+    flis3('z', B - T - L3, B - T, 8.04, D - T, []);
+    flis3('x', D - T - L3, D - T, 2.95, B - T, [front3[1]]);
+    flis3('x', 7.36, 7.36 + L3, 2.95, 4.03, [dør(3.08, 3.77)]);
+    flis3('z', 4.03 - L3, 4.03, 7.36, 8.04, []);
+    flis3('x', 8.04, 8.04 + L3, 4.03, B - T, []);
     boks(2.95, G + 0.60, 8.25, 3.45, G + 0.90, 8.75, M.stål);
     boks(2.95, G, 8.90, 3.50, G + 0.90, D - T, M.hvit);
     boks(4.90, G, 8.10, B - T, G + 0.80, 8.60, M.hvit);
     boks(4.45, G + 0.20, 8.15, 4.90, G + 0.42, 8.55, M.hvit);
-    boks(3.75, G, 9.05, 4.33, G + 1.15, D - T, M.hvit);
-    boks(4.35, G, 9.05, 4.93, G + 0.85, D - T, M.hvit);
-    for (const [x, y] of [[4.04, 0.75], [4.64, 0.42]]) {
+    boks(3.96, G, 9.05, 4.53, G + 0.85, D - T, M.hvit);                // vaskemaskin
+    boks(4.53, G, 9.05, B - T, G + 0.85, D - T, M.hvit);               // tørketrommel
+    for (const x of [4.245, 4.80]) {
       const luke = new THREE.Mesh(new THREE.CircleGeometry(0.17, 24), M.mørkGrå);
-      luke.position.set(x, G + y, 9.04); luke.rotation.y = Math.PI; etg3.add(luke);
+      luke.position.set(x, G + 0.45, 9.04); luke.rotation.y = Math.PI; etg3.add(luke);
     }
-    boks(3.75, G + 1.60, 9.30, 4.60, G + 2.20, D - T, M.skap);
+    boks(3.97, G + 1.55, 9.30, 5.00, G + 2.15, D - T, M.skap);
 
     // flatt tak (av/på)
     const tak3 = new THREE.Group();
