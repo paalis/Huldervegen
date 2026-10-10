@@ -775,10 +775,10 @@
     boks(1.05, F + 0.12, 0.20, 2.65, F + 0.42, 0.27, M.hvit);         // radiator
     for (const z of [1.30, 1.75]) boks(2.825, F + 1.25, z, 2.85, F + 1.85, z + 0.35, M.svart);
 
-    // soverom 7 m² (mot hagen, lyseblått): seng under vinduet, svart nattbord,
+    // soverom 7 m² (mot hagen, lyseblått): seng under vinduet fra vegg til vegg, svart nattbord,
     // hvitt garderobeskap ved døra og papirlampe i taket
-    seng(2.96, 0.25, 4.55, 1.20, M.svart);
-    boks(4.62, F, 0.30, 5.02, F + 0.55, 0.70, M.svart);
+    seng(2.96, 0.22, B - T - 0.02, 1.40, M.svart);                   // over hele rommets bredde
+    boks(4.60, F, 1.45, 5.02, F + 0.55, 1.85, M.svart);               // nattbord på innsiden av senga
     garderobe(4.05, 2.60, B - T, 3.20);
     for (const z of [0.55, 0.95]) boks(2.944, F + 1.30, z, 2.965, F + 1.80, z + 0.32, M.svart);
     {
