@@ -935,7 +935,7 @@
     vegg('z', 2.85, 2.95, 7.38, D - T, [], standardVegg, G);          // soverom | vaskerom
     vegg('x', 7.27, 7.36, 2.93, 4.03, [dør(3.08, 3.77)], standardVegg, G); // stue | vaskerom
     boks(4.03, G, 7.27, B - T, G + H, 8.04, standardVegg);            // sjakt
-    boks(0.80, G, 7.00, 0.84, G + 2.03, 7.62, M.hvitDør);             // dørblad soverom, inn mot skapet
+    boks(0.80, G, 6.93, 1.50, G + 2.03, 6.97, M.hvitDør);             // dørblad soverom, lukket så skapet synes
     boks(3.73, G, 7.36, 3.77, G + 2.03, 8.05, M.hvitDør);             // dørblad vaskerom
 
     // stue 15,5 m²: lysegrå sofa under vinduet, helt inntil veggen med pianoet, digitalpiano med
@@ -964,7 +964,7 @@
     boks(1.85, G + 0.47, 6.60, 2.75, G + 1.10, 6.64, M.svart);        // TV på fot
 
     // soverom 8 m², brukt som kontor: buet skrivebord i eik langs veggen mot vaskerommet,
-    // grå kontorstol, skjermer, teppe, mørkt garderobeskap ved døra og radiator under vinduet
+    // grå kontorstol, skjermer, teppe, høyt, mørkt garderobeskap ved døra og radiator under vinduet
     boks(2.05, G + 0.70, 7.70, 2.85, G + 0.74, 9.45, M.lysEik);
     for (const z of [7.80, 9.30]) boks(2.40, G, z, 2.48, G + 0.70, z + 0.08, M.mørkGrå);
     boks(2.55, G + 0.74, 8.30, 2.60, G + 1.20, 9.10, M.svart);         // buet skjerm
@@ -975,7 +975,10 @@
     boks(1.55, G, 8.50, 1.65, G + 0.42, 8.60, M.mørkGrå);
     boks(0.85, G, 7.75, 2.00, G + 0.01, 9.30, M.ryeTeppe);
     boks(2.83, G + 1.25, 7.95, 2.85, G + 2.25, 8.95, M.svart);         // stort bilde over pulten
-    boks(T, G, 7.00, 0.78, G + 2.00, 7.60, M.mørkBrun);               // garderobeskap
+    // høyt, mørkt garderobeskap med to dører mot veggen inn mot døra, front mot rommet
+    boks(T, G, 7.00, 0.78, G + 2.36, 8.00, M.mørkBrun);
+    boks(0.78, G + 0.02, 7.497, 0.785, G + 2.34, 7.503, M.svart);     // skille mellom dørene
+    for (const z of [7.44, 7.54]) boks(0.785, G + 0.95, z, 0.81, G + 1.60, z + 0.02, M.stål); // håndtak
     boks(0.75, G + 0.12, 9.58, 2.55, G + 0.62, 9.65, M.hvit);          // radiator
     for (const z of [8.30, 8.55, 8.80]) boks(T + 0.05, G, z, T + 0.35, G + 1.00, z + 0.06, M.mørkBrun); // gitarer
 
