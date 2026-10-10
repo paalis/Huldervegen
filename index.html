@@ -548,17 +548,18 @@
       mål.add(g);
     }
     // ovalt spisebord på søyle, seks stoler, taklampe med røykfargede glasskuler langs bordet
-    oval(1.35, 5.30, 0.50, 0.85, 0.72, 0.75, M.mørkEik);
-    boks(1.29, 0, 4.90, 1.41, 0.72, 5.70, M.mørkEik);
-    boks(1.05, 0, 5.24, 1.65, 0.72, 5.36, M.mørkEik);
-    for (const z of [4.95, 5.65]) { stol(0.60, z, Math.PI / 2); stol(2.10, z, -Math.PI / 2); }
-    stol(1.35, 4.25, 0);
-    stol(1.35, 6.35, Math.PI);
-    boks(1.33, 1.88, 4.75, 1.37, 1.90, 5.85, M.svart);
-    for (const z of [4.95, 5.65]) boks(1.345, 1.90, z, 1.355, H, z + 0.01, M.svart);
+    // bordet står på tvers av rommet, med langsiden parallelt med hagefasaden
+    oval(1.55, 5.35, 0.85, 0.50, 0.72, 0.75, M.mørkEik);
+    boks(1.15, 0, 5.29, 1.95, 0.72, 5.41, M.mørkEik);
+    boks(1.49, 0, 5.05, 1.61, 0.72, 5.65, M.mørkEik);
+    for (const x of [1.20, 1.90]) { stol(x, 4.60, 0); stol(x, 6.10, Math.PI); }
+    stol(0.50, 5.35, Math.PI / 2);
+    stol(2.60, 5.35, -Math.PI / 2);
+    boks(1.00, 1.88, 5.33, 2.10, 1.90, 5.37, M.svart);
+    for (const x of [1.20, 1.90]) boks(x, 1.90, 5.345, x + 0.01, H, 5.355, M.svart);
     for (let i = 0; i < 8; i++) {
       const k = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), M.kugle);
-      k.position.set(1.35 + (i % 3 - 1) * 0.08, i % 2 ? 1.80 : 1.73, 4.80 + i * 0.15);
+      k.position.set(1.03 + i * 0.15, i % 2 ? 1.80 : 1.73, 5.35 + (i % 3 - 1) * 0.08);
       scene.add(k);
     }
     // vitrineskap i bronse og glass under trappa, ved døra til tek. rom
@@ -579,6 +580,7 @@
     sofa(T + 0.05, 0.45, 2.85, 1.40, 'z1');
     boks(2.65, 0.45, 0.67, 2.85, 0.62, 1.40, M.sofa);                 // armlene mot glassdøra
     sofa(T + 0.05, 1.40, 1.20, 3.90, 'x1');
+    boks(T + 0.05, 0.45, 0.67, T + 0.27, 0.85, 1.40, M.sofa);         // rygg i hjørnet
     sofa(1.20, 2.95, 2.05, 3.90);
     // ovalt salongbord i mørk eik
     oval(1.85, 2.15, 0.33, 0.62, 0.40, 0.44, M.mørkEik);
@@ -618,7 +620,7 @@
       for (const z of [z1, z2 - 0.12]) boks(4.45, UT + 0.40, z, 4.95, UT + 0.62, z + 0.12, M.rotting);
     }
     boks(4.55, UT, -2.00, 5.00, UT + 0.32, -1.55, M.rotting);
-    boks(0.30, UT, -4.62, 1.60, UT + 0.58, -4.02, M.svart);
+    boks(0.90, UT, -4.62, 2.20, UT + 0.58, -4.02, M.svart);
     for (const [lx, lz] of [[2.80, -0.85], [3.20, -0.85], [2.80, -0.50], [3.20, -0.50]]) boks(lx, UT, lz, lx + 0.03, UT + 0.60, lz + 0.03, M.svart);
     boks(2.75, UT + 0.60, -0.90, 3.28, UT + 0.92, -0.45, M.svart);
     boks(0.40, 2.40, -0.18, 4.40, 2.55, 0, M.mørkGrå);
