@@ -462,15 +462,17 @@
           mål.add(vange);
         }
       }
-      // hvite spiler, stolpe og håndløper langs løpet
+      // hvite spiler, stolpe og håndløper langs løpet. Fra 2. etasje står gelenderet på
+      // vangen innenfor veggen som går langs trappa i 3. etasje.
+      const rx = åpen ? TX1 + 0.025 : 4.07;
       for (let j = 0; j < 8; j++) {
         const z = nedreSving.z2 + (j + 0.5) * inntrinn, y = y0 + (4 + j) * opptrinn;
-        boks(4.055, y, z - 0.015, 4.085, y + 0.9, z + 0.015, M.hvit);
+        boks(rx - 0.015, y, z - 0.015, rx + 0.015, y + 0.9, z + 0.015, M.hvit);
       }
-      boks(4.04, y0, 4.17, 4.10, y0 + 3 * opptrinn + 1.0, 4.23, M.hvit);
+      boks(rx - 0.03, y0, 4.17, rx + 0.03, y0 + 3 * opptrinn + 1.0, 4.23, M.hvit);
       const stigning = Math.atan2(opptrinn, inntrinn), løp = 7 * inntrinn;
       const håndløper = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, løp / Math.cos(stigning)), M.hvit);
-      håndløper.position.set(4.07, y0 + 7.5 * opptrinn + 0.95, nedreSving.z2 + 4 * inntrinn);
+      håndløper.position.set(rx, y0 + 7.5 * opptrinn + 0.95, nedreSving.z2 + 4 * inntrinn);
       håndløper.rotation.x = -stigning;                               // stiger mot +z
       mål.add(håndløper);
       const vegglist = håndløper.clone();                             // håndløper på veggen
@@ -938,15 +940,14 @@
 
     // stue 15,5 m²: lysegrå sofa med sjeselong under vinduet, digitalpiano med krakk mot
     // venstre vegg, teppe og to små svarte bord, TV på benk ved døra til soverommet
-    // lav, dyp sofa fra hjørnet mot pianoveggen nesten bort til glassdøra, med tykke løse
-    // ryggputer, lavt armlene mot veggen og sjeselong mot døra
-    boks(0.30, G + 0.15, 3.40, 2.85, G + 0.42, 4.40, M.lysGrå);       // sete
-    boks(0.30, G + 0.42, 3.40, 2.85, G + 0.60, 3.55, M.lysGrå);       // lav ryggramme
-    for (const [x1, x2] of [[0.40, 1.22], [1.22, 2.04], [2.04, 2.85]]) // ryggputer
+    // rett, lav og dyp sofa langs vinduet (ingen sjeselong): tykke ryggputer over de tre
+    // setene mot pianoveggen, åpen ende uten ryggputer mot glassdøra, lavt armlene til venstre
+    boks(0.65, G + 0.15, 3.40, 2.90, G + 0.42, 4.40, M.lysGrå);       // sete
+    boks(0.65, G + 0.42, 3.40, 2.90, G + 0.60, 3.55, M.lysGrå);       // lav ryggramme
+    for (const [x1, x2] of [[0.75, 1.20], [1.20, 1.65], [1.65, 2.10]]) // ryggputer
       boks(x1 + 0.01, G + 0.42, 3.55, x2 - 0.01, G + 0.85, 3.80, M.lysGrå);
-    boks(0.30, G + 0.42, 3.55, 0.40, G + 0.55, 4.40, M.lysGrå);       // armlene
-    boks(1.95, G + 0.15, 4.40, 2.85, G + 0.42, 5.40, M.lysGrå);       // sjeselong
-    for (const [x, z] of [[0.35, 3.45], [2.78, 3.45], [0.35, 4.33], [1.98, 5.33], [2.78, 5.33]]) boks(x, G, z, x + 0.04, G + 0.15, z + 0.04, M.stål);
+    boks(0.65, G + 0.42, 3.55, 0.75, G + 0.55, 4.40, M.lysGrå);       // armlene
+    for (const [x, z] of [[0.70, 3.45], [2.83, 3.45], [0.70, 4.33], [2.83, 4.33]]) boks(x, G, z, x + 0.04, G + 0.15, z + 0.04, M.stål);
     boks(0.90, G, 4.20, 2.60, G + 0.015, 5.90, M.ryeTeppe);
     for (const [x1, z1, h] of [[1.25, 4.50, 0.50], [1.50, 4.80, 0.43]]) ramme3(x1, z1, x1 + 0.42, z1 + 0.42, G, G + h);
     boks(1.25, G + 0.48, 4.50, 1.67, G + 0.50, 4.92, M.svart);
