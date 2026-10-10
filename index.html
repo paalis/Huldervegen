@@ -211,6 +211,8 @@
       mørkBrun:  mat(0x3b2e27, { roughness: 0.6 }),
       lysEik:    mat(0xd2ab74, { roughness: 0.6 }),
       ryeTeppe:  mat(0xc4bcb0),
+      puteBrun:  mat(0x8a5a40),
+      puteGrønn: mat(0x33402f),
     };
 
     // ---------- Hjelpere ----------
@@ -940,13 +942,17 @@
 
     // stue 15,5 m²: lysegrå sofa med sjeselong under vinduet, digitalpiano med krakk mot
     // venstre vegg, teppe og to små svarte bord, TV på benk ved døra til soverommet
-    // rett, lav og dyp sofa langs vinduet (ingen sjeselong): tykke ryggputer over de tre
-    // setene mot pianoveggen, åpen ende uten ryggputer mot glassdøra, lavt armlene til venstre
+    // rett, lav og dyp sofa langs vinduet (ingen sjeselong): tre store, løse ryggputer langs
+    // hele ryggen, en pute på tvers mot armlenet, og pyntputer i brunt mønster og mørk grønn
     boks(0.65, G + 0.15, 3.40, 2.90, G + 0.42, 4.40, M.lysGrå);       // sete
     boks(0.65, G + 0.42, 3.40, 2.90, G + 0.60, 3.55, M.lysGrå);       // lav ryggramme
-    for (const [x1, x2] of [[0.75, 1.20], [1.20, 1.65], [1.65, 2.10]]) // ryggputer
-      boks(x1 + 0.01, G + 0.42, 3.55, x2 - 0.01, G + 0.85, 3.80, M.lysGrå);
+    for (const [x1, x2] of [[0.77, 1.47], [1.48, 2.18], [2.19, 2.89]]) // ryggputer
+      boks(x1, G + 0.42, 3.55, x2, G + 0.92, 3.82, M.lysGrå);
     boks(0.65, G + 0.42, 3.55, 0.75, G + 0.55, 4.40, M.lysGrå);       // armlene
+    boks(0.75, G + 0.42, 3.85, 0.98, G + 0.80, 4.35, M.lysGrå);       // pute på tvers mot armlenet
+    boks(1.50, G + 0.42, 3.82, 1.92, G + 0.80, 3.98, M.puteBrun);     // pyntputer
+    boks(1.95, G + 0.42, 3.82, 2.35, G + 0.78, 3.98, M.puteGrønn);
+    boks(2.40, G + 0.42, 3.85, 2.80, G + 0.62, 4.15, M.lysGrå);       // liten pute på setet
     for (const [x, z] of [[0.70, 3.45], [2.83, 3.45], [0.70, 4.33], [2.83, 4.33]]) boks(x, G, z, x + 0.04, G + 0.15, z + 0.04, M.stål);
     boks(0.90, G, 4.20, 2.60, G + 0.015, 5.90, M.ryeTeppe);
     for (const [x1, z1, h] of [[1.25, 4.50, 0.50], [1.50, 4.80, 0.43]]) ramme3(x1, z1, x1 + 0.42, z1 + 0.42, G, G + h);
