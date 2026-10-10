@@ -188,10 +188,20 @@
       tak:       veggMat(0xf4f3f0),
       skap:      veggMat(0xf3f2ef, { roughness: 0.5 }),
       porteTak:  mat(0xb9bcbd),
+      // 1. etasje, etter bildene
+      vegg1:     veggMat(0x968d82),
+      mørkEik:   mat(0x4a3e36, { roughness: 0.7 }),
+      stoff:     mat(0xd8d1c5),
+      rotting:   mat(0x7d7b78),
+      svartGlass: mat(0x202224, { roughness: 0.1, metalness: 0.3 }),
+      gardin:    veggMat(0xf2f0ec, { transparent: true, opacity: 0.75 }),
+      bronse:    mat(0x4b3d2c, { roughness: 0.5, metalness: 0.4 }),
+      lampe:     mat(0xd9a462, { emissive: 0x6b4518 }),
     };
 
     // ---------- Hjelpere ----------
     let mål = scene;       // gruppa nye deler legges i (byttes til etg2 for 2. etasje)
+    let standardVegg = M.vegg1;  // veggfarge for vegg() uten egen farge; 1. etasje er mørkere greige
     const veggbokser = []; // vegger og skap som kortes ned med «Lave vegger»
 
     // Boks fra min-/maks-hjørner (meter). Returnerer meshet.
@@ -205,8 +215,9 @@
     }
 
     // Vegg langs x (akse 'x', okkuperer z a..b) eller langs z (akse 'z', okkuperer x a..b).
-    // Åpninger: { fra, til, nede, oppe, type: 'vindu' | 'dør' | 'glassdør' | 'åpning', farge }
-    function vegg(akse, a, b, fra, til, åpninger = [], m = M.innervegg, y0 = 0, h = H) {
+    // Åpninger: { fra, til, nede, oppe, type: 'vindu' | 'dør' | 'glassdør' | 'åpning' | 'karm', farge,
+    //             poster: [s, ...] loddrette poster, tverr: [y, ...] tverrposter over gulvet }
+    function vegg(akse, a, b, fra, til, åpninger = [], m = standardVegg, y0 = 0, h = H) {
       const del = (s1, s2, y1, y2, mm = m) => akse === 'x'
         ? boks(s1, y1, a, s2, y2, b, mm)
         : boks(a, y1, s1, b, y2, s2, mm);
@@ -229,6 +240,13 @@
           tynn(o.fra, o.til, y2 - r, y2, ramme, 0.08);
           tynn(o.fra, o.til, y1, y1 + r, ramme, 0.08);
           for (const s of o.poster ?? []) tynn(s - r / 2, s + r / 2, y1, y2, ramme, 0.08);
+          for (const t of o.tverr ?? []) tynn(o.fra, o.til, y0 + t - r / 2, y0 + t + r / 2, ramme, 0.08);
+        } else if (o.type === 'karm') {                             // hvit foring rundt åpningen
+          const k = 0.03;
+          del(o.fra, o.fra + k, y1, y2, M.hvitRamme);
+          del(o.til - k, o.til, y1, y2, M.hvitRamme);
+          del(o.fra, o.til, y2 - k, y2, M.hvitRamme);
+          if (o.nede > 0) del(o.fra, o.til, y1, y1 + k, M.hvitRamme);
         } else if (o.type === 'dør') {
           tynn(o.fra, o.til, y1, y2, o.farge ?? M.ytterdør, 0.05);
         }
@@ -333,20 +351,21 @@
     for (let x = 0.05; x < B; x += 0.15) boks(x, -0.05, -4.72, x + 0.12, -0.03, 0, M.terrasse);
 
     // ---------- Yttervegger (indre lag greige, ytre lag kledning) ----------
+    // Etter bildene: stort vindu (smalt sidehengslet felt mot venstre vegg), så glassdør med
+    // fast sidefelt og overlys. Hvite karmer innvendig.
     const hageÅpninger = [
-      { fra: 0.30, til: 3.20, nede: 0.12, oppe: 2.30, type: 'vindu', poster: [1.75] },
-      { fra: 3.35, til: 4.20, nede: 0.00, oppe: 2.30, type: 'glassdør' },
-      { fra: 4.25, til: 4.95, nede: 0.12, oppe: 2.30, type: 'vindu' },
+      { fra: 0.96, til: 2.77, nede: 0.45, oppe: 2.30, type: 'vindu', poster: [1.50] },
+      { fra: 3.01, til: 4.20, nede: 0.00, oppe: 2.30, type: 'glassdør', poster: [3.85], tverr: [2.00] },
     ];
     vegg('x', 0, 0.1, 0, B, hageÅpninger, M.kledning);
-    vegg('x', 0.1, T, T, B - T, hageÅpninger.map(o => ({ ...o, type: 'åpning' })));
+    vegg('x', 0.1, T, T, B - T, hageÅpninger.map(o => ({ ...o, type: 'karm' })));
 
     const frontÅpninger = [
       { fra: 0.91, til: 2.18, nede: 0.95, oppe: 2.10, type: 'vindu', poster: [1.75] },
       { fra: 3.15, til: 3.90, nede: 0.00, oppe: 2.10, type: 'dør' },
     ];
     vegg('x', D - 0.1, D, 0, B, frontÅpninger, M.kledning);
-    vegg('x', D - T, D - 0.1, T, B - T, frontÅpninger.map(o => ({ ...o, type: 'åpning' })));
+    vegg('x', D - T, D - 0.1, T, B - T, frontÅpninger.map(o => ({ ...o, type: 'karm' })));
     // rundt vindu i ytterdøra
     const koøye = new THREE.Mesh(new THREE.CircleGeometry(0.13, 24), M.glass);
     koøye.position.set(3.525, 1.5, D - 0.02);
@@ -359,12 +378,19 @@
 
     // ---------- Innervegger ----------
     vegg('z', 2.88, 2.98, 7.25, D - T);                               // kjøkken | entré
-    boks(2.28, 0, 6.80, 2.98, H, 7.25, M.innervegg);                  // pilar med speil
-    const speil = new THREE.Mesh(new THREE.CircleGeometry(0.22, 32), M.speil);
-    speil.position.set(2.63, 1.5, 6.79); speil.rotation.y = Math.PI;
+    boks(2.28, 0, 6.80, 2.98, H, 7.25, standardVegg);                 // pilar med speil
+    // organisk formet speil på pilaren mot stua
+    const speilForm = new THREE.Shape();
+    for (let i = 0; i <= 48; i++) {
+      const a = i / 48 * Math.PI * 2, r = 1 + 0.12 * Math.sin(2 * a + 0.6) + 0.07 * Math.sin(3 * a);
+      const p = [0.25 * r * Math.cos(a), 0.33 * r * Math.sin(a)];
+      if (i === 0) speilForm.moveTo(...p); else speilForm.lineTo(...p);
+    }
+    const speil = new THREE.Mesh(new THREE.ShapeGeometry(speilForm), M.speil);
+    speil.position.set(2.63, 1.45, 6.79); speil.rotation.y = Math.PI;
     scene.add(speil);
     vegg('x', 7.25, 7.35, 2.98, B - T, [                              // stue | entré / tek. rom
-      { fra: 3.10, til: 3.90, nede: 0, oppe: 2.05, type: 'åpning' },
+      { fra: 3.10, til: 3.90, nede: 0, oppe: 2.05, type: 'karm' },
     ]);
     boks(3.12, 0, 7.35, 3.16, 2.03, 8.13, M.hvitDør);                 // innerdør, åpen inn i entré
 
@@ -412,12 +438,15 @@
       håndløper.position.set(4.07, y0 + 7.5 * opptrinn + 0.95, nedreSving.z2 + 4 * inntrinn);
       håndløper.rotation.x = -stigning;                               // stiger mot +z
       mål.add(håndløper);
+      const vegglist = håndløper.clone();                             // håndløper på veggen
+      vegglist.position.x = TX2 - 0.04;
+      mål.add(vegglist);
     }
 
     // Lukket side mellom trappa og rommet ved siden av; omriss som [z, y]-punkter over y0.
     function trappeside(y0, omriss) {
       const form = new THREE.Shape(omriss.map(([z, y]) => new THREE.Vector2(z, y)));
-      const side = new THREE.Mesh(new THREE.ExtrudeGeometry(form, { depth: 0.1, bevelEnabled: false }), M.innervegg);
+      const side = new THREE.Mesh(new THREE.ExtrudeGeometry(form, { depth: 0.1, bevelEnabled: false }), y0 === 0 ? standardVegg : M.innervegg);
       side.rotation.y = -Math.PI / 2;                 // formas x → +z, ekstrudering → -x
       side.position.set(TX1, y0, 0);
       side.castShadow = side.receiveShadow = true;
@@ -425,13 +454,13 @@
     }
 
     trapp(0);
-    // tek. rom under trappa, med dør fra stua (skjenken står mot denne siden)
+    // tek. rom under trappa, med dør fra stua (vitrineskapet står mot denne siden)
     trappeside(0, [
       [nedreSving.z2, 0], [6.36, 0], [6.36, 2.05], [7.05, 2.05], [7.05, 0], [7.25, 0],
       [7.25, H], [øvreSving.z1, H], [øvreSving.z1, 11 * opptrinn], [nedreSving.z2, 3 * opptrinn],
     ]);
     boks(4.05, 0, 6.37, 4.09, 2.04, 7.04, M.hvitDør);                 // dør til tek. rom
-    boks(TX1, 0, 5.20, TX2, 1.10, 5.30, M.innervegg);                 // tek. rom, nordvegg under trappa
+    boks(TX1, 0, 5.20, TX2, 1.10, 5.30, standardVegg);                // tek. rom, nordvegg under trappa
     vegg('x', nedreSving.z1 - 0.1, nedreSving.z1, TX1, TX2);          // mellom TV-hjørnet og trappa
 
     // ---------- Kjøkken (U-form) ----------
@@ -462,40 +491,76 @@
     boks(0.55, 1.45, D - T - 0.35, 0.91, 2.25, D - T, M.skap);
     boks(2.18, 1.45, D - T - 0.35, 2.53, 2.25, D - T, M.skap);
 
-    // ---------- Stue og spisestue ----------
-    // spisebord mot venstre vegg, 6 stoler, taklampe med glasskuler
-    boks(T, 0.72, 5.30, 2.30, 0.76, 6.20, M.bordplate);
-    for (const x of [0.45, 2.05]) boks(x, 0, 5.40, x + 0.06, 0.72, 6.10, M.svart);
-    for (const x of [0.70, 1.30, 1.90]) {
-      for (const [z1, z2, rz1, rz2] of [[4.80, 5.25, 4.76, 4.84], [6.25, 6.70, 6.66, 6.74]]) {
-        boks(x - 0.2, 0.42, z1, x + 0.2, 0.48, z2, M.svart);
-        boks(x - 0.2, 0.48, rz1, x + 0.2, 0.92, rz2, M.svart);
-        for (const dx of [-0.17, 0.15]) for (const dz of [z1 + 0.02, z2 - 0.04]) boks(x + dx, 0, dz, x + dx + 0.02, 0.42, dz + 0.02, M.svart);
-      }
+    // ---------- Stue og spisestue (etter bildene) ----------
+    // Oval skive: sylinder skalert til ellipse, rx langs x og rz langs z.
+    function oval(cx, cz, rx, rz, y1, y2, m) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, y2 - y1, 48), m);
+      mesh.scale.set(rx, 1, rz);
+      mesh.position.set(cx, (y1 + y2) / 2, cz);
+      mesh.castShadow = mesh.receiveShadow = true;
+      mål.add(mesh);
+      return mesh;
     }
-    boks(0.6, 1.85, 5.73, 1.95, 1.87, 5.77, M.svart);
+    // Spisestol med mørk ramme og lyst stoppet sete/rygg; vinkel = retningen stolen vender (rundt y).
+    function stol(x, z, vinkel) {
+      const g = new THREE.Group();
+      for (const [lx, lz] of [[-0.19, -0.19], [0.17, -0.19], [-0.19, 0.17], [0.17, 0.17]]) boks(lx, 0, lz, lx + 0.03, 0.43, lz + 0.03, M.mørkEik, g);
+      boks(-0.22, 0.43, -0.22, 0.22, 0.48, 0.22, M.stoff, g);
+      boks(-0.21, 0.48, -0.24, 0.21, 0.88, -0.21, M.mørkEik, g);
+      boks(-0.17, 0.60, -0.21, 0.17, 0.82, -0.19, M.stoff, g);
+      g.rotation.y = vinkel;
+      g.position.set(x, 0, z);
+      mål.add(g);
+    }
+    // ovalt spisebord på søyle, seks stoler, taklampe med røykfargede glasskuler langs bordet
+    oval(1.35, 5.30, 0.50, 0.85, 0.72, 0.75, M.mørkEik);
+    boks(1.29, 0, 4.90, 1.41, 0.72, 5.70, M.mørkEik);
+    boks(1.05, 0, 5.24, 1.65, 0.72, 5.36, M.mørkEik);
+    for (const z of [4.95, 5.65]) { stol(0.60, z, Math.PI / 2); stol(2.10, z, -Math.PI / 2); }
+    stol(1.35, 4.25, 0);
+    stol(1.35, 6.35, Math.PI);
+    boks(1.33, 1.88, 4.75, 1.37, 1.90, 5.85, M.svart);
+    for (const z of [4.95, 5.65]) boks(1.345, 1.90, z, 1.355, H, z + 0.01, M.svart);
     for (let i = 0; i < 8; i++) {
       const k = new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), M.kugle);
-      k.position.set(0.65 + i * 0.18, i % 2 ? 1.78 : 1.72, 5.75 + (i % 3 - 1) * 0.08);
+      k.position.set(1.35 + (i % 3 - 1) * 0.08, i % 2 ? 1.80 : 1.73, 4.80 + i * 0.15);
       scene.add(k);
     }
-    // skjenk mot trappesiden
-    boks(3.62, 0.12, 4.40, 4.02, 0.80, 5.80, M.svart);
-    // sofa i L langs hagevinduet og venstre vegg, sjeselong mot midten
+    // vitrineskap i bronse og glass under trappa, ved døra til tek. rom
+    {
+      const [x1, x2, z1, z2] = [3.66, 4.01, 5.45, 6.25];
+      for (const [lx, lz] of [[x1, z1], [x2 - 0.03, z1], [x1, z2 - 0.03], [x2 - 0.03, z2 - 0.03]]) boks(lx, 0, lz, lx + 0.03, 1.40, lz + 0.03, M.bronse);
+      for (const y of [0.20, 1.37]) boks(x1, y, z1, x2, y + 0.03, z2, M.bronse);
+      for (const y of [0.62, 1.00]) boks(x1 + 0.03, y, z1 + 0.03, x2 - 0.03, y + 0.01, z2 - 0.03, M.glass);
+      boks(x1, 0.23, z1 + 0.03, x1 + 0.01, 1.37, z2 - 0.03, M.glass);
+      boks(x1 + 0.005, 0.23, (z1 + z2) / 2 - 0.01, x1 + 0.02, 1.37, (z1 + z2) / 2 + 0.01, M.bronse);
+    }
+    // stor sofa i L langs venstre vegg og hagevinduet, med sjeselong mot spiseplassen
     const sofa = (x1, z1, x2, z2, rygg) => {
       boks(x1, 0.05, z1, x2, 0.45, z2, M.sofa);
       if (rygg === 'x1') boks(x1, 0.45, z1, x1 + 0.22, 0.85, z2, M.sofa);
       if (rygg === 'z1') boks(x1, 0.45, z1, x2, 0.85, z1 + 0.22, M.sofa);
     };
-    sofa(T + 0.05, 0.45, 2.90, 1.40, 'z1');
-    sofa(T + 0.05, 1.40, 1.20, 3.60, 'x1');
-    sofa(1.20, 2.70, 2.10, 3.60);
-    boks(1.00, 0.01, 1.10, 3.50, 0.02, 4.00, M.teppe);
-    const bord = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.04, 32), M.svart);
-    bord.position.set(2.1, 0.45, 2.1); bord.castShadow = true; scene.add(bord);
-    // TV-benk og TV på høyre vegg mellom hagevindu og trapp
-    boks(B - T - 0.45, 0, 0.45, B - T, 0.55, 2.35, M.tvBenk);
-    boks(B - T - 0.08, 0.95, 0.65, B - T - 0.04, 1.75, 2.15, M.svart);
+    sofa(T + 0.05, 0.45, 2.85, 1.40, 'z1');
+    boks(2.65, 0.45, 0.67, 2.85, 0.62, 1.40, M.sofa);                 // armlene mot glassdøra
+    sofa(T + 0.05, 1.40, 1.20, 3.90, 'x1');
+    sofa(1.20, 2.95, 2.05, 3.90);
+    // ovalt salongbord i mørk eik
+    oval(1.85, 2.15, 0.33, 0.62, 0.40, 0.44, M.mørkEik);
+    for (const z of [1.80, 2.50]) boks(1.70, 0, z - 0.02, 2.00, 0.40, z + 0.02, M.mørkEik);
+    // to bilder over sofaen
+    for (const z of [2.05, 2.75]) {
+      boks(T, 1.30, z, T + 0.025, 2.05, z + 0.55, M.svart);
+      boks(T + 0.025, 1.33, z + 0.03, T + 0.03, 2.02, z + 0.52, M.hvit);
+    }
+    // lyse gardiner på stang, og radiator under vinduet
+    boks(0.60, 2.40, 0.24, 4.60, 2.42, 0.26, M.svart);
+    for (const [x1, x2] of [[0.68, 0.98], [4.22, 4.52]]) boks(x1, 0.02, 0.22, x2, 2.40, 0.28, M.gardin);
+    boks(1.05, 0.12, 0.20, 2.70, 0.42, 0.27, M.hvit);
+    // TV-benk i mørk eik, TV på veggen og subwoofer ved trappehjørnet
+    boks(B - T - 0.45, 0.05, 1.00, B - T, 0.48, 2.80, M.mørkEik);
+    boks(B - T - 0.05, 0.95, 1.15, B - T - 0.01, 1.80, 2.65, M.svart);
+    boks(B - T - 0.37, 0, 2.85, B - T - 0.02, 0.38, 3.15, M.svart);
 
     // ---------- Terrasse mot hagen (25 m²) ----------
     // sideveggene er høye inntil huset og skrår ned utover mot hagen
@@ -503,16 +568,25 @@
     spileveggProfil('z', 0, 0.06, hageSide, -0.05);
     spileveggProfil('z', B - 0.06, B, hageSide, -0.05);
     spilevegg('x', -4.72, -4.66, 0.85, B, -0.05, 1.0);
-    // hengestol, loungesett og sofa
-    boks(0.75, -0.05, -3.55, 0.85, 2.0, -3.45, M.svart);
-    boks(0.75, 1.95, -3.55, 1.45, 2.0, -3.45, M.svart);
-    const egg = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.75), M.svart);
-    egg.position.set(1.4, 0.95, -3.1); egg.rotation.x = -0.5; egg.castShadow = true; scene.add(egg);
-    boks(2.60, 0.62, -2.10, 3.90, 0.66, -1.20, M.flett);
-    boks(2.70, -0.05, -2.00, 3.80, 0.62, -1.30, M.flett);
-    for (const z of [-2.0, -1.3]) boks(1.80, -0.05, z - 0.1, 2.45, 0.75, z + 0.45, M.flett);
-    boks(4.45, -0.05, -3.30, B - 0.1, 0.45, -0.70, M.flett);
-    boks(B - 0.3, 0.45, -3.30, B - 0.1, 0.80, -0.70, M.flett);
+    // grå rottingmøbler: sofagruppe med spisebord foran stuevinduet, to lenestoler ved
+    // sideveggen, svart oppbevaringskasse mot hagen, grill ved døra og markise over
+    const UT = -0.05;                                                 // terrassegulv
+    boks(0.75, UT, -0.95, 2.35, UT + 0.42, -0.25, M.rotting);
+    boks(0.75, UT + 0.42, -0.40, 2.35, UT + 0.82, -0.25, M.rotting);
+    boks(0.10, UT, -2.25, 0.80, UT + 0.42, -0.95, M.rotting);
+    boks(0.10, UT + 0.42, -2.25, 0.25, UT + 0.82, -0.95, M.rotting);
+    for (const [lx, lz] of [[0.95, -1.95], [2.10, -1.95], [0.95, -1.10], [2.10, -1.10]]) boks(lx, UT, lz, lx + 0.05, UT + 0.55, lz + 0.05, M.rotting);
+    boks(0.95, UT + 0.55, -1.95, 2.15, UT + 0.58, -1.05, M.svartGlass);
+    for (const [z1, z2] of [[-1.45, -0.80], [-2.75, -2.10]]) {
+      boks(4.45, UT, z1, 5.15, UT + 0.40, z2, M.rotting);
+      boks(4.95, UT + 0.40, z1, 5.15, UT + 0.75, z2, M.rotting);
+      for (const z of [z1, z2 - 0.12]) boks(4.45, UT + 0.40, z, 4.95, UT + 0.62, z + 0.12, M.rotting);
+    }
+    boks(4.55, UT, -2.00, 5.00, UT + 0.32, -1.55, M.rotting);
+    boks(0.30, UT, -4.62, 1.60, UT + 0.58, -4.02, M.svart);
+    for (const [lx, lz] of [[2.80, -0.85], [3.20, -0.85], [2.80, -0.50], [3.20, -0.50]]) boks(lx, UT, lz, lx + 0.03, UT + 0.60, lz + 0.03, M.svart);
+    boks(2.75, UT + 0.60, -0.90, 3.28, UT + 0.92, -0.45, M.svart);
+    boks(0.40, 2.40, -0.18, 4.40, 2.55, 0, M.mørkGrå);
 
     // ---------- Inngangsparti: terrasse 4 m², bod 5 m², gårdsplass ----------
     boks(3.06, UTE, D, B, -0.03, 11.66, M.terrasse);
@@ -535,6 +609,13 @@
       boks(x - 0.28, UTE, 10.05, x + 0.28, UTE + 0.45, 10.55, M.flett);
       boks(x - 0.28, UTE + 0.45, 10.05, x + 0.28, UTE + 0.8, 10.15, M.flett);
     }
+    // ved inngangsdøra: spileskjerm på veggfeltet til venstre, beslag og rund vegglampe
+    boks(2.18, 1.00, D, 3.15, 1.03, D + 0.05, M.porteTak);
+    spilevegg('x', D, D + 0.04, 2.20, 3.12, 1.03, 1.47);
+    const lampe = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.06, 32), M.svart);
+    lampe.rotation.x = Math.PI / 2; lampe.position.set(2.62, 1.80, D + 0.07); scene.add(lampe);
+    const lampeglass = new THREE.Mesh(new THREE.CircleGeometry(0.13, 32), M.lampe);
+    lampeglass.position.set(2.62, 1.80, D + 0.101); scene.add(lampeglass);
     const lite = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.03, 24), M.tvBenk);
     lite.position.set(1.3, UTE + 0.5, 10.3); scene.add(lite);
 
@@ -553,6 +634,7 @@
     const etg2 = new THREE.Group();
     scene.add(etg2);
     mål = etg2;
+    standardVegg = M.innervegg;
 
     // etasjeskiller med trappehull, parkett og flis på bad
     for (const [x1, x2, z1, z2] of dekke) {
