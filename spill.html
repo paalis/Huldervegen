@@ -693,13 +693,16 @@
       // tastaturstyring avbryter klikkveien
       const fx = (taster.has('arrowright') || taster.has('d')) - (taster.has('arrowleft') || taster.has('a'));
       const fz = (taster.has('arrowup') || taster.has('w')) - (taster.has('arrowdown') || taster.has('s'));
+      if (!fx) t.sving = 0;
       if (fx || fz) {
         if (t.handling) stoppHandling();
         t.planlagt = null;
         t.vei = [];
         let v;
         if (kamera.modus === 'bak') {                                          // som i GTA: ← → snur, ↑ ↓ går
-          t.retning -= fx * 2.6 * dt;
+          // svinghastigheten bygger seg opp mykt opp til ca. 95 grader i sekundet
+          t.sving = Math.min(1, (t.sving || 0) + dt * 3);
+          t.retning -= fx * 1.65 * t.sving * dt;
           v = new THREE.Vector3(Math.sin(t.retning), 0, Math.cos(t.retning)).multiplyScalar(fz * t.fart * dt * (fz < 0 ? 0.6 : 1));
         } else {
           camera.getWorldDirection(fremover); fremover.y = 0; fremover.normalize();
