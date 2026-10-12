@@ -515,14 +515,38 @@
       }
       // hvite spiler, stolpe og håndløper langs løpet. Fra 2. etasje står gelenderet på
       // vangen innenfor veggen som går langs trappa i 3. etasje.
-      const rx = åpen ? TX1 + 0.025 : 4.07;
-      for (let j = 0; j < 8; j++) {
-        const z = nedreSving.z2 + (j + 0.5) * inntrinn, y = y0 + (4 + j) * opptrinn;
-        boks(rx - 0.015, y, z - 0.015, rx + 0.015, y + 0.9, z + 0.015, M.hvit);
+      const stigning = Math.atan2(opptrinn, inntrinn), tan = Math.tan(stigning);
+      const rx = åpen ? TX1 + 0.025 : TX1, zMidt = nedreSving.z2 + 4 * inntrinn;
+      const håndY = z => y0 + 7.5 * opptrinn + 0.95 + (z - zMidt) * tan;          // håndløperens senter
+      if (åpen) {
+        for (let j = 0; j < 8; j++) {
+          const z = nedreSving.z2 + (j + 0.5) * inntrinn, y = y0 + (4 + j) * opptrinn;
+          boks(rx - 0.015, y, z - 0.015, rx + 0.015, y + 0.9, z + 0.015, M.hvit);
+        }
+        boks(rx - 0.03, y0, 4.17, rx + 0.03, y0 + 3 * opptrinn + 1.0, 4.23, M.hvit);
+      } else {
+        // 1. etasje etter bildene: bred hvit vange langs den åpne siden over veggen til tek. rom,
+        // tette spiler (to per trinn) på vangen og en kraftig stolpe der vindeltrinnene slutter
+        const lengde = (øvreSving.z1 - nedreSving.z2) / Math.cos(stigning);
+        const vange = new THREE.Mesh(new RoundedBoxGeometry(0.06, 0.28, lengde, 2, 0.01), M.hvit);
+        vange.position.set(TX1 - 0.01, y0 + 7 * opptrinn + 0.04, (nedreSving.z2 + øvreSving.z1) / 2);
+        vange.rotation.x = -stigning;
+        vange.castShadow = vange.receiveShadow = true;
+        mål.add(vange);
+        for (let k = 0; k < 16; k++) {
+          const z = nedreSving.z2 + 0.18 + k * (øvreSving.z1 - nedreSving.z2 - 0.3) / 15;
+          const bunn = y0 + 3 * opptrinn + (z - nedreSving.z2) * tan + 0.17;
+          boks(rx - 0.014, bunn, z - 0.014, rx + 0.014, håndY(z) - 0.02, z + 0.014, M.hvit);
+        }
+        boks(rx - 0.045, y0, 4.12, rx + 0.045, y0 + 3 * opptrinn + 1.08, 4.21, M.hvit);   // stolpe
+        // håndløper på veggen ved vindeltrinnene
+        const vegg1 = new THREE.Mesh(new RoundedBoxGeometry(0.80, 0.045, 0.05, 2, 0.015), M.hvit);
+        vegg1.position.set((TX1 + TX2) / 2, y0 + 1.5 * opptrinn + 0.92, nedreSving.z1 + 0.05);
+        vegg1.rotation.z = Math.atan2(2 * opptrinn, 0.8);
+        mål.add(vegg1);
       }
-      boks(rx - 0.03, y0, 4.17, rx + 0.03, y0 + 3 * opptrinn + 1.0, 4.23, M.hvit);
-      const stigning = Math.atan2(opptrinn, inntrinn), løp = 7 * inntrinn;
-      const håndløper = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, løp / Math.cos(stigning)), M.hvit);
+      const løp = åpen ? 7 * inntrinn : 8 * inntrinn;
+      const håndløper = new THREE.Mesh(new RoundedBoxGeometry(åpen ? 0.05 : 0.06, åpen ? 0.05 : 0.055, løp / Math.cos(stigning), 2, 0.015), M.hvit);
       håndløper.position.set(rx, y0 + 7.5 * opptrinn + 0.95, nedreSving.z2 + 4 * inntrinn);
       håndløper.rotation.x = -stigning;                               // stiger mot +z
       mål.add(håndløper);
@@ -842,7 +866,12 @@
       rund(x1, F + 0.08, z1, x2, F + 0.40, z2, bunn, 0.04);
       rund(x1 + 0.02, F + 0.38, z1 + 0.02, x2 - 0.02, F + 0.52, z2 - 0.02, M.sengetøy, 0.05);
       const o = 0.015;
-      if (hode === 'x1') {
+      if (hode === 'x2') {
+        const zm = (z1 + z2) / 2;
+        for (const [a, b] of [[z1 + 0.06, zm - 0.02], [zm + 0.02, z2 - 0.06]])
+          rund(x2 - 0.46, F + 0.50, a, x2 - 0.06, F + 0.64, b, M.hvit, 0.06);
+        rund(x1 - o, F + 0.48, z1 - o, x2 - 0.50, F + 0.60, z2 + o, M.sengetøy, 0.05);
+      } else if (hode === 'x1') {
         const zm = (z1 + z2) / 2;
         for (const [a, b] of [[z1 + 0.06, zm - 0.02], [zm + 0.02, z2 - 0.06]])
           rund(x1 + 0.06, F + 0.50, a, x1 + 0.46, F + 0.64, b, M.hvit, 0.06);
@@ -874,7 +903,7 @@
 
     // soverom 7 m² (mot hagen, lyseblått): seng under vinduet fra vegg til vegg, svart nattbord,
     // hvitt garderobeskap ved døra og papirlampe i taket
-    seng(2.96, 0.22, B - T - 0.02, 1.40, M.svart);                   // over hele rommets bredde
+    seng(2.96, 0.22, B - T - 0.02, 1.40, M.svart, 'x2');             // over hele rommets bredde, putene mot nattbordet
     boks(4.60, F, 1.45, 5.02, F + 0.55, 1.85, M.svart);               // nattbord på innsiden av senga
     garderobe(4.05, 2.60, B - T, 3.20);
     for (const z of [0.55, 0.95]) boks(2.944, F + 1.30, z, 2.965, F + 1.80, z + 0.32, M.svart);
