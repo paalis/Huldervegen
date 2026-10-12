@@ -460,19 +460,52 @@ vegg('x', nedreSving.z1 - 0.1, nedreSving.z1, TX1, TX2);          // mellom TV-h
 
 // ---------- Kjøkken (U-form) ----------
 const benkH = 0.9;
-// langs venstre vegg, med komfyr og stekeovn
+// langs venstre vegg, med koketopp og innebygd stekeovn under
 boks(T, 0, 6.50, 0.80, benkH - 0.04, D - T, M.hvit);
 boks(T, benkH - 0.04, 6.50, 0.82, benkH, D - T, M.benk);
 boks(0.25, benkH, 8.22, 0.75, benkH + 0.01, 8.80, M.svart);       // induksjon
-boks(0.80, 0.15, 8.22, 0.81, 0.75, 8.80, M.svart);                // stekeovn
+// stekeovn: svart glassfront med vindu, betjeningslist og stanghåndtak
+rund(0.795, 0.12, 8.24, 0.815, 0.80, 8.78, M.pianoSvart, 0.005);
+boks(0.813, 0.24, 8.32, 0.817, 0.60, 8.70, M.svartGlass);
+boks(0.813, 0.70, 8.30, 0.817, 0.76, 8.72, M.mørkGrå);            // betjeningslist
+for (const z of [8.32, 8.68]) boks(0.815, 0.645, z - 0.006, 0.84, 0.655, z + 0.006, M.stål);
+boks(0.835, 0.64, 8.30, 0.85, 0.66, 8.70, M.stål);                // håndtak
 // langs vinduet
 boks(0.80, 0, D - T - 0.6, 2.88, benkH - 0.04, D - T, M.hvit);
 boks(0.80, benkH - 0.04, D - T - 0.62, 2.88, benkH, D - T, M.benk);
-// langs entréveggen, med vask og høyskap
-boks(2.28, 0, 7.95, 2.88, benkH - 0.04, D - T - 0.6, M.hvit);
-boks(2.26, benkH - 0.04, 7.95, 2.88, benkH, D - T - 0.6, M.benk);
-boks(2.40, benkH - 0.02, 8.30, 2.75, benkH + 0.005, 8.70, M.stål); // vask
+// langs entréveggen: nedfelt stålvask med høy kran mot veggen, og høyskap
+const vz1 = 8.28, vz2 = 8.72, vx1 = 2.38, vx2 = 2.76, dyp = 0.18;
+boks(2.28, 0, 7.95, 2.88, benkH - 0.04, vz1, M.hvit);
+boks(2.28, 0, vz2, 2.88, benkH - 0.04, D - T - 0.6, M.hvit);
+boks(2.28, 0, vz1, 2.88, benkH - dyp - 0.04, vz2, M.hvit);        // vaskeskap, lavere under kummen
+boks(2.28, benkH - dyp - 0.04, vz1, 2.30, benkH - 0.04, vz2, M.hvit);
+for (const [z1, z2] of [[7.95, vz1], [vz2, D - T - 0.6]]) boks(2.26, benkH - 0.04, z1, 2.88, benkH, z2, M.benk);
+for (const [x1, x2] of [[2.26, vx1], [vx2, 2.88]]) boks(x1, benkH - 0.04, vz1, x2, benkH, vz2, M.benk);
+boks(vx1, benkH - dyp, vz1, vx2, benkH - dyp + 0.01, vz2, M.stål);   // kum: bunn og sider
+for (const [x1, x2] of [[vx1, vx1 + 0.01], [vx2 - 0.01, vx2]]) boks(x1, benkH - dyp, vz1, x2, benkH, vz2, M.stål);
+for (const [z1, z2] of [[vz1, vz1 + 0.01], [vz2 - 0.01, vz2]]) boks(vx1, benkH - dyp, z1, vx2, benkH, z2, M.stål);
+for (const [x1, z1, x2, z2] of [[vx1 - 0.015, vz1 - 0.015, vx2 + 0.015, vz1], [vx1 - 0.015, vz2, vx2 + 0.015, vz2 + 0.015],
+  [vx1 - 0.015, vz1, vx1, vz2], [vx2, vz1, vx2 + 0.015, vz2]]) boks(x1, benkH, z1, x2, benkH + 0.004, z2, M.stål);   // kant
+sylinder((vx1 + vx2) / 2, 8.50, benkH - dyp + 0.01, benkH - dyp + 0.014, 0.03, M.mørkGrå);       // sluk
+sylinder(2.81, 8.50, benkH, benkH + 0.06, 0.026, M.stål);         // kran: fot, stamme, tut og spak
+sylinder(2.81, 8.50, benkH + 0.06, benkH + 0.34, 0.012, M.stål);
+rund(2.61, benkH + 0.32, 8.488, 2.82, benkH + 0.345, 8.512, M.stål, 0.01);
+sylinder(2.62, 8.50, benkH + 0.27, benkH + 0.33, 0.011, M.stål);
+boks(2.80, benkH + 0.10, 8.53, 2.82, benkH + 0.12, 8.62, M.stål);
 boks(2.28, 0, 7.25, 2.88, 2.25, 7.95, M.skap);                    // høyskap/kjøleskap
+// fronter: smale fuger mellom dører og skuffer, sorte stanghåndtak
+const fuge = (x1, y1, z1, x2, y2, z2) => boks(x1, y1, z1, x2, y2, z2, M.grått);
+const håndtak = (x1, y1, z1, x2, y2, z2) => boks(x1, y1, z1, x2, y2, z2, M.svart);
+for (const z of [7.10, 7.66, 8.22, 8.80]) fuge(0.80, 0.10, z - 0.002, 0.803, benkH - 0.05, z + 0.002);
+for (const [z1, z2] of [[6.50, 7.10], [7.10, 7.66], [7.66, 8.22]]) håndtak(0.80, 0.76, (z1 + z2) / 2 - 0.08, 0.825, 0.775, (z1 + z2) / 2 + 0.08);
+const fz = D - T - 0.6;                                           // fronten mot vinduet
+for (const x of [1.35, 1.95]) fuge(x - 0.002, 0.10, fz - 0.003, x + 0.002, benkH - 0.05, fz);
+for (const y of [0.32, 0.60]) fuge(1.35, y - 0.002, fz - 0.003, 1.95, y + 0.002, fz);
+for (const y of [0.22, 0.48, 0.76]) håndtak(1.57, y - 0.008, fz - 0.025, 1.73, y + 0.008, fz);   // skuffer
+for (const x of [1.075, 2.115]) håndtak(x - 0.08, 0.76, fz - 0.025, x + 0.08, 0.775, fz);
+for (const z of [vz1, vz2]) fuge(2.277, 0.10, z - 0.002, 2.28, benkH - 0.05, z + 0.002);
+for (const [z1, z2] of [[7.95, vz1], [vz1, vz2], [vz2, fz]]) håndtak(2.255, 0.76, (z1 + z2) / 2 - 0.06, 2.28, 0.775, (z1 + z2) / 2 + 0.06);
+håndtak(2.255, 0.95, 7.86, 2.28, 1.25, 7.875);                    // høyskap
 // fliser og overskap
 boks(T, benkH, 6.50, T + 0.01, 1.45, D - T, M.flis);
 boks(0.80, benkH, D - T - 0.01, 2.88, 1.05, D - T, M.flis);
@@ -480,8 +513,12 @@ boks(2.87, benkH, 7.95, 2.88, 1.45, D - T, M.flis);
 boks(0.80, 1.05, D - T - 0.01, 0.91, 1.45, D - T, M.flis);        // flis ved siden av vinduet
 boks(2.18, 1.05, D - T - 0.01, 2.88, 1.45, D - T, M.flis);
 boks(T, 1.45, 6.50, 0.55, 2.25, D - T, M.skap);
+for (const z of [7.10, 7.55, 8.05, 8.80]) fuge(0.55, 1.47, z - 0.002, 0.553, 2.23, z + 0.002);
+for (const z of [6.55, 7.15, 8.10, 8.85]) håndtak(0.55, 1.50, z, 0.575, 1.66, z + 0.015);
 boks(0.55, 1.62, 7.55, 0.56, 1.98, 8.05, M.svart);                // mikro
 boks(2.53, 1.45, 7.95, 2.88, 2.25, D - T, M.skap);
+for (const z of [8.50, 9.00]) fuge(2.527, 1.47, z - 0.002, 2.53, 2.23, z + 0.002);
+for (const z of [8.40, 8.55, 9.05]) håndtak(2.505, 1.50, z, 2.53, 1.66, z + 0.015);
 // hjørneskap rundt vinduet, langs ytterveggen
 boks(0.55, 1.45, D - T - 0.35, 0.91, 2.25, D - T, M.skap);
 boks(2.18, 1.45, D - T - 0.35, 2.53, 2.25, D - T, M.skap);
@@ -959,7 +996,7 @@ vegg('z', 2.85, 2.95, 7.38, D - T, [], standardVegg, G);          // soverom | v
 vegg('x', 7.27, 7.36, 2.93, 4.03, [dør(3.08, 3.77)], standardVegg, G); // stue | vaskerom
 boks(4.03, G, 7.27, B - T, G + H, 8.04, standardVegg);            // sjakt
 boks(0.80, G, 6.93, 1.50, G + 2.03, 6.97, M.hvitDør);             // dørblad soverom, lukket så skapet synes
-boks(3.73, G, 7.36, 3.77, G + 2.03, 8.05, M.hvitDør);             // dørblad vaskerom
+boks(3.08, G, 7.36, 3.12, G + 2.03, 8.05, M.hvitDør);             // dørblad vaskerom, slår inn mot vasken
 
 // stue 15,5 m²: lav, myk sofa under vinduet helt inntil veggen med pianoet, digitalpiano på
 // stativ med krakk mot venstre vegg, teppe og to svarte settbord, TV på tynne ben på eikebenk.
@@ -1104,12 +1141,12 @@ flis3('z', 4.03 - L3, 4.03, 7.36, 8.04, []);
 flis3('x', 8.04, 8.04 + L3, 4.03, B - T, []);
 boks(2.95, G + 0.60, 8.25, 3.45, G + 0.90, 8.75, M.stål);
 boks(2.95, G, 8.90, 3.50, G + 0.90, D - T, M.hvit);
-// gulvstående WC mot veggen like innenfor sjakta: sisterne, fot, skål, sete og spyleknapp
-rund(4.86, G + 0.38, 8.21, B - T, G + 0.80, 8.59, M.hvit, 0.03);
-sylinder(4.92, 8.40, G + 0.80, G + 0.81, 0.025, M.stål);
-oval(4.74, 8.40, 0.12, 0.10, G, G + 0.30, M.hvit);
-oval(4.68, 8.40, 0.22, 0.18, G + 0.24, G + 0.40, M.hvit).geometry = new THREE.CylinderGeometry(1, 0.62, 0.16, 40);
-oval(4.68, 8.40, 0.23, 0.185, G + 0.40, G + 0.43, M.hvit);
+// gulvstående WC med sisternen mot sjaktveggen rett innenfor døra, skålen mot rommet
+rund(3.84, G + 0.38, 7.51, 4.03, G + 0.80, 7.89, M.hvit, 0.03);
+sylinder(3.93, 7.70, G + 0.80, G + 0.81, 0.025, M.stål);
+oval(3.74, 7.70, 0.12, 0.10, G, G + 0.30, M.hvit);
+oval(3.66, 7.70, 0.22, 0.18, G + 0.24, G + 0.40, M.hvit).geometry = new THREE.CylinderGeometry(1, 0.62, 0.16, 40);
+oval(3.66, 7.70, 0.23, 0.185, G + 0.40, G + 0.43, M.hvit);
 boks(3.96, G, 9.05, 4.53, G + 0.85, D - T, M.hvit);                // vaskemaskin
 boks(4.53, G, 9.05, B - T, G + 0.85, D - T, M.hvit);               // tørketrommel
 for (const x of [4.245, 4.80]) {
