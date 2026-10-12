@@ -589,15 +589,33 @@
       mål.add(mesh);
       return mesh;
     }
-    // Spisestol med mørk ramme og lyst stoppet sete/rygg; vinkel = retningen stolen vender (rundt y).
+    // Spisestol etter bildene: mørkt tre, ben som spriker litt utover, lyst polstret sete og en bred,
+    // buet ryggskall i tre med lys polstring på innsiden, båret av bakbena. Vinkel = retningen stolen vender.
     function stol(x, z, vinkel) {
       const g = new THREE.Group();
-      for (const [lx, lz] of [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]])
-        sylinder(lx, lz, 0, 0.44, 0.016, M.mørkEik, 0.011, 12, g);                  // smalnende ben
-      rund(-0.22, 0.42, -0.22, 0.22, 0.50, 0.22, M.stoff, 0.035, g);                // polstret sete
-      const rygg = rund(-0.21, 0.47, -0.25, 0.21, 0.90, -0.21, M.mørkEik, 0.02, g);
-      const pols = rund(-0.18, 0.58, -0.215, 0.18, 0.86, -0.185, M.stoff, 0.015, g);
-      rygg.rotation.x = pols.rotation.x = -0.08;                                    // ryggen heller litt bakover
+      const stang = (a, b, r1, r2) => {                                             // rund stang fra a til b
+        const v = new THREE.Vector3(...b).sub(new THREE.Vector3(...a));
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(r2, r1, v.length(), 12), M.mørkEik);
+        m.position.set(...a).addScaledVector(v, 0.5);
+        m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize());
+        m.castShadow = m.receiveShadow = true;
+        g.add(m);
+      };
+      for (const sx of [-1, 1]) {
+        stang([sx * 0.21, 0, 0.22], [sx * 0.17, 0.42, 0.16], 0.013, 0.018);        // forben
+        stang([sx * 0.21, 0, -0.24], [sx * 0.17, 0.42, -0.17], 0.013, 0.018);      // bakben ...
+        stang([sx * 0.17, 0.42, -0.17], [sx * 0.19, 0.78, -0.205], 0.018, 0.016); // ... som bærer ryggen
+      }
+      rund(-0.20, 0.39, -0.19, 0.20, 0.43, 0.19, M.mørkEik, 0.012, g);             // setramme
+      rund(-0.22, 0.42, -0.21, 0.22, 0.49, 0.23, M.stoff, 0.03, g);                // polstret sete
+      const bue = (R1, R2, v) => {                                                  // ringsektor bak setet
+        const pkt = [];
+        for (let i = 0; i <= 16; i++) { const a = -v + 2 * v * i / 16; pkt.push([R1 * Math.sin(a), 0.19 - R1 * Math.cos(a)]); }
+        for (let i = 16; i >= 0; i--) { const a = -v + 2 * v * i / 16; pkt.push([R2 * Math.sin(a), 0.19 - R2 * Math.cos(a)]); }
+        return pkt;
+      };
+      prisme(bue(0.42, 0.395, 0.62), 0.62, 0.85, M.mørkEik, g);                     // ryggskall i tre
+      prisme(bue(0.395, 0.38, 0.57), 0.645, 0.825, M.stoff, g);                     // polstring på innsiden
       g.rotation.y = vinkel;
       g.position.set(x, 0, z);
       mål.add(g);
@@ -1036,11 +1054,11 @@
     // Møbler og tekstiler har avrundede kanter så de ikke ser ut som klosser.
     {
       // sofa: ramme, tre setemoduler, tynne armlener, store løse ryggputer og pyntputer
-      rund(0.20, G + 0.12, 3.40, 2.45, G + 0.30, 4.40, M.sofaStoff, 0.04);              // ramme
-      rund(0.20, G + 0.30, 3.40, 2.45, G + 0.56, 3.58, M.sofaStoff, 0.05);              // ryggramme
-      for (const [x1, x2] of [[0.20, 0.33], [2.32, 2.45]])                              // armlener
+      rund(0.20, G + 0.12, 3.40, 2.93, G + 0.30, 4.40, M.sofaStoff, 0.04);              // ramme, helt bort til terrassedøra
+      rund(0.20, G + 0.30, 3.40, 2.93, G + 0.56, 3.58, M.sofaStoff, 0.05);              // ryggramme
+      for (const [x1, x2] of [[0.20, 0.33], [2.80, 2.93]])                              // armlener
         rund(x1, G + 0.12, 3.40, x2, G + 0.58, 4.40, M.sofaStoff, 0.05);
-      const seter = [[0.34, 0.99], [1.00, 1.65], [1.66, 2.31]];
+      const seter = [[0.34, 1.15], [1.16, 1.97], [1.98, 2.79]];
       for (const [x1, x2] of seter) rund(x1, G + 0.29, 3.58, x2, G + 0.45, 4.39, M.sofaStoff, 0.07);
       seter.forEach(([x1, x2], i) => {                                                  // ryggputer
         const p = rund(x1, G + 0.42, 3.52, x2, G + 0.92, 3.80, M.sofaStoff, 0.11);
@@ -1051,10 +1069,10 @@
         p.rotation.x = rx; p.rotation.z = rz;
       };
       pute(0.35, G + 0.44, 3.86, 0.58, G + 0.80, 4.34, M.sofaStoff, 0, 0.18);           // på tvers mot armlenet
-      pute(1.05, G + 0.44, 3.80, 1.47, G + 0.86, 3.96, M.puteBrun, -0.22, 0.10);        // pyntputer
-      pute(1.52, G + 0.44, 3.80, 1.92, G + 0.84, 3.96, M.puteGrønn, -0.20, -0.08);
-      pute(1.95, G + 0.45, 3.92, 2.28, G + 0.60, 4.24, M.sofaStoff, 0, 0.25);           // liten pute på setet
-      for (const [x, z] of [[0.26, 3.46], [2.39, 3.46], [0.26, 4.34], [2.39, 4.34]])
+      pute(1.29, G + 0.44, 3.80, 1.71, G + 0.86, 3.96, M.puteBrun, -0.22, 0.10);        // pyntputer
+      pute(1.76, G + 0.44, 3.80, 2.16, G + 0.84, 3.96, M.puteGrønn, -0.20, -0.08);
+      pute(2.38, G + 0.45, 3.92, 2.71, G + 0.60, 4.24, M.sofaStoff, 0, 0.25);           // liten pute på setet
+      for (const [x, z] of [[0.26, 3.46], [2.87, 3.46], [0.26, 4.34], [2.87, 4.34]])
         sylinder(x, z, G, G + 0.12, 0.012, M.stål);
 
       // teppe, settbord med plante og telys
@@ -1174,8 +1192,12 @@
     flis3('x', 8.04, 8.04 + L3, 4.03, B - T, []);
     boks(2.95, G + 0.60, 8.25, 3.45, G + 0.90, 8.75, M.stål);
     boks(2.95, G, 8.90, 3.50, G + 0.90, D - T, M.hvit);
-    boks(4.90, G, 8.10, B - T, G + 0.80, 8.60, M.hvit);
-    boks(4.45, G + 0.20, 8.15, 4.90, G + 0.42, 8.55, M.hvit);
+    // gulvstående WC mot veggen like innenfor sjakta: sisterne, fot, skål, sete og spyleknapp
+    rund(4.86, G + 0.38, 8.21, B - T, G + 0.80, 8.59, M.hvit, 0.03);
+    sylinder(4.92, 8.40, G + 0.80, G + 0.81, 0.025, M.stål);
+    oval(4.74, 8.40, 0.12, 0.10, G, G + 0.30, M.hvit);
+    oval(4.68, 8.40, 0.22, 0.18, G + 0.24, G + 0.40, M.hvit).geometry = new THREE.CylinderGeometry(1, 0.62, 0.16, 40);
+    oval(4.68, 8.40, 0.23, 0.185, G + 0.40, G + 0.43, M.hvit);
     boks(3.96, G, 9.05, 4.53, G + 0.85, D - T, M.hvit);                // vaskemaskin
     boks(4.53, G, 9.05, B - T, G + 0.85, D - T, M.hvit);               // tørketrommel
     for (const x of [4.245, 4.80]) {
