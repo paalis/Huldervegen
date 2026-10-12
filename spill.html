@@ -55,9 +55,11 @@
       <button id="lave" class="på">Lave vegger</button>
       <a class="knapp" href="./">Til 3D-modellen</a>
     </div>
+    <div class="rad" id="handlinger" style="margin-top:6px"></div>
     <p>Klikk eller trykk på gulvet for å gå dit, også i en annen etasje.<br>
        Piltaster/WASD: med kamera bak figuren går ↑ fram, ↓ bak og ← → snur (C bytter kamera).<br>
-       Ovenfra: dra for å snu kameraet. Scroll/knip for zoom.</p>
+       Ovenfra: dra for å snu kameraet. Scroll/knip for zoom.<br>
+       Handlinger: trykk på en knapp, eller E når figuren står i nærheten.</p>
   </div>
   <div id="rom"></div>
 
@@ -360,6 +362,7 @@
     del(new THREE.SphereGeometry(0.102, 24, 14, Math.PI, Math.PI, Math.PI * 0.38, Math.PI * 0.27), hår, 0, 0.01, -0.006, hodet).scale.set(0.83, 1.09, 0.99);
     const topp = del(new THREE.SphereGeometry(0.088, 24, 14), hår, 0.008, 0.083, 0.014, hodet);
     topp.scale.set(0.8, 0.22, 0.98); topp.rotation.z = -0.12;
+    figur.rotation.order = 'YXZ';
     scene.add(figur);
     const figurdeler = new Set();
     figur.traverse(o => figurdeler.add(o));
@@ -369,14 +372,17 @@
     ring.rotation.x = -Math.PI / 2; scene.add(ring);
 
     // ---------- Tilstand og bevegelse ----------
-    const tilstand = { f: 0, pos: new THREE.Vector3(3.5, 0, 6.8), retning: Math.PI, vei: [], fart: 1.4, gange: 0, visEtasje: 0 };
+    const tilstand = { f: 0, pos: new THREE.Vector3(3.5, 0, 6.8), retning: Math.PI, vei: [], fart: 1.4, gange: 0, visEtasje: 0, handling: null, planlagt: null };
     const knapp = id => document.getElementById(id);
     function visEtasje(f) {
       tilstand.visEtasje = f;
       vis.etasje = f + 1; oppdater();
       for (const n of [1, 2, 3]) knapp(`etg${n}`).classList.toggle('på', n === f + 1);
+      if (typeof oppdaterKnapper === 'function') oppdaterKnapper();
     }
-    function gåTil(f, x, z) {
+    function gåTil(f, x, z, beholdPlan = false) {
+      stoppHandling();
+      if (!beholdPlan) tilstand.planlagt = null;
       // nærmeste gangbare rute rundt klikket
       let [ci, cj] = celle(x, z), best = null;
       for (let r = 0; r <= 20 && !best; r++)
@@ -423,6 +429,7 @@
     const taster = new Set();
     addEventListener('keydown', e => {
       const k = e.key.toLowerCase();
+      if (k === 'e' && !e.repeat) nærmesteHandling();
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();               // ikke rull siden
       if (k === 'c' && !e.repeat) settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
       taster.add(k);
@@ -455,6 +462,229 @@
       if (tekst !== sistRom) { knapp('rom').innerHTML = tekst; sistRom = tekst; }
     }
 
+    // ---------- Handlinger ----------
+    // Hver handling: hvor figuren går (gå), hvor den plasseres (pos, retning), holdning (står, sitter eller
+    // ligger), armbevegelse og lyd. Lydfilene legges i mappen lyder/ (se lyder/README.md). Mangler en fil,
+    // kjører handlingen uten lyd. varighet: sekunder før figuren reiser seg av seg selv (null = til den
+    // gjør noe annet). gjenta: lyden går i loop.
+    const [G1, G2, G3] = [base(0), base(1), base(2)];
+    const π = Math.PI;
+    const sittArmer = (tt) => {                                               // hendene hviler på lårene
+      for (const a of [armV, armH]) { a.skulder.rotation.x = -0.55; a.albue.rotation.x = -0.65; }
+    };
+    const vaskeArmer = (tt) => {                                              // gnir hendene under kranen
+      armV.skulder.rotation.x = armH.skulder.rotation.x = -0.75;
+      armV.albue.rotation.x = armH.albue.rotation.x = -0.75;
+      armV.skulder.rotation.z = 0.28 + Math.sin(tt * 10) * 0.06;
+      armH.skulder.rotation.z = -0.28 - Math.sin(tt * 10) * 0.06;
+    };
+    const HANDLINGER = {
+      piano: { navn: 'Spill piano', ikon: '🎹', f: 2, gå: [1.35, 5.90], pos: [0.89, 5.90], retning: -π / 2, holdning: 'sitt', sete: 0.53,
+        lyd: 'lyder/piano.mp3', gjenta: true,
+        armer: tt => {
+          armV.skulder.rotation.x = -0.85 + Math.sin(tt * 9) * 0.05;
+          armH.skulder.rotation.x = -0.85 + Math.sin(tt * 7 + 1) * 0.05;
+          armV.albue.rotation.x = armH.albue.rotation.x = -0.55;
+          armV.skulder.rotation.z = 0.25 + Math.sin(tt * 1.3) * 0.12;          // hendene flytter seg langs tangentene
+          armH.skulder.rotation.z = -0.25 + Math.sin(tt * 1.1 + 2) * 0.12;
+        } },
+      gitar: { navn: 'Spill gitar', ikon: '🎸', f: 2, gå: [0.95, 8.58], pos: [0.95, 8.58], retning: π / 2, holdning: 'stå',
+        lyd: 'lyder/gitar.mp3', gjenta: true,
+        før: () => { holdtGitar.visible = true; if (stativGitar) stativGitar.visible = false; },
+        etter: () => { holdtGitar.visible = false; if (stativGitar) stativGitar.visible = true; },
+        armer: tt => {
+          armV.skulder.rotation.x = -0.35 + Math.sin(tt * 12) * 0.1;          // høyre hånd slår an over lydhullet
+          armV.skulder.rotation.z = 0.3; armV.albue.rotation.x = -0.75;
+          armH.skulder.rotation.x = -0.75; armH.skulder.rotation.z = 0.12;    // venstre hånd på halsen
+          armH.albue.rotation.x = -1.05;
+        } },
+      vaskemaskin: { navn: 'Start vaskemaskinen', ikon: '🧺', f: 2, gå: [4.25, 8.75], pos: [4.25, 8.75], retning: 0, holdning: 'stå',
+        lyd: 'lyder/vaskemaskin.mp3', gjenta: false, varighet: 1.4, lydVed: 0.6, maskinGår: 12,
+        armer: tt => {
+          const løft = tt < 0.45 ? tt / 0.45 : tt < 0.95 ? 1 : Math.max(0, 1 - (tt - 0.95) / 0.4);
+          armV.skulder.rotation.x = -1.3 * løft; armV.albue.rotation.x = -0.2;
+        } },
+      do2: { navn: 'Gå på do', rom: 'badet', ikon: '🚽', f: 1, gå: [2.55, 5.85], pos: [2.60, 6.47], retning: π, holdning: 'sitt', sete: 0.43,
+        lyd: 'lyder/do.mp3', gjenta: false, varighet: 8, armer: sittArmer },
+      do3: { navn: 'Gå på do', rom: 'vaskerommet', ikon: '🚽', f: 2, gå: [4.55, 8.80], pos: [4.55, 8.38], retning: 0, holdning: 'sitt', sete: 0.43,
+        lyd: 'lyder/do.mp3', gjenta: false, varighet: 8, armer: sittArmer },
+      vask2: { navn: 'Vask hendene', rom: 'badet', ikon: '🧼', f: 1, gå: [1.20, 6.30], pos: [1.20, 6.40], retning: 0, holdning: 'stå',
+        lyd: 'lyder/handvask.mp3', gjenta: false, varighet: 6, armer: vaskeArmer },
+      vask3: { navn: 'Vask hendene', rom: 'vaskerommet', ikon: '🧼', f: 2, gå: [3.80, 8.50], pos: [3.78, 8.50], retning: -π / 2, holdning: 'stå',
+        lyd: 'lyder/handvask.mp3', gjenta: false, varighet: 6, armer: vaskeArmer },
+      steke: { navn: 'Stek mat', ikon: '🍳', f: 0, gå: [1.25, 8.51], pos: [1.12, 8.51], retning: -π / 2, holdning: 'stå',
+        lyd: 'lyder/steking.mp3', gjenta: true,
+        før: () => { panne.visible = true; }, etter: () => { panne.visible = false; },
+        armer: tt => {
+          armV.skulder.rotation.x = -0.9 + Math.sin(tt * 5) * 0.08;           // rører i panna
+          armV.skulder.rotation.z = 0.15 + Math.cos(tt * 5) * 0.08; armV.albue.rotation.x = -0.7;
+          armH.skulder.rotation.x = -0.7; armH.skulder.rotation.z = -0.1; armH.albue.rotation.x = -0.9;   // holder skaftet
+          panne.rotation.y = Math.sin(tt * 2.5) * 0.05;
+        } },
+      sov13: { navn: 'Sov', rom: 'soverom 13 m²', ikon: '😴', f: 1, gå: [1.70, 1.40], pos: [0.81, 2.15], retning: 0, holdning: 'ligg', liggehøyde: 0.62,
+        lyd: 'lyder/sove.mp3', gjenta: true },
+      sov7: { navn: 'Sov', rom: 'soverom 7 m²', ikon: '😴', f: 1, gå: [3.60, 1.90], pos: [3.10, 0.81], retning: -π / 2, holdning: 'ligg', liggehøyde: 0.62,
+        lyd: 'lyder/sove.mp3', gjenta: true },
+      sov12: { navn: 'Sov', rom: 'soverom 12 m²', ikon: '😴', f: 1, gå: [2.40, 9.35], pos: [2.15, 8.17], retning: π / 2, holdning: 'ligg', liggehøyde: 0.62,
+        lyd: 'lyder/sove.mp3', gjenta: true },
+      playstation: { navn: 'Spill PlayStation', rom: 'kontoret', ikon: '🎮', f: 2, gå: [1.05, 8.55], pos: [1.60, 8.55], retning: π / 2, holdning: 'sitt', sete: 0.51,
+        lyd: 'lyder/playstation.mp3', gjenta: true,
+        før: () => { kontroll.visible = skjermlys.visible = true; }, etter: () => { kontroll.visible = skjermlys.visible = false; },
+        armer: tt => {
+          for (const [a, sz] of [[armV, 0.32], [armH, -0.32]]) {
+            a.skulder.rotation.x = -0.55; a.skulder.rotation.z = sz;
+            a.albue.rotation.x = -1.15 + Math.sin(tt * (a === armV ? 13 : 11)) * 0.04;   // tomlene jobber
+          }
+          kontroll.rotation.x = Math.sin(tt * 2) * 0.06;
+          skjermlys.material.color.setHSL((tt * 0.07) % 1, 0.55, 0.45 + Math.sin(tt * 6) * 0.08);
+        } },
+    };
+    // kontroll i hendene og lys på skjermen mens figuren spiller
+    const kontroll = new THREE.Mesh(new RoundedBoxGeometry(0.16, 0.035, 0.09, 2, 0.015), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.4 }));
+    kontroll.position.set(0, 0.88, 0.30); kontroll.visible = false; figur.add(kontroll);
+    const skjermlys = new THREE.Mesh(new THREE.PlaneGeometry(0.76, 0.34), new THREE.MeshBasicMaterial({ color: 0x3366aa }));
+    skjermlys.position.set(2.566, G3 + 1.05, 8.70); skjermlys.rotation.y = -π / 2; skjermlys.visible = false; scene.add(skjermlys);
+    // gitaren figuren holder (skjult til den spiller), og gitaren på stativet som skjules imens
+    const holdtGitar = new THREE.Group();
+    {
+      const tre = new THREE.MeshStandardMaterial({ color: 0x7a2f22, roughness: 0.45 }), hals = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.6 });
+      for (const [y, rr] of [[0, 0.16], [0.21, 0.12]]) {
+        const k = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, 0.045, 32), tre);
+        k.rotation.x = π / 2; k.position.y = y; k.castShadow = true; holdtGitar.add(k);
+      }
+      const h = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 0.025), hals); h.position.set(0, 0.55, 0.01); holdtGitar.add(h);
+      const hode = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.03), hals); hode.position.set(0, 0.85, 0.01); holdtGitar.add(hode);
+      holdtGitar.position.set(-0.06, 0.98, 0.16); holdtGitar.rotation.z = -1.05;
+      holdtGitar.visible = false; figur.add(holdtGitar);
+    }
+    // stekepanne på koketoppen mens figuren steker
+    const panne = new THREE.Group();
+    {
+      const svart = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.5 });
+      const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.11, 0.04, 32), svart); p1.position.y = 0.02; panne.add(p1);
+      const mat1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.012, 20), new THREE.MeshStandardMaterial({ color: 0xc58a4a, roughness: 0.8 }));
+      mat1.position.y = 0.035; panne.add(mat1);
+      const skaft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.03), svart); skaft.position.set(0.22, 0.035, 0); panne.add(skaft);
+      panne.position.set(0.50, 0.91, 8.45); panne.visible = false; scene.add(panne);
+    }
+    // «Zzz» over hodet mens figuren sover
+    const zzz = (() => {
+      const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+      const g = c.getContext('2d'); g.font = 'bold 44px system-ui'; g.fillStyle = '#ffffff'; g.strokeStyle = '#4b3324'; g.lineWidth = 6;
+      g.strokeText('Zzz', 8, 48); g.fillText('Zzz', 8, 48);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+      sp.scale.set(0.4, 0.2, 1); sp.visible = false; scene.add(sp); return sp;
+    })();
+    let stativGitar = null, vaskemaskin = null, vaskeluke = null, vaskX = 0, vaskLukeX = 0;
+    function finnTing() {
+      scene.traverse(o => {
+        if (o.isGroup && Math.abs(o.position.x - 0.40) < 0.02 && Math.abs(o.position.y - G3) < 0.02 && Math.abs(o.position.z - 8.58) < 0.02) stativGitar = o;
+        if (!o.isMesh) return;
+        const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3());
+        if (Math.abs(c.x - 4.245) < 0.02 && Math.abs(c.z - 9.35) < 0.05 && Math.abs(c.y - (G3 + 0.425)) < 0.03) vaskemaskin = o;
+        if (o.geometry.type === 'CircleGeometry' && Math.abs(c.x - 4.245) < 0.02 && Math.abs(c.y - (G3 + 0.45)) < 0.02) vaskeluke = o;
+      });
+      if (vaskemaskin) vaskX = vaskemaskin.position.x;
+      if (vaskeluke) vaskLukeX = vaskeluke.position.x;
+    }
+    let lyd = null;
+    function spillLyd(h) {
+      stoppLyd();
+      const l = new Audio(h.lyd); l.loop = !!h.gjenta;
+      l.addEventListener('error', () => { if (lyd === l) lyd = null; });
+      l.play().catch(() => {});
+      return (lyd = l);
+    }
+    function stoppLyd() { if (lyd) { lyd.pause(); lyd = null; } }
+    function planlegg(id) {                                                  // gå til handlingen og start den der
+      const h = HANDLINGER[id];
+      if (gåTil(h.f, ...h.gå, true)) tilstand.planlagt = id;
+    }
+    function nærmesteHandling() {
+      const t = tilstand;
+      let best = null, d = 2.5;
+      for (const [id, h] of Object.entries(HANDLINGER)) {
+        const a = Math.hypot(t.pos.x - h.gå[0], t.pos.z - h.gå[1]);
+        if (h.f === t.f && a < d) { d = a; best = id; }
+      }
+      if (best) planlegg(best);
+    }
+    function startHandling(id) {
+      const t = tilstand, h = HANDLINGER[id];
+      t.handling = { id, tid: 0 };
+      t.pos.set(h.pos[0], base(h.f), h.pos[1]);
+      t.retning = h.retning; figur.rotation.y = h.retning;
+      h.før?.();
+      if (h.lydVed === undefined) spillLyd(h);
+      oppdaterKnapper();
+    }
+    function stoppHandling() {
+      const t = tilstand, h = t.handling && HANDLINGER[t.handling.id];
+      if (!h) return;
+      t.pos.set(h.gå[0], base(h.f), h.gå[1]);                                // reis seg / gå ut av senga
+      const [i, j] = celle(t.pos.x, t.pos.z);
+      if (!gangbar(t.f, i, j)) for (let r = 1; r <= 10 && !gangbar(t.f, ...celle(t.pos.x, t.pos.z)); r++)
+        for (const [di, dj] of [[r, 0], [-r, 0], [0, r], [0, -r]]) if (gangbar(t.f, i + di, j + dj)) { t.pos.x += di * R; t.pos.z += dj * R; break; }
+      h.etter?.();
+      if (h.lydVed === undefined) stoppLyd();
+      figur.rotation.x = 0; zzz.visible = false;
+      t.handling = null;
+      oppdaterKnapper();
+    }
+    let vaskTid = 0;
+    function oppdaterVask(dt) {                                              // maskinen rister mens den går
+      if (vaskTid <= 0) return;
+      vaskTid -= dt;
+      const s = vaskTid > 0 ? Math.sin(performance.now() / 22) * 0.003 : 0;
+      if (vaskemaskin) vaskemaskin.position.x = vaskX + s;
+      if (vaskeluke) { vaskeluke.position.x = vaskLukeX + s; vaskeluke.rotation.z += dt * 6; }
+    }
+    function poseHandling(dt) {
+      const t = tilstand, h = HANDLINGER[t.handling.id], hd = t.handling;
+      hd.tid += dt;
+      const tt = hd.tid;
+      for (const b of [benV, benH]) { b.hofte.rotation.x = 0; b.kne.rotation.x = 0; }
+      for (const a of [armV, armH]) { a.skulder.rotation.x = 0; a.albue.rotation.x = -0.1; a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.08; }
+      figur.rotation.x = 0; zzz.visible = false;
+      figur.position.y = t.pos.y;
+      if (h.holdning === 'sitt') {
+        for (const b of [benV, benH]) { b.hofte.rotation.x = -1.5; b.kne.rotation.x = 1.45; }
+        figur.position.y = t.pos.y + h.sete - 0.89;
+      } else if (h.holdning === 'ligg') {                                    // på ryggen, hodet mot puta
+        figur.rotation.x = -π / 2;
+        figur.position.y = t.pos.y + h.liggehøyde;
+        for (const a of [armV, armH]) { a.albue.rotation.x = -0.15; a.skulder.rotation.z = (a === armV ? 1 : -1) * 0.02; }
+        const pust = Math.sin(tt * 1.6) * 0.004;
+        figur.position.y += pust;
+        const hode = new THREE.Vector3(0, 1.75, 0).applyEuler(figur.rotation).add(figur.position);
+        zzz.position.set(hode.x, hode.y + 0.35 + (tt % 2.5) * 0.12, hode.z); zzz.visible = true;
+        zzz.material.opacity = 1 - (tt % 2.5) / 2.5;
+      } else if (h.holdning === 'stå') {
+        figur.position.y = t.pos.y + Math.abs(Math.sin(tt * 3)) * 0.004;
+      }
+      h.armer?.(tt);
+      if (h.lydVed !== undefined && tt >= h.lydVed && !hd.lydStartet) {     // vaskemaskinen: trykk, så går den
+        hd.lydStartet = true;
+        const l = spillLyd(h);
+        vaskTid = h.maskinGår;
+        l.addEventListener('loadedmetadata', () => { if (Number.isFinite(l.duration)) vaskTid = l.duration; });
+      }
+      if (h.varighet && tt > h.varighet) stoppHandling();
+    }
+    function oppdaterKnapper() {
+      const div = knapp('handlinger');
+      div.innerHTML = '';
+      for (const [id, h] of Object.entries(HANDLINGER)) {
+        if (h.f !== tilstand.visEtasje) continue;                            // bare handlingene i etasjen som vises
+        const b = document.createElement('button');
+        const aktiv = tilstand.handling?.id === id;
+        b.textContent = aktiv ? '⏹ Stopp' : `${h.ikon} ${h.navn}${h.rom ? ` (${h.rom})` : ''}`;
+        b.classList.toggle('på', aktiv);
+        b.onclick = () => aktiv ? stoppHandling() : planlegg(id);
+        div.appendChild(b);
+      }
+    }
+
     // ---------- Oppdatering hvert bilde ----------
     const klokke = new THREE.Clock(), fremover = new THREE.Vector3(), høyre = new THREE.Vector3();
     function steg(dt) {
@@ -464,6 +694,8 @@
       const fx = (taster.has('arrowright') || taster.has('d')) - (taster.has('arrowleft') || taster.has('a'));
       const fz = (taster.has('arrowup') || taster.has('w')) - (taster.has('arrowdown') || taster.has('s'));
       if (fx || fz) {
+        if (t.handling) stoppHandling();
+        t.planlagt = null;
         t.vei = [];
         let v;
         if (kamera.modus === 'bak') {                                          // som i GTA: ← → snur, ↑ ↓ går
@@ -524,8 +756,13 @@
         b.kne.rotation.x = Math.max(0, -Math.sin(t.gange + (b === benV ? 0 : Math.PI) + 0.9)) * (beveger ? 0.9 : 0);
         a.skulder.rotation.x = fase * 0.6;
         a.albue.rotation.x = -0.18 - Math.max(0, fase) * 0.45;
+        a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.08;
       }
       figur.position.y = t.pos.y + (beveger ? Math.abs(Math.cos(t.gange)) * 0.025 : 0);
+      // fremme ved en planlagt handling: start den
+      if (t.planlagt && !t.vei.length) { const id = t.planlagt; t.planlagt = null; startHandling(id); }
+      if (t.handling) poseHandling(dt);
+      oppdaterVask(dt);
       ring.material.opacity = Math.max(0, ring.material.opacity - dt * (t.vei.length ? 0.2 : 1.2));
       oppdaterRom();
     }
@@ -576,8 +813,9 @@
       camera.lookAt(kamera.blikk);
       for (const o of iVeien) o.visible = true;
       iVeien.length = 0;
+      figur.updateMatrixWorld(true);
       for (const h of [0.25, 0.9, 1.6, 1.86]) {
-        hode.set(t.pos.x, t.pos.y + h, t.pos.z);
+        figur.localToWorld(hode.set(0, h, 0));                               // punkter på kroppen, også når den sitter eller ligger
         const retning = new THREE.Vector3().subVectors(hode, camera.position), lengde = retning.length();
         kameraStråle.set(camera.position, retning.normalize()); kameraStråle.far = lengde - 0.25;
         for (const treff of kameraStråle.intersectObjects(hindre, false))
@@ -600,6 +838,8 @@
       controls.update();
       scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
       settKamera(kamera.modus);
+      finnTing();
+      oppdaterKnapper();
       knapp('laster').remove();
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
@@ -608,7 +848,7 @@
     }, 30));
 
     // for testing og opptak
-    window.spill = { THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera };
+    window.spill = { THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>

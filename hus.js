@@ -1089,6 +1089,9 @@ for (const z of [7.80, 9.30]) boks(2.40, G, z, 2.48, G + 0.70, z + 0.08, M.mørk
 rund(2.57, G + 0.86, 8.30, 2.60, G + 1.24, 9.10, M.pianoSvart, 0.008);  // bred skjerm på fot
 boks(2.60, G + 0.74, 8.62, 2.74, G + 0.75, 8.78, M.mørkGrå);
 boks(2.61, G + 0.75, 8.68, 2.64, G + 0.95, 8.72, M.mørkGrå);
+// PlayStation 5 stående på pulten: svart midtparti mellom to hvite skall
+boks(2.635, G + 0.745, 8.00, 2.705, G + 1.10, 8.06, M.svart);
+for (const [z1, z2] of [[7.975, 8.00], [8.06, 8.085]]) rund(2.615, G + 0.75, z1, 2.725, G + 1.14, z2, M.hvit, 0.01);
 boks(2.30, G + 0.74, 9.25, 2.35, G + 1.30, 9.55, M.svart);         // stående skjerm
 for (const z of [7.75, 9.35]) boks(2.55, G + 0.74, z, 2.80, G + 1.05, z + 0.25, M.svart);  // høyttalere
 {                                                                   // kontorstol mot pulten
