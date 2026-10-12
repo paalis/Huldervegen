@@ -64,6 +64,7 @@
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
     import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
     import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
@@ -285,64 +286,80 @@
     }
 
     // ---------- Figuren ----------
-    // Tegneseriefigur etter bildene: kort mørkebrunt hår med sideskill, lys hud, lett skjeggstubb og smil,
-    // mørk turkisgrønn T-skjorte, mørke bukser og hvite joggesko. Ca. 1,82 m høy.
-    const mat = (color, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness });
-    const hud = mat(0xe8c0a2, 0.7), skjorte = mat(0x1f5c58, 0.9), bukse = mat(0x262b36, 0.9);
-    const sko = mat(0xf4f2ec, 0.6), såle = mat(0xd9d4ca, 0.7), hår = mat(0x4b3122, 0.85);
-    const stubb = mat(0xcfa184, 0.95), øye = mat(0x1d1714, 0.3), hvitt = mat(0xffffff, 0.3), munn = mat(0x8a4a44, 0.6);
+    // Mann på ca. 1,82 m etter bildene: kort mørkebrunt hår med sideskill, lys hud, lett skjeggstubb,
+    // mørk turkisgrønn T-skjorte, mørk olabukse og hvite joggesko. Menneskelige proporsjoner (hodet
+    // ca. 1/8 av høyden), formet overkropp og ledd i skulder, albue, hofte og kne for en naturlig gange.
+    const mat = (color, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
+    const hud = mat(0xe3b79b, 0.62), skjorte = mat(0x1f5a56, 0.92), bukse = mat(0x2b3448, 0.88);
+    const sko = mat(0xf2f0ea, 0.55), såle = mat(0xd8d2c6, 0.7), hår = mat(0x3f2a1d, 0.75);
+    const stubb = new THREE.MeshStandardMaterial({ color: 0x7a5c4a, roughness: 0.95, transparent: true, opacity: 0.16, depthWrite: false }), iris = mat(0x4a5560, 0.3), pupill = mat(0x101010, 0.2), hvitt = mat(0xf4f1ec, 0.35);
+    const lepper = mat(0xb27a6c, 0.55), bryn = mat(0x3a281c, 0.8);
     const figur = new THREE.Group();
     const del = (geo, m, x, y, z, foreldre = figur) => {
       const mesh = new THREE.Mesh(geo, m); mesh.position.set(x, y, z);
       mesh.castShadow = true; foreldre.add(mesh); return mesh;
     };
-    const kapsel = (r, l) => new THREE.CapsuleGeometry(r, Math.max(0.001, l - 2 * r), 4, 12);
-    // ben: lår og legg i bukse, joggesko med lys såle
-    const ben = x => {
-      const ledd = new THREE.Group(); ledd.position.set(x, 0.92, 0); figur.add(ledd);
-      del(kapsel(0.075, 0.48), bukse, 0, -0.22, 0, ledd);
-      del(kapsel(0.062, 0.48), bukse, 0, -0.64, 0, ledd);
-      del(new THREE.BoxGeometry(0.11, 0.07, 0.26), sko, 0, -0.865, 0.045, ledd);
-      del(new THREE.BoxGeometry(0.115, 0.022, 0.27), såle, 0, -0.905, 0.045, ledd);
-      return ledd;
+    const ledd = (x, y, z, foreldre = figur) => { const g = new THREE.Group(); g.position.set(x, y, z); foreldre.add(g); return g; };
+    // avsmalnende lem fra leddet og nedover (r1 øverst, r2 nederst)
+    const lem = (r1, r2, l, m, foreldre) => {
+      del(new THREE.CylinderGeometry(r1, r2, l, 16), m, 0, -l / 2, 0, foreldre);
+      del(new THREE.SphereGeometry(r2, 14, 10), m, 0, -l, 0, foreldre);
     };
-    // armer: kort erme i skjortefarge, bar underarm og hånd som følger med
-    const arm = x => {
-      const ledd = new THREE.Group(); ledd.position.set(x, 1.47, 0); figur.add(ledd);
-      del(kapsel(0.062, 0.24), skjorte, 0, -0.09, 0, ledd);
-      del(kapsel(0.046, 0.52), hud, 0, -0.33, 0, ledd);
-      del(new THREE.SphereGeometry(0.05, 12, 10), hud, 0, -0.62, 0.01, ledd).scale.set(0.8, 1.1, 1);
-      return ledd;
+    // overkropp: dreid profil (midje, bryst, skuldre) i T-skjorte, flatere forfra og bakfra
+    const profil = [[0.150, 0.92], [0.158, 0.98], [0.150, 1.05], [0.158, 1.15], [0.175, 1.28], [0.178, 1.38], [0.160, 1.45], [0.10, 1.50], [0.055, 1.52]]
+      .map(([r, y]) => new THREE.Vector2(r, y));
+    const kropp = del(new THREE.LatheGeometry(profil, 28), skjorte, 0, 0, 0);
+    kropp.scale.set(1.12, 1, 0.66);
+    del(new THREE.CylinderGeometry(0.168, 0.165, 0.07, 28), bukse, 0, 0.92, 0).scale.set(1.12, 1, 0.68);   // linning
+    del(new THREE.CylinderGeometry(0.046, 0.054, 0.10, 14), hud, 0, 1.56, 0.005);                       // hals
+    for (const sx of [-1, 1]) del(new THREE.SphereGeometry(0.058, 16, 12), skjorte, sx * 0.185, 1.435, 0).scale.set(1, 0.75, 0.85);   // skuldre
+    // ben: hofte → lår → kne → legg → sko
+    const ben = sx => {
+      const hofte = ledd(sx * 0.088, 0.93, 0);
+      lem(0.078, 0.058, 0.44, bukse, hofte);
+      const kne = ledd(0, -0.44, 0, hofte);
+      lem(0.056, 0.042, 0.42, bukse, kne);
+      const fot = ledd(0, -0.43, 0, kne);
+      del(new THREE.SphereGeometry(0.06, 14, 10), sko, 0, -0.03, 0.05, fot).scale.set(0.85, 0.6, 2.0);
+      del(new THREE.BoxGeometry(0.095, 0.022, 0.27), såle, 0, -0.058, 0.05, fot);
+      return { hofte, kne };
     };
-    const benV = ben(-0.095), benH = ben(0.095), armV = arm(-0.245), armH = arm(0.245);
-    // overkropp: T-skjorte, litt bredere over skuldrene
-    del(kapsel(0.18, 0.62), skjorte, 0, 1.22, 0).scale.set(1.15, 1, 0.72);
-    del(new THREE.CylinderGeometry(0.205, 0.17, 0.08, 20), bukse, 0, 0.95, 0).scale.set(1, 1, 0.72);   // bukselinning
-    del(new THREE.CylinderGeometry(0.052, 0.06, 0.09, 12), hud, 0, 1.55, 0);                           // hals
-    // hode med ansikt
-    const hodet = new THREE.Group(); hodet.position.set(0, 1.69, 0); figur.add(hodet);
-    del(new THREE.SphereGeometry(0.11, 24, 18), hud, 0, 0, 0, hodet).scale.set(0.95, 1.15, 1.0);
-    del(new THREE.SphereGeometry(0.104, 20, 14, Math.PI * 0.05, Math.PI * 0.9, Math.PI * 0.64, Math.PI * 0.22), stubb, 0, -0.012, 0.006, hodet)
-      .scale.set(0.97, 1.12, 1.02);                                                                   // skjeggstubb
+    // armer: skulder → overarm med kort erme → albue → underarm → hånd med tommel
+    const arm = sx => {
+      const skulder = ledd(sx * 0.205, 1.43, 0);
+      skulder.rotation.z = sx * 0.08;
+      del(new THREE.CylinderGeometry(0.058, 0.054, 0.15, 14), skjorte, 0, -0.06, 0, skulder);   // erme
+      lem(0.044, 0.037, 0.29, hud, skulder);
+      const albue = ledd(0, -0.29, 0, skulder);
+      lem(0.037, 0.028, 0.25, hud, albue);
+      const hånd = ledd(0, -0.27, 0, albue);
+      del(new THREE.BoxGeometry(0.03, 0.09, 0.07), hud, 0, -0.03, 0.005, hånd).geometry = new RoundedBoxGeometry(0.03, 0.09, 0.07, 2, 0.013);
+      del(new THREE.CapsuleGeometry(0.011, 0.035, 4, 8), hud, -sx * 0.012, -0.02, 0.04, hånd).rotation.x = 0.6;
+      return { skulder, albue };
+    };
+    const benV = ben(-1), benH = ben(1), armV = arm(-1), armH = arm(1);
+    // hode: hodeskalle og kjeve, ører, øyne med iris og pupill, bryn, nese, lepper og skjeggstubb
+    const hodet = ledd(0, 1.70, 0.01);
+    del(new THREE.SphereGeometry(0.1, 32, 24), hud, 0, 0.012, 0, hodet).scale.set(0.82, 1.08, 0.98);
+    del(new THREE.SphereGeometry(0.07, 24, 16), hud, 0, -0.04, 0.008, hodet).scale.set(0.95, 0.85, 1.0);    // kjeve og hake
+    del(new THREE.SphereGeometry(0.0712, 24, 16, Math.PI * 0.15, Math.PI * 0.7, Math.PI * 0.55, Math.PI * 0.4), stubb, 0, -0.04, 0.009, hodet)
+      .scale.set(0.955, 0.86, 1.0);                                                                    // lett skjeggstubb
     for (const sx of [-1, 1]) {
-      del(new THREE.SphereGeometry(0.016, 10, 8), hvitt, sx * 0.038, 0.02, 0.094, hodet);              // øyne
-      del(new THREE.SphereGeometry(0.009, 8, 6), øye, sx * 0.038, 0.02, 0.107, hodet);
-      del(new THREE.BoxGeometry(0.036, 0.008, 0.01), hår, sx * 0.04, 0.048, 0.1, hodet).rotation.z = -sx * 0.1;   // bryn
-      del(new THREE.SphereGeometry(0.022, 10, 8), hud, sx * 0.104, 0.005, -0.005, hodet).scale.set(0.5, 1, 0.8); // ører
+      del(new THREE.SphereGeometry(0.02, 12, 10), hud, sx * 0.083, 0.005, -0.008, hodet).scale.set(0.45, 1.15, 0.8);   // ører
+      del(new THREE.SphereGeometry(0.0105, 14, 10), hvitt, sx * 0.031, 0.022, 0.084, hodet).scale.set(1.25, 0.75, 0.6);
+      del(new THREE.SphereGeometry(0.0055, 12, 8), iris, sx * 0.031, 0.022, 0.0905, hodet);
+      del(new THREE.SphereGeometry(0.0026, 8, 6), pupill, sx * 0.031, 0.022, 0.0955, hodet);
+      const b = del(new THREE.BoxGeometry(0.03, 0.0055, 0.008), bryn, sx * 0.032, 0.041, 0.09, hodet);
+      b.rotation.z = -sx * 0.12;
     }
-    del(new THREE.SphereGeometry(0.013, 10, 8), hud, 0, -0.006, 0.112, hodet).scale.set(0.9, 1.2, 1);   // nese
-    const smil = del(new THREE.TorusGeometry(0.022, 0.0035, 6, 16, Math.PI * 0.8), munn, 0, -0.036, 0.103, hodet);
-    smil.rotation.z = Math.PI * 1.1;                                                                          // smil
-    // kort hår: kalott bak og på sidene, mer volum på toppen med sideskill
-    del(new THREE.SphereGeometry(0.116, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.4), hår, 0, 0.012, -0.006, hodet).scale.set(0.98, 1.12, 1.03);
-    del(new THREE.SphereGeometry(0.114, 20, 12, Math.PI, Math.PI, Math.PI * 0.35, Math.PI * 0.32), hår, 0, 0.004, -0.004, hodet)
-      .scale.set(0.98, 1.12, 1.03);                                                                   // bakhode og nakke
-    const topp = del(new THREE.SphereGeometry(0.1, 20, 12), hår, 0.01, 0.105, 0.01, hodet);
-    topp.scale.set(0.92, 0.32, 0.98); topp.rotation.z = -0.14;                                         // volum på toppen, skill mot venstre
-    // grønn diamant over hodet, som i Sims
-    const diamant = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0),
-      new THREE.MeshStandardMaterial({ color: 0x3fd15a, emissive: 0x1f9a34, emissiveIntensity: 0.6, roughness: 0.3 }));
-    diamant.scale.set(0.7, 1.4, 0.7); diamant.position.y = 2.15; figur.add(diamant);
+    del(new THREE.SphereGeometry(0.012, 12, 10), hud, 0, -0.004, 0.093, hodet).scale.set(0.75, 1.7, 1.0);   // nese
+    del(new THREE.SphereGeometry(0.01, 10, 8), hud, 0, -0.02, 0.096, hodet).scale.set(1.3, 0.75, 0.85);
+    del(new RoundedBoxGeometry(0.032, 0.006, 0.008, 2, 0.0028), lepper, 0, -0.045, 0.082, hodet);         // munn
+    // kort hår: tett kalott, litt mer volum på toppen med sideskill, kortere i nakken og ved ørene
+    del(new THREE.SphereGeometry(0.104, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.42), hår, 0, 0.016, -0.004, hodet).scale.set(0.84, 1.1, 1.0);
+    del(new THREE.SphereGeometry(0.102, 24, 14, Math.PI, Math.PI, Math.PI * 0.38, Math.PI * 0.27), hår, 0, 0.01, -0.006, hodet).scale.set(0.83, 1.09, 0.99);
+    const topp = del(new THREE.SphereGeometry(0.088, 24, 14), hår, 0.008, 0.083, 0.014, hodet);
+    topp.scale.set(0.8, 0.22, 0.98); topp.rotation.z = -0.12;
     scene.add(figur);
     const figurdeler = new Set();
     figur.traverse(o => figurdeler.add(o));
@@ -501,10 +518,14 @@
       figur.rotation.y += kamera.modus === 'bak' && !t.vei.length ? dr : dr * Math.min(1, dt * 10);
       t.gange = beveger ? t.gange + dt * 7.5 : t.gange * 0.85;
       const sving = beveger ? Math.sin(t.gange) * 0.55 : Math.sin(t.gange) * 0.55 * 0.85;
-      benV.rotation.x = sving; benH.rotation.x = -sving;
-      armV.rotation.x = -sving * 0.8; armH.rotation.x = sving * 0.8;
-      diamant.rotation.y += dt * 1.6;
-      diamant.position.y = 2.15 + Math.sin(performance.now() / 500) * 0.03;
+      // gange: hofta svinger, kneet bøyes når benet føres fram, armene svinger motsatt med litt bøyd albue
+      for (const [b, a, fase] of [[benV, armH, sving], [benH, armV, -sving]]) {
+        b.hofte.rotation.x = fase * 0.75;
+        b.kne.rotation.x = Math.max(0, -Math.sin(t.gange + (b === benV ? 0 : Math.PI) + 0.9)) * (beveger ? 0.9 : 0);
+        a.skulder.rotation.x = fase * 0.6;
+        a.albue.rotation.x = -0.18 - Math.max(0, fase) * 0.45;
+      }
+      figur.position.y = t.pos.y + (beveger ? Math.abs(Math.cos(t.gange)) * 0.025 : 0);
       ring.material.opacity = Math.max(0, ring.material.opacity - dt * (t.vei.length ? 0.2 : 1.2));
       oppdaterRom();
     }
@@ -519,6 +540,7 @@
       knapp('bak').classList.toggle('på', modus === 'bak');
       controls.enabled = modus === 'ovenfra';
       if (modus === 'ovenfra') {
+        visAltIgjen();
         settLave(true);
         const p = tilstand.pos;
         camera.position.set(p.x + 5.5, base(tilstand.visEtasje) + 8.5, p.z - 6.5);
@@ -545,20 +567,25 @@
         return;
       }
       const r = figur.rotation.y, a = kamera.avstand;
-      // fugleperspektiv bak figuren: kameraet ligger over veggtoppene (2,5 m), så det ser ned i rommet
-      // og bare høye ting (skap, tak over terrasser) kan stå i veien
-      hode.set(t.pos.x, t.pos.y + 2.65, t.pos.z);
-      ønsket.set(t.pos.x - Math.sin(r) * a, t.pos.y + 1.9 + a * 0.38, t.pos.z - Math.cos(r) * a);
-      // trekk kameraet inn hvis noe står mellom punktet over hodet og kameraet
-      const retning = new THREE.Vector3().subVectors(ønsket, hode), lengde = retning.length();
-      kameraStråle.set(hode, retning.normalize()); kameraStråle.far = lengde;
-      const treff = kameraStråle.intersectObjects(hindre, false).find(h => h.object.visible && h.object.parent?.visible !== false && synlig(h.object));
-      if (treff) ønsket.copy(hode).addScaledVector(retning, Math.max(0.35, treff.distance - 0.2));
+      // fugleperspektiv bak figuren; vegger, dører og møbler som står mellom kameraet og figuren
+      // skjules mens de er i veien (som når veggene klippes bort i Sims)
+      ønsket.set(t.pos.x - Math.sin(r) * a, t.pos.y + 1.6 + a * 0.3, t.pos.z - Math.cos(r) * a);
       const k = hopp ? 1 : Math.min(1, dt * 6);
       camera.position.lerp(ønsket, k);
-      kamera.blikk.lerp(new THREE.Vector3(t.pos.x + Math.sin(r) * 1.0, t.pos.y + 0.9, t.pos.z + Math.cos(r) * 1.0), k);
+      kamera.blikk.lerp(new THREE.Vector3(t.pos.x + Math.sin(r) * 1.0, t.pos.y + 1.0, t.pos.z + Math.cos(r) * 1.0), k);
       camera.lookAt(kamera.blikk);
+      for (const o of iVeien) o.visible = true;
+      iVeien.length = 0;
+      for (const h of [0.25, 0.9, 1.6, 1.86]) {
+        hode.set(t.pos.x, t.pos.y + h, t.pos.z);
+        const retning = new THREE.Vector3().subVectors(hode, camera.position), lengde = retning.length();
+        kameraStråle.set(camera.position, retning.normalize()); kameraStråle.far = lengde - 0.25;
+        for (const treff of kameraStråle.intersectObjects(hindre, false))
+          if (treff.object.visible && synlig(treff.object)) { treff.object.visible = false; iVeien.push(treff.object); }
+      }
     }
+    const iVeien = [];
+    function visAltIgjen() { for (const o of iVeien) o.visible = true; iVeien.length = 0; }
     const synlig = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
 
     // ---------- Start ----------
