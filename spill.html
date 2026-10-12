@@ -51,11 +51,13 @@
       <button id="etg3">3. etasje</button>
     </div>
     <div class="rad" style="margin-top:6px">
+      <button id="bak">Kamera bak figuren</button>
       <button id="lave" class="på">Lave vegger</button>
       <a class="knapp" href="./">Til 3D-modellen</a>
     </div>
     <p>Klikk eller trykk på gulvet for å gå dit, også i en annen etasje.<br>
-       Piltaster/WASD for å styre selv. Dra for å snu kameraet, scroll/knip for zoom.</p>
+       Piltaster/WASD: med kamera bak figuren går ↑ fram, ↓ bak og ← → snur (C bytter kamera).<br>
+       Ovenfra: dra for å snu kameraet. Scroll/knip for zoom.</p>
   </div>
   <div id="rom"></div>
 
@@ -283,33 +285,64 @@
     }
 
     // ---------- Figuren ----------
-    const hud = new THREE.MeshStandardMaterial({ color: 0xd9a77f, roughness: 0.7 });
-    const genser = new THREE.MeshStandardMaterial({ color: 0x5f7f6a, roughness: 0.9 });
-    const bukse = new THREE.MeshStandardMaterial({ color: 0x2f3a4a, roughness: 0.9 });
-    const sko = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.6 });
-    const hår = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.8 });
+    // Tegneseriefigur etter bildene: kort mørkebrunt hår med sideskill, lys hud, lett skjeggstubb og smil,
+    // mørk turkisgrønn T-skjorte, mørke bukser og hvite joggesko. Ca. 1,82 m høy.
+    const mat = (color, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness });
+    const hud = mat(0xe8c0a2, 0.7), skjorte = mat(0x1f5c58, 0.9), bukse = mat(0x262b36, 0.9);
+    const sko = mat(0xf4f2ec, 0.6), såle = mat(0xd9d4ca, 0.7), hår = mat(0x4b3122, 0.85);
+    const stubb = mat(0xcfa184, 0.95), øye = mat(0x1d1714, 0.3), hvitt = mat(0xffffff, 0.3), munn = mat(0x8a4a44, 0.6);
     const figur = new THREE.Group();
     const del = (geo, m, x, y, z, foreldre = figur) => {
       const mesh = new THREE.Mesh(geo, m); mesh.position.set(x, y, z);
       mesh.castShadow = true; foreldre.add(mesh); return mesh;
     };
-    const lem = (x, y, m1, m2, lengde, tykk) => {                             // ledd i (x, y) som svinger rundt x-aksen
-      const ledd = new THREE.Group(); ledd.position.set(x, y, 0); figur.add(ledd);
-      del(new THREE.CapsuleGeometry(tykk, lengde - 2 * tykk, 4, 10), m1, 0, -lengde / 2, 0, ledd);
-      if (m2) del(new THREE.BoxGeometry(tykk * 2.2, 0.07, 0.24), m2, 0, -lengde + 0.02, 0.05, ledd);
+    const kapsel = (r, l) => new THREE.CapsuleGeometry(r, Math.max(0.001, l - 2 * r), 4, 12);
+    // ben: lår og legg i bukse, joggesko med lys såle
+    const ben = x => {
+      const ledd = new THREE.Group(); ledd.position.set(x, 0.92, 0); figur.add(ledd);
+      del(kapsel(0.075, 0.48), bukse, 0, -0.22, 0, ledd);
+      del(kapsel(0.062, 0.48), bukse, 0, -0.64, 0, ledd);
+      del(new THREE.BoxGeometry(0.11, 0.07, 0.26), sko, 0, -0.865, 0.045, ledd);
+      del(new THREE.BoxGeometry(0.115, 0.022, 0.27), såle, 0, -0.905, 0.045, ledd);
       return ledd;
     };
-    const benV = lem(-0.09, 0.86, bukse, sko, 0.84, 0.065), benH = lem(0.09, 0.86, bukse, sko, 0.84, 0.065);
-    const armV = lem(-0.25, 1.40, genser, null, 0.62, 0.05), armH = lem(0.25, 1.40, genser, null, 0.62, 0.05);
-    del(new THREE.CapsuleGeometry(0.17, 0.36, 6, 14), genser, 0, 1.17, 0).scale.set(1.15, 1, 0.75);
-    del(new THREE.CylinderGeometry(0.05, 0.06, 0.08, 10), hud, 0, 1.47, 0);
-    del(new THREE.SphereGeometry(0.115, 20, 16), hud, 0, 1.59, 0).scale.set(1, 1.12, 1.05);
-    del(new THREE.SphereGeometry(0.122, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), hår, 0, 1.61, -0.01);
-    for (const sx of [-1, 1]) del(new THREE.SphereGeometry(0.045, 10, 8), hud, sx * 0.25, 0.80, 0);   // hender
+    // armer: kort erme i skjortefarge, bar underarm og hånd som følger med
+    const arm = x => {
+      const ledd = new THREE.Group(); ledd.position.set(x, 1.47, 0); figur.add(ledd);
+      del(kapsel(0.062, 0.24), skjorte, 0, -0.09, 0, ledd);
+      del(kapsel(0.046, 0.52), hud, 0, -0.33, 0, ledd);
+      del(new THREE.SphereGeometry(0.05, 12, 10), hud, 0, -0.62, 0.01, ledd).scale.set(0.8, 1.1, 1);
+      return ledd;
+    };
+    const benV = ben(-0.095), benH = ben(0.095), armV = arm(-0.245), armH = arm(0.245);
+    // overkropp: T-skjorte, litt bredere over skuldrene
+    del(kapsel(0.18, 0.62), skjorte, 0, 1.22, 0).scale.set(1.15, 1, 0.72);
+    del(new THREE.CylinderGeometry(0.205, 0.17, 0.08, 20), bukse, 0, 0.95, 0).scale.set(1, 1, 0.72);   // bukselinning
+    del(new THREE.CylinderGeometry(0.052, 0.06, 0.09, 12), hud, 0, 1.55, 0);                           // hals
+    // hode med ansikt
+    const hodet = new THREE.Group(); hodet.position.set(0, 1.69, 0); figur.add(hodet);
+    del(new THREE.SphereGeometry(0.11, 24, 18), hud, 0, 0, 0, hodet).scale.set(0.95, 1.15, 1.0);
+    del(new THREE.SphereGeometry(0.104, 20, 14, Math.PI * 0.05, Math.PI * 0.9, Math.PI * 0.64, Math.PI * 0.22), stubb, 0, -0.012, 0.006, hodet)
+      .scale.set(0.97, 1.12, 1.02);                                                                   // skjeggstubb
+    for (const sx of [-1, 1]) {
+      del(new THREE.SphereGeometry(0.016, 10, 8), hvitt, sx * 0.038, 0.02, 0.094, hodet);              // øyne
+      del(new THREE.SphereGeometry(0.009, 8, 6), øye, sx * 0.038, 0.02, 0.107, hodet);
+      del(new THREE.BoxGeometry(0.036, 0.008, 0.01), hår, sx * 0.04, 0.048, 0.1, hodet).rotation.z = -sx * 0.1;   // bryn
+      del(new THREE.SphereGeometry(0.022, 10, 8), hud, sx * 0.104, 0.005, -0.005, hodet).scale.set(0.5, 1, 0.8); // ører
+    }
+    del(new THREE.SphereGeometry(0.013, 10, 8), hud, 0, -0.006, 0.112, hodet).scale.set(0.9, 1.2, 1);   // nese
+    const smil = del(new THREE.TorusGeometry(0.022, 0.0035, 6, 16, Math.PI * 0.8), munn, 0, -0.036, 0.103, hodet);
+    smil.rotation.z = Math.PI * 1.1;                                                                          // smil
+    // kort hår: kalott bak og på sidene, mer volum på toppen med sideskill
+    del(new THREE.SphereGeometry(0.116, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.4), hår, 0, 0.012, -0.006, hodet).scale.set(0.98, 1.12, 1.03);
+    del(new THREE.SphereGeometry(0.114, 20, 12, Math.PI, Math.PI, Math.PI * 0.35, Math.PI * 0.32), hår, 0, 0.004, -0.004, hodet)
+      .scale.set(0.98, 1.12, 1.03);                                                                   // bakhode og nakke
+    const topp = del(new THREE.SphereGeometry(0.1, 20, 12), hår, 0.01, 0.105, 0.01, hodet);
+    topp.scale.set(0.92, 0.32, 0.98); topp.rotation.z = -0.14;                                         // volum på toppen, skill mot venstre
     // grønn diamant over hodet, som i Sims
     const diamant = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0),
       new THREE.MeshStandardMaterial({ color: 0x3fd15a, emissive: 0x1f9a34, emissiveIntensity: 0.6, roughness: 0.3 }));
-    diamant.scale.set(0.7, 1.4, 0.7); diamant.position.y = 2.05; figur.add(diamant);
+    diamant.scale.set(0.7, 1.4, 0.7); diamant.position.y = 2.15; figur.add(diamant);
     scene.add(figur);
     const figurdeler = new Set();
     figur.traverse(o => figurdeler.add(o));
@@ -371,12 +404,19 @@
 
     // piltaster/WASD: styr selv i forhold til kameraet
     const taster = new Set();
-    addEventListener('keydown', e => { if (!e.target.closest?.('button')) taster.add(e.key.toLowerCase()); });
+    addEventListener('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (k.startsWith('arrow') || k === ' ') e.preventDefault();               // ikke rull siden
+      if (k === 'c' && !e.repeat) settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
+      taster.add(k);
+    });
     addEventListener('keyup', e => taster.delete(e.key.toLowerCase()));
 
     // knapper
     for (const n of [1, 2, 3]) knapp(`etg${n}`).onclick = () => visEtasje(n - 1);
-    knapp('lave').onclick = e => { vis.lave = e.currentTarget.classList.toggle('på'); oppdater(); };
+    const settLave = på => { vis.lave = på; knapp('lave').classList.toggle('på', på); oppdater(); };
+    knapp('lave').onclick = () => settLave(!vis.lave);
+    knapp('bak').onclick = () => settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
 
     // romnavn nederst på skjermen
     const ROM = [
@@ -408,16 +448,24 @@
       const fz = (taster.has('arrowup') || taster.has('w')) - (taster.has('arrowdown') || taster.has('s'));
       if (fx || fz) {
         t.vei = [];
-        camera.getWorldDirection(fremover); fremover.y = 0; fremover.normalize();
-        høyre.crossVectors(fremover, camera.up).normalize();
-        const v = fremover.multiplyScalar(fz).add(høyre.multiplyScalar(fx)).normalize().multiplyScalar(t.fart * dt);
+        let v;
+        if (kamera.modus === 'bak') {                                          // som i GTA: ← → snur, ↑ ↓ går
+          t.retning -= fx * 2.6 * dt;
+          v = new THREE.Vector3(Math.sin(t.retning), 0, Math.cos(t.retning)).multiplyScalar(fz * t.fart * dt * (fz < 0 ? 0.6 : 1));
+        } else {
+          camera.getWorldDirection(fremover); fremover.y = 0; fremover.normalize();
+          høyre.crossVectors(fremover, camera.up).normalize();
+          v = fremover.multiplyScalar(fz).add(høyre.multiplyScalar(fx)).normalize().multiplyScalar(t.fart * dt);
+        }
         const prøv = (dx, dz) => {
           const [i, j] = celle(t.pos.x + dx, t.pos.z + dz);
           if (!gangbar(t.f, i, j)) return false;
           t.pos.x += dx; t.pos.z += dz; return true;
         };
-        if (prøv(v.x, v.z) || prøv(v.x, 0) || prøv(0, v.z)) beveger = true;
-        t.retning = Math.atan2(v.x, v.z);
+        if (fz || kamera.modus !== 'bak') {
+          if (prøv(v.x, v.z) || prøv(v.x, 0) || prøv(0, v.z)) beveger = true;
+          if (kamera.modus !== 'bak') t.retning = Math.atan2(v.x, v.z);
+        }
         const h = høydeVed(t.f, t.pos.x, t.pos.z);
         if (!Number.isNaN(h)) t.pos.y += (h - t.pos.y) * Math.min(1, dt * 12);
         // gå inn i trappa når man står ved foten eller toppen og går mot den
@@ -450,25 +498,68 @@
       figur.position.copy(t.pos);
       let dr = t.retning - figur.rotation.y;
       dr = Math.atan2(Math.sin(dr), Math.cos(dr));
-      figur.rotation.y += dr * Math.min(1, dt * 10);
+      figur.rotation.y += kamera.modus === 'bak' && !t.vei.length ? dr : dr * Math.min(1, dt * 10);
       t.gange = beveger ? t.gange + dt * 7.5 : t.gange * 0.85;
       const sving = beveger ? Math.sin(t.gange) * 0.55 : Math.sin(t.gange) * 0.55 * 0.85;
       benV.rotation.x = sving; benH.rotation.x = -sving;
       armV.rotation.x = -sving * 0.8; armH.rotation.x = sving * 0.8;
       diamant.rotation.y += dt * 1.6;
-      diamant.position.y = 2.05 + Math.sin(performance.now() / 500) * 0.03;
+      diamant.position.y = 2.15 + Math.sin(performance.now() / 500) * 0.03;
       ring.material.opacity = Math.max(0, ring.material.opacity - dt * (t.vei.length ? 0.2 : 1.2));
       oppdaterRom();
     }
 
-    // kameraet følger figuren mykt
-    const fokus = new THREE.Vector3();
-    function følg(dt, hopp = false) {
-      fokus.set(tilstand.pos.x, base(tilstand.visEtasje) + 0.9, tilstand.pos.z);
-      const flytt = hopp ? 1 : Math.min(1, dt * 4);
-      const d = new THREE.Vector3().subVectors(fokus, controls.target).multiplyScalar(flytt);
-      controls.target.add(d); camera.position.add(d);
+    // Kameraet: 'ovenfra' svever over figuren (dra for å snu), 'bak' henger bak og over figuren som
+    // i GTA og trekker seg inn foran vegger og møbler som ville skjult den.
+    const kamera = { modus: matchMedia('(pointer: fine)').matches ? 'bak' : 'ovenfra', avstand: 3.2, blikk: new THREE.Vector3() };
+    const fokus = new THREE.Vector3(), ønsket = new THREE.Vector3(), hode = new THREE.Vector3();
+    const hindre = [];
+    function settKamera(modus) {
+      kamera.modus = modus;
+      knapp('bak').classList.toggle('på', modus === 'bak');
+      controls.enabled = modus === 'ovenfra';
+      if (modus === 'ovenfra') {
+        settLave(true);
+        const p = tilstand.pos;
+        camera.position.set(p.x + 5.5, base(tilstand.visEtasje) + 8.5, p.z - 6.5);
+        controls.target.set(p.x, base(tilstand.visEtasje) + 0.9, p.z);
+        controls.update();
+      } else {
+        settLave(false);
+        kamera.blikk.set(tilstand.pos.x, tilstand.pos.y + 1.3, tilstand.pos.z);
+        følg(0, true);
+      }
     }
+    renderer.domElement.addEventListener('wheel', e => {
+      if (kamera.modus === 'bak') kamera.avstand = Math.min(6, Math.max(1.6, kamera.avstand * (e.deltaY > 0 ? 1.1 : 0.9)));
+    }, { passive: true });
+    const kameraStråle = new THREE.Raycaster();
+    function følg(dt, hopp = false) {
+      const t = tilstand;
+      if (kamera.modus === 'fri') return;                                     // styres utenfra (test/opptak)
+      if (kamera.modus === 'ovenfra') {
+        fokus.set(t.pos.x, base(t.visEtasje) + 0.9, t.pos.z);
+        const flytt = hopp ? 1 : Math.min(1, dt * 4);
+        const d = new THREE.Vector3().subVectors(fokus, controls.target).multiplyScalar(flytt);
+        controls.target.add(d); camera.position.add(d);
+        return;
+      }
+      const r = figur.rotation.y, a = kamera.avstand;
+      // fugleperspektiv bak figuren: kameraet ligger over veggtoppene (2,5 m), så det ser ned i rommet
+      // og bare høye ting (skap, tak over terrasser) kan stå i veien
+      hode.set(t.pos.x, t.pos.y + 2.65, t.pos.z);
+      ønsket.set(t.pos.x - Math.sin(r) * a, t.pos.y + 1.9 + a * 0.38, t.pos.z - Math.cos(r) * a);
+      // trekk kameraet inn hvis noe står mellom punktet over hodet og kameraet
+      const retning = new THREE.Vector3().subVectors(ønsket, hode), lengde = retning.length();
+      kameraStråle.set(hode, retning.normalize()); kameraStråle.far = lengde;
+      const treff = kameraStråle.intersectObjects(hindre, false).find(h => h.object.visible && h.object.parent?.visible !== false && synlig(h.object));
+      if (treff) ønsket.copy(hode).addScaledVector(retning, Math.max(0.35, treff.distance - 0.2));
+      const k = hopp ? 1 : Math.min(1, dt * 6);
+      camera.position.lerp(ønsket, k);
+      kamera.blikk.lerp(new THREE.Vector3(t.pos.x + Math.sin(r) * 1.0, t.pos.y + 0.9, t.pos.z + Math.cos(r) * 1.0), k);
+      camera.lookAt(kamera.blikk);
+    }
+    const synlig = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
 
     // ---------- Start ----------
     requestAnimationFrame(() => setTimeout(() => {
@@ -480,15 +571,17 @@
       camera.position.set(tilstand.pos.x + 5.5, 8.5, tilstand.pos.z - 6.5);
       controls.target.set(tilstand.pos.x, 0.9, tilstand.pos.z);
       controls.update();
+      scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
+      settKamera(kamera.modus);
       knapp('laster').remove();
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
-        steg(dt); følg(dt); controls.update(); composer.render();
+        steg(dt); følg(dt); if (kamera.modus !== 'bak') controls.update(); composer.render();
       });
     }, 30));
 
     // for testing og opptak
-    window.spill = { THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret };
+    window.spill = { THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera };
   </script>
 </body>
 </html>
