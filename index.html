@@ -93,6 +93,10 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
     import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
     // Koordinater i meter. Origo = hagesidens ytre hjørne til venstre på planskissen.
     // x: bredde (0 → 5,27), z: dybde fra hage (0) mot inngang (9,85), y: opp. Gulv inne = 0.
@@ -105,7 +109,7 @@
 
     // ---------- Renderer, scene, kamera ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -1280,21 +1284,39 @@
     videoLag.onclick = e => { if (e.target === videoLag) videoLag.close(); };   // klikk utenfor videoen
     videoLag.addEventListener('close', () => filmen.pause());
 
-    window.addEventListener('resize', () => {
+    // Myk skygge i hjørner og under møbler (ambient occlusion) som etterbehandling.
+    // Glass skjules mens skyggene beregnes, så vinduene ikke kaster skygge på det bak.
+    const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }));
+    composer.addPass(new RenderPass(scene, camera));
+    const ao = new GTAOPass(scene, camera, window.innerWidth, window.innerHeight);
+    ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.5, thickness: 1.5, scale: 1.4, samples: 16, distanceFallOff: 1 });
+    ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+    ao.blendIntensity = 1;
+    const aoRender = ao.render.bind(ao);
+    ao.render = (...a) => {
+      const skjult = [];
+      scene.traverseVisible(o => { if (o.isMesh && o.material.transparent) { o.visible = false; skjult.push(o); } });
+      aoRender(...a);
+      for (const o of skjult) o.visible = true;
+    };
+    composer.addPass(ao);
+    composer.addPass(new OutputPass());
+    const settStørrelse = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setPixelRatio(renderer.getPixelRatio());
+      composer.setSize(window.innerWidth, window.innerHeight);
       etikettRenderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    };
+    settStørrelse();
+    window.addEventListener('resize', settStørrelse);
 
-    renderer.setAnimationLoop(() => {
-      controls.update();
-      renderer.render(scene, camera);
-      etikettRenderer.render(scene, camera);
-    });
+    const tegn = () => { composer.render(); etikettRenderer.render(scene, camera); };
+    renderer.setAnimationLoop(() => { controls.update(); tegn(); });
 
     // Brukes av opptaksskriptet for videoen (styrer kamera og visning bilde for bilde).
-    window.huldervegen = { THREE, scene, camera, renderer, controls, vis, oppdater, tak3, F };
+    window.huldervegen = { THREE, scene, camera, renderer, controls, vis, oppdater, tak3, F, composer, tegn };
   </script>
 </body>
 </html>
