@@ -996,7 +996,7 @@ vegg('z', 2.85, 2.95, 7.38, D - T, [], standardVegg, G);          // soverom | v
 vegg('x', 7.27, 7.36, 2.93, 4.03, [dør(3.08, 3.77)], standardVegg, G); // stue | vaskerom
 boks(4.03, G, 7.27, B - T, G + H, 8.04, standardVegg);            // sjakt
 boks(0.80, G, 6.93, 1.50, G + 2.03, 6.97, M.hvitDør);             // dørblad soverom, lukket så skapet synes
-boks(3.08, G, 7.36, 3.12, G + 2.03, 8.05, M.hvitDør);             // dørblad vaskerom, slår inn mot vasken
+boks(3.73, G, 7.36, 3.77, G + 2.03, 8.05, M.hvitDør);             // dørblad vaskerom
 
 // stue 15,5 m²: lav, myk sofa under vinduet helt inntil veggen med pianoet, digitalpiano på
 // stativ med krakk mot venstre vegg, teppe og to svarte settbord, TV på tynne ben på eikebenk.
@@ -1141,12 +1141,12 @@ flis3('z', 4.03 - L3, 4.03, 7.36, 8.04, []);
 flis3('x', 8.04, 8.04 + L3, 4.03, B - T, []);
 boks(2.95, G + 0.60, 8.25, 3.45, G + 0.90, 8.75, M.stål);
 boks(2.95, G, 8.90, 3.50, G + 0.90, D - T, M.hvit);
-// gulvstående WC med sisternen mot sjaktveggen rett innenfor døra, skålen mot rommet
-rund(3.84, G + 0.38, 7.51, 4.03, G + 0.80, 7.89, M.hvit, 0.03);
-sylinder(3.93, 7.70, G + 0.80, G + 0.81, 0.025, M.stål);
-oval(3.74, 7.70, 0.12, 0.10, G, G + 0.30, M.hvit);
-oval(3.66, 7.70, 0.22, 0.18, G + 0.24, G + 0.40, M.hvit).geometry = new THREE.CylinderGeometry(1, 0.62, 0.16, 40);
-oval(3.66, 7.70, 0.23, 0.185, G + 0.40, G + 0.43, M.hvit);
+// vegghengt WC på sjaktveggen rett overfor vaskemaskinen, skålen mot fronten; sisternen er skjult
+// i veggen, bare spyleplaten synes
+rund(4.41, G + 0.26, 8.044, 4.69, G + 0.42, 8.17, M.hvit, 0.03);
+oval(4.55, 8.30, 0.18, 0.22, G + 0.24, G + 0.40, M.hvit).geometry = new THREE.CylinderGeometry(1, 0.62, 0.16, 40);
+oval(4.55, 8.30, 0.19, 0.23, G + 0.40, G + 0.43, M.hvit);          // sete og lokk
+boks(4.47, G + 1.00, 8.044, 4.63, G + 1.15, 8.05, M.stål);        // spyleplate
 boks(3.96, G, 9.05, 4.53, G + 0.85, D - T, M.hvit);                // vaskemaskin
 boks(4.53, G, 9.05, B - T, G + 0.85, D - T, M.hvit);               // tørketrommel
 for (const x of [4.245, 4.80]) {
