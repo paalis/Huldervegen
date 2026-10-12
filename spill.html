@@ -829,8 +829,24 @@
         for (const treff of kameraStråle.intersectObjects(hindre, false))
           if (treff.object.visible && synlig(treff.object)) { treff.object.visible = false; iVeien.push(treff.object); }
       }
+      // bred korridor fra kameraet til figuren og til punktet den ser mot: alle vegger, dører og høye skap
+      // innenfor ca. 50 cm fra korridoren skjules, så ingen veggbiter står igjen i bildet
+      const mål = [figur.localToWorld(new THREE.Vector3(0, 1.1, 0)), figur.localToWorld(new THREE.Vector3(0, 1.8, 0)), kamera.blikk.clone()];
+      const p = new THREE.Vector3();
+      for (const { o, b } of høye) {
+        if (!o.visible || !synlig(o)) continue;
+        let inni = false;
+        for (const m of mål) {
+          for (let k = 0; k <= 10 && !inni; k++) {
+            p.lerpVectors(camera.position, m, k / 10 * 0.93);
+            if (b.distanceToPoint(p) < 0.5) inni = true;
+          }
+          if (inni) break;
+        }
+        if (inni) { o.visible = false; iVeien.push(o); }
+      }
     }
-    const iVeien = [];
+    const iVeien = [], høye = [];
     function visAltIgjen() { for (const o of iVeien) o.visible = true; iVeien.length = 0; }
     const synlig = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
 
@@ -845,6 +861,10 @@
       controls.target.set(tilstand.pos.x, 0.9, tilstand.pos.z);
       controls.update();
       scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
+      for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
+        const b = new THREE.Box3().setFromObject(o);
+        if ((o.material.clippingPlanes || b.max.y - b.min.y > 1.3) && b.max.y - b.min.y < 3.5) høye.push({ o, b });   // også bjelker over dører
+      }
       settKamera(kamera.modus);
       finnTing();
       oppdaterKnapper();
