@@ -57,7 +57,7 @@
     </div>
     <div class="rad" id="handlinger" style="margin-top:6px"></div>
     <p>Klikk eller trykk på gulvet for å gå dit, også i en annen etasje.<br>
-       Piltaster/WASD: med kamera bak figuren går ↑ fram, ↓ bak og ← → snur (C bytter kamera).<br>
+       Piltaster/WASD: med kamera bak figuren går ↑ fram, ↓ bak og ← → snur. Shift: løp. C bytter kamera.<br>
        Ovenfra: dra for å snu kameraet. Scroll/knip for zoom.<br>
        Handlinger: trykk på en knapp, eller E når figuren står i nærheten.</p>
   </div>
@@ -372,7 +372,7 @@
     ring.rotation.x = -Math.PI / 2; scene.add(ring);
 
     // ---------- Tilstand og bevegelse ----------
-    const tilstand = { f: 0, pos: new THREE.Vector3(3.5, 0, 6.8), retning: Math.PI, vei: [], fart: 1.4, gange: 0, visEtasje: 0, handling: null, planlagt: null };
+    const tilstand = { f: 0, pos: new THREE.Vector3(3.5, 0, 6.8), retning: Math.PI, vei: [], fart: 2.0, gange: 0, visEtasje: 0, handling: null, planlagt: null };
     const knapp = id => document.getElementById(id);
     function visEtasje(f) {
       tilstand.visEtasje = f;
@@ -694,7 +694,9 @@
       const fx = (taster.has('arrowright') || taster.has('d')) - (taster.has('arrowleft') || taster.has('a'));
       const fz = (taster.has('arrowup') || taster.has('w')) - (taster.has('arrowdown') || taster.has('s'));
       if (!fx) t.sving = 0;
-      if (fx || fz) {
+      const iTrapp = t.vei.length && t.vei[0].trapp;                         // i trappa: gå ferdig opp eller ned
+      const løper = taster.has('shift') ? 1.6 : 1;                           // Shift: løp
+      if ((fx || fz) && !iTrapp) {
         if (t.handling) stoppHandling();
         t.planlagt = null;
         t.vei = [];
@@ -703,11 +705,11 @@
           // svinghastigheten bygger seg opp mykt opp til ca. 95 grader i sekundet
           t.sving = Math.min(1, (t.sving || 0) + dt * 3);
           t.retning -= fx * 1.65 * t.sving * dt;
-          v = new THREE.Vector3(Math.sin(t.retning), 0, Math.cos(t.retning)).multiplyScalar(fz * t.fart * dt * (fz < 0 ? 0.6 : 1));
+          v = new THREE.Vector3(Math.sin(t.retning), 0, Math.cos(t.retning)).multiplyScalar(fz * t.fart * løper * dt * (fz < 0 ? 0.6 : 1));
         } else {
           camera.getWorldDirection(fremover); fremover.y = 0; fremover.normalize();
           høyre.crossVectors(fremover, camera.up).normalize();
-          v = fremover.multiplyScalar(fz).add(høyre.multiplyScalar(fx)).normalize().multiplyScalar(t.fart * dt);
+          v = fremover.multiplyScalar(fz).add(høyre.multiplyScalar(fx)).normalize().multiplyScalar(t.fart * løper * dt);
         }
         const prøv = (dx, dz) => {
           const [i, j] = celle(t.pos.x + dx, t.pos.z + dz);
@@ -720,17 +722,20 @@
         }
         const h = høydeVed(t.f, t.pos.x, t.pos.z);
         if (!Number.isNaN(h)) t.pos.y += (h - t.pos.y) * Math.min(1, dt * 12);
-        // gå inn i trappa når man står ved foten eller toppen og går mot den
+        // gå inn i trappa når man er nær foten eller toppen og går omtrent mot den
+        const fart = Math.hypot(v.x, v.z);
         for (const tr of trapper) {
           const [a, b] = t.f === tr.f ? [tr.bane[0], tr.bane[1]] : t.f === tr.f + 1 ? [tr.bane.at(-1), tr.bane.at(-2)] : [];
-          if (a && Math.hypot(t.pos.x - a.x, t.pos.z - a.z) < 0.2 && (b.x - a.x) * v.x + (b.z - a.z) * v.z > 0) {
+          if (!a || fart < 1e-6) continue;
+          const mot = new THREE.Vector3(b.x - t.pos.x, 0, b.z - t.pos.z).normalize();
+          if (Math.hypot(t.pos.x - a.x, t.pos.z - a.z) < 0.65 && (mot.x * v.x + mot.z * v.z) / fart > 0.35) {
             const opp = t.f === tr.f;
             t.vei = (opp ? tr.bane : [...tr.bane].reverse()).map(p => ({ p: p.clone(), f: opp ? tr.f + 1 : tr.f, trapp: true }));
           }
         }
       }
       // følg veien
-      let igjen = t.fart * dt;
+      let igjen = t.fart * (t.vei.length && !t.planlagt ? løper : 1) * dt;
       while (t.vei.length && igjen > 0) {
         const mål = t.vei[0], d = new THREE.Vector3().subVectors(mål.p, t.pos);
         const flat = Math.hypot(d.x, d.z), lengde = mål.trapp ? d.length() : flat;
@@ -751,7 +756,7 @@
       let dr = t.retning - figur.rotation.y;
       dr = Math.atan2(Math.sin(dr), Math.cos(dr));
       figur.rotation.y += kamera.modus === 'bak' && !t.vei.length ? dr : dr * Math.min(1, dt * 10);
-      t.gange = beveger ? t.gange + dt * 7.5 : t.gange * 0.85;
+      t.gange = beveger ? t.gange + dt * 7.5 * (t.fart / 1.4) * (løper > 1 ? 1.3 : 1) : t.gange * 0.85;
       const sving = beveger ? Math.sin(t.gange) * 0.55 : Math.sin(t.gange) * 0.55 * 0.85;
       // gange: hofta svinger, kneet bøyes når benet føres fram, armene svinger motsatt med litt bøyd albue
       for (const [b, a, fase] of [[benV, armH, sving], [benH, armV, -sving]]) {
