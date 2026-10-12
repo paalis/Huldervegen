@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="nb">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Huldervegen – gå rundt</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #e9eef2; font-family: system-ui, sans-serif; }
+    canvas { display: block; touch-action: none; }
+    #panel {
+      position: absolute; top: 12px; left: 12px; z-index: 2;
+      background: rgba(255,255,255,.92); border-radius: 10px; padding: 10px 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15); max-width: calc(100vw - 48px);
+    }
+    #panel h1 { font-size: 15px; margin: 0 0 8px; }
+    #panel .rad { display: flex; flex-wrap: wrap; gap: 6px; }
+    #panel button, #panel a.knapp {
+      font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px; text-decoration: none; color: inherit;
+      border: 1px solid #b9b2a8; background: #fff; cursor: pointer;
+    }
+    #panel button.på { background: #4b3324; color: #fff; border-color: #4b3324; }
+    #panel p { font-size: 11px; color: #666; margin: 8px 0 0; }
+    #rom {
+      position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 2;
+      background: rgba(255,255,255,.94); border-radius: 999px; padding: 7px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15); font-size: 14px; font-weight: 600; color: #2a1d14;
+      white-space: nowrap; pointer-events: none; transition: opacity .3s;
+    }
+    #rom small { font-weight: 400; color: #8a6a55; margin-left: 6px; }
+    #laster {
+      position: absolute; inset: 0; display: grid; place-items: center; z-index: 5;
+      background: #e9eef2; color: #4b3324; font-size: 15px; font-weight: 600;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="laster">Bygger huset …</div>
+  <div id="panel">
+    <h1>Huldervegen – gå rundt</h1>
+    <div class="rad">
+      <button id="etg1">1. etasje</button>
+      <button id="etg2">2. etasje</button>
+      <button id="etg3">3. etasje</button>
+    </div>
+    <div class="rad" style="margin-top:6px">
+      <button id="lave" class="på">Lave vegger</button>
+      <a class="knapp" href="./">Til 3D-modellen</a>
+    </div>
+    <p>Klikk eller trykk på gulvet for å gå dit, også i en annen etasje.<br>
+       Piltaster/WASD for å styre selv. Dra for å snu kameraet, scroll/knip for zoom.</p>
+  </div>
+  <div id="rom"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+    import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+    import {
+      F, TX1, nedreSving, øvreSving, opptrinn, inntrinn, scene, M, vis, oppdater, etiketter,
+    } from './hus.js';
+
+    // ---------- Renderer, kamera, kontroller ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.5 : 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.localClippingEnabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.maxPolarAngle = Math.PI / 2 - 0.1;
+    controls.minDistance = 3;
+    controls.maxDistance = 25;
+    controls.enablePan = false;
+
+    // myk skygge i hjørner og under møbler, som i 3D-modellen
+    const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }));
+    composer.addPass(new RenderPass(scene, camera));
+    const ao = new GTAOPass(scene, camera, window.innerWidth, window.innerHeight);
+    ao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.5, thickness: 1.5, scale: 1.4, samples: 16, distanceFallOff: 1 });
+    ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+    const aoRender = ao.render.bind(ao);
+    ao.render = (...a) => {
+      const skjult = [];
+      scene.traverseVisible(o => { if (o.isMesh && o.material.transparent) { o.visible = false; skjult.push(o); } });
+      aoRender(...a);
+      for (const o of skjult) o.visible = true;
+    };
+    composer.addPass(ao);
+    composer.addPass(new OutputPass());
+    const settStørrelse = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setPixelRatio(renderer.getPixelRatio());
+      composer.setSize(window.innerWidth, window.innerHeight);
+    };
+    settStørrelse();
+    window.addEventListener('resize', settStørrelse);
+    for (const o of etiketter) o.element.style.display = 'none';         // romnavn vises nederst i stedet
+
+    // ---------- Gangkart ----------
+    // Hver etasje rastreres til et rutenett: en rute er gangbar når det finnes gulv under og ingen
+    // møbler eller vegger mellom kne- og hodehøyde. Dører og glass i dører regnes som åpne.
+    const R = 0.05, X0 = -1.0, Z0 = -5.0, NX = Math.round(7.4 / R), NZ = Math.round(20 / R), N = NX * NZ;
+    const ETASJER = 3, base = f => f * F;                                  // f = 0, 1, 2
+    const gulv = Array.from({ length: ETASJER }, () => new Float32Array(N).fill(NaN));
+    const sperret = Array.from({ length: ETASJER }, () => new Uint8Array(N));
+    const åpne = new Set([M.hvitDør, M.ytterdør, M.bodDør, M.glass]);
+    const celle = (x, z) => [Math.floor((x - X0) / R), Math.floor((z - Z0) / R)];
+    const id = (i, j) => j * NX + i;
+    const inni = (i, j) => i >= 0 && j >= 0 && i < NX && j < NZ;
+    function rastrer(boks, fn) {
+      const [i1, j1] = celle(boks.min.x, boks.min.z), [i2, j2] = celle(boks.max.x - 1e-6, boks.max.z - 1e-6);
+      for (let j = Math.max(0, j1); j <= Math.min(NZ - 1, j2); j++)
+        for (let i = Math.max(0, i1); i <= Math.min(NX - 1, i2); i++) fn(id(i, j));
+    }
+    function byggKart() {
+      vis.etasje = 3; vis.lave = false; vis.tak = false; oppdater();
+      scene.updateMatrixWorld(true);
+      const b = new THREE.Box3(), str = new THREE.Vector3();
+      scene.traverse(o => {
+        if (!o.isMesh || åpne.has(o.material) || o.material === M.porteTak) return;   // tak over inngangen er ikke gulv
+        b.setFromObject(o); b.getSize(str);
+        for (let f = 0; f < ETASJER; f++) {
+          const y0 = base(f);
+          // gulvflater: tynne og store nok, med topp nær etasjens gulvnivå
+          if (str.y < 0.4 && str.x * str.z > 0.2 && b.max.y > y0 - 0.5 && b.max.y < y0 + 0.12)
+            rastrer(b, k => { if (!(gulv[f][k] >= b.max.y)) gulv[f][k] = b.max.y; });
+          // hindringer mellom kne- og hodehøyde
+          else if (b.min.y < y0 + 1.7 && b.max.y > y0 + 0.25) rastrer(b, k => { sperret[f][k] = 1; });
+        }
+      });
+      // gjør hindringene litt større så figuren ikke går gjennom kantene
+      for (let f = 0; f < ETASJER; f++) {
+        const s = sperret[f], ut = new Uint8Array(N), r = 3;
+        for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+          if (!s[id(i, j)]) continue;
+          for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++)
+            if (di * di + dj * dj <= r * r && inni(i + di, j + dj)) ut[id(i + di, j + dj)] = 1;
+        }
+        sperret[f] = ut;
+      }
+    }
+    const gangbar = (f, i, j) => inni(i, j) && !sperret[f][id(i, j)] && !Number.isNaN(gulv[f][id(i, j)]);
+    const høydeVed = (f, x, z) => { const [i, j] = celle(x, z); return inni(i, j) ? gulv[f][id(i, j)] : NaN; };
+
+    // ---------- Trapper ----------
+    // Gangbanen i hver trapp: vindeltrinn inn fra vest, rett løp mot +z og vindeltrinn ut mot vest.
+    function trappeBane(f) {
+      const y0 = base(f), p = [];
+      p.push([3.70, y0, 3.75]);
+      for (let i = 0; i < 3; i++) {
+        const a = (-75 + 30 * i) * Math.PI / 180;
+        p.push([TX1 + 0.5 * Math.cos(a), y0 + (i + 1) * opptrinn, nedreSving.z2 + 0.5 * Math.sin(a)]);
+      }
+      for (let j = 0; j < 8; j++) p.push([4.60, y0 + (4 + j) * opptrinn, nedreSving.z2 + (j + 0.5) * inntrinn]);
+      for (let i = 0; i < 3; i++) {
+        const a = (15 + 30 * i) * Math.PI / 180;
+        p.push([TX1 + 0.5 * Math.cos(a), y0 + (12 + i) * opptrinn, øvreSving.z1 + 0.5 * Math.sin(a)]);
+      }
+      p.push([3.85, y0 + F, 6.85]);
+      return p.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+    }
+    const trapper = [0, 1].map(f => {
+      const bane = trappeBane(f);
+      let lengde = 0;
+      for (let k = 1; k < bane.length; k++) lengde += bane[k].distanceTo(bane[k - 1]);
+      return { f, bane, lengde, nede: celle(bane[0].x, bane[0].z), oppe: celle(bane.at(-1).x, bane.at(-1).z) };
+    });
+    // sørg for at endene av trappene alltid er gangbare
+    function åpneTrappeender() {
+      for (const t of trapper) for (const [f, [i, j], p] of [[t.f, t.nede, t.bane[0]], [t.f + 1, t.oppe, t.bane.at(-1)]])
+        for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+          const k = id(i + di, j + dj);
+          sperret[f][k] = 0;
+          if (Number.isNaN(gulv[f][k])) gulv[f][k] = p.y;
+        }
+    }
+
+    // ---------- Veifinning (A* over alle etasjer, trapper som egne kanter) ----------
+    const NAB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
+    class Haug {
+      constructor() { this.a = []; }
+      push(n, p) { const a = this.a; a.push([p, n]); let i = a.length - 1;
+        while (i > 0) { const q = (i - 1) >> 1; if (a[q][0] <= a[i][0]) break; [a[q], a[i]] = [a[i], a[q]]; i = q; } }
+      pop() { const a = this.a, top = a[0], sist = a.pop();
+        if (a.length) { a[0] = sist; let i = 0;
+          for (;;) { const l = 2 * i + 1, r = l + 1; let m = i;
+            if (l < a.length && a[l][0] < a[m][0]) m = l; if (r < a.length && a[r][0] < a[m][0]) m = r;
+            if (m === i) break; [a[m], a[i]] = [a[i], a[m]]; i = m; } }
+        return top[1]; }
+      get size() { return this.a.length; }
+    }
+    function finnVei(fra, til) {                                               // noder: [f, i, j]
+      const nøkkel = (f, i, j) => f * N + id(i, j);
+      const h = (f, i, j) => Math.hypot(i - til[1], j - til[2]) + Math.abs(f - til[0]) * 60;
+      const g = new Map(), forrige = new Map(), åpen = new Haug();
+      const start = nøkkel(...fra), mål = nøkkel(...til);
+      g.set(start, 0); åpen.push(start, h(...fra));
+      while (åpen.size) {
+        const k = åpen.pop();
+        if (k === mål) break;
+        const f = Math.floor(k / N), r = k % N, i = r % NX, j = Math.floor(r / NX), gk = g.get(k);
+        const prøv = (nk, kost, via) => {
+          const ng = gk + kost;
+          if (ng < (g.get(nk) ?? Infinity)) {
+            g.set(nk, ng); forrige.set(nk, [k, via]);
+            const nf = Math.floor(nk / N), nr = nk % N;
+            åpen.push(nk, ng + h(nf, nr % NX, Math.floor(nr / NX)));
+          }
+        };
+        for (const [di, dj, c] of NAB) {
+          const ni = i + di, nj = j + dj;
+          if (!gangbar(f, ni, nj)) continue;
+          if (di && dj && (!gangbar(f, i + di, j) || !gangbar(f, i, j + dj))) continue;   // ikke skjær hjørner
+          prøv(nøkkel(f, ni, nj), c, null);
+        }
+        for (const t of trapper) {                                             // trapper opp og ned
+          if (f === t.f && i === t.nede[0] && j === t.nede[1]) prøv(nøkkel(t.f + 1, ...t.oppe), t.lengde / R, { t, opp: true });
+          if (f === t.f + 1 && i === t.oppe[0] && j === t.oppe[1]) prøv(nøkkel(t.f, ...t.nede), t.lengde / R, { t, opp: false });
+        }
+      }
+      if (!forrige.has(mål) && start !== mål) return null;
+      // bygg veien baklengs: liste av punkter med etasje, trapper som ferdige baner
+      const deler = [];
+      let k = mål;
+      while (k !== start) {
+        const [fk, via] = forrige.get(k);
+        deler.push({ k, via });
+        k = fk;
+      }
+      deler.push({ k: start, via: null });
+      deler.reverse();
+      const punkt = k => { const f = Math.floor(k / N), r = k % N; return { f, i: r % NX, j: Math.floor(r / NX) }; };
+      const vei = [];
+      for (const d of deler) {
+        if (d.via) {
+          const b = d.via.opp ? d.via.t.bane : [...d.via.t.bane].reverse();
+          for (const p of b) vei.push({ p: p.clone(), f: d.via.opp ? d.via.t.f + 1 : d.via.t.f, trapp: true });
+        } else {
+          const { f, i, j } = punkt(d.k);
+          vei.push({ p: new THREE.Vector3(X0 + (i + 0.5) * R, gulv[f][id(i, j)], Z0 + (j + 0.5) * R), f, trapp: false });
+        }
+      }
+      return glatt(vei);
+    }
+    // fjern unødvendige knekkpunkter der det er fri sikt i samme etasje
+    function friSikt(f, a, b) {
+      const n = Math.ceil(a.distanceTo(b) / (R * 0.5));
+      for (let s = 1; s < n; s++) {
+        const x = a.x + (b.x - a.x) * s / n, z = a.z + (b.z - a.z) * s / n, [i, j] = celle(x, z);
+        if (!gangbar(f, i, j)) return false;
+      }
+      return true;
+    }
+    function glatt(vei) {
+      const ut = [vei[0]];
+      let a = 0;
+      while (a < vei.length - 1) {
+        if (vei[a + 1].trapp || vei[a].trapp) { ut.push(vei[++a]); continue; }
+        let b = a + 1;
+        while (b + 1 < vei.length && !vei[b + 1].trapp && vei[b + 1].f === vei[a].f && friSikt(vei[a].f, vei[a].p, vei[b + 1].p)) b++;
+        ut.push(vei[b]); a = b;
+      }
+      return ut;
+    }
+
+    // ---------- Figuren ----------
+    const hud = new THREE.MeshStandardMaterial({ color: 0xd9a77f, roughness: 0.7 });
+    const genser = new THREE.MeshStandardMaterial({ color: 0x5f7f6a, roughness: 0.9 });
+    const bukse = new THREE.MeshStandardMaterial({ color: 0x2f3a4a, roughness: 0.9 });
+    const sko = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.6 });
+    const hår = new THREE.MeshStandardMaterial({ color: 0x4a3426, roughness: 0.8 });
+    const figur = new THREE.Group();
+    const del = (geo, m, x, y, z, foreldre = figur) => {
+      const mesh = new THREE.Mesh(geo, m); mesh.position.set(x, y, z);
+      mesh.castShadow = true; foreldre.add(mesh); return mesh;
+    };
+    const lem = (x, y, m1, m2, lengde, tykk) => {                             // ledd i (x, y) som svinger rundt x-aksen
+      const ledd = new THREE.Group(); ledd.position.set(x, y, 0); figur.add(ledd);
+      del(new THREE.CapsuleGeometry(tykk, lengde - 2 * tykk, 4, 10), m1, 0, -lengde / 2, 0, ledd);
+      if (m2) del(new THREE.BoxGeometry(tykk * 2.2, 0.07, 0.24), m2, 0, -lengde + 0.02, 0.05, ledd);
+      return ledd;
+    };
+    const benV = lem(-0.09, 0.86, bukse, sko, 0.84, 0.065), benH = lem(0.09, 0.86, bukse, sko, 0.84, 0.065);
+    const armV = lem(-0.25, 1.40, genser, null, 0.62, 0.05), armH = lem(0.25, 1.40, genser, null, 0.62, 0.05);
+    del(new THREE.CapsuleGeometry(0.17, 0.36, 6, 14), genser, 0, 1.17, 0).scale.set(1.15, 1, 0.75);
+    del(new THREE.CylinderGeometry(0.05, 0.06, 0.08, 10), hud, 0, 1.47, 0);
+    del(new THREE.SphereGeometry(0.115, 20, 16), hud, 0, 1.59, 0).scale.set(1, 1.12, 1.05);
+    del(new THREE.SphereGeometry(0.122, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), hår, 0, 1.61, -0.01);
+    for (const sx of [-1, 1]) del(new THREE.SphereGeometry(0.045, 10, 8), hud, sx * 0.25, 0.80, 0);   // hender
+    // grønn diamant over hodet, som i Sims
+    const diamant = new THREE.Mesh(new THREE.OctahedronGeometry(0.11, 0),
+      new THREE.MeshStandardMaterial({ color: 0x3fd15a, emissive: 0x1f9a34, emissiveIntensity: 0.6, roughness: 0.3 }));
+    diamant.scale.set(0.7, 1.4, 0.7); diamant.position.y = 2.05; figur.add(diamant);
+    scene.add(figur);
+    const figurdeler = new Set();
+    figur.traverse(o => figurdeler.add(o));
+
+    // markering der man klikket
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.22, 40), new THREE.MeshBasicMaterial({ color: 0x3fd15a, transparent: true, opacity: 0, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; scene.add(ring);
+
+    // ---------- Tilstand og bevegelse ----------
+    const tilstand = { f: 0, pos: new THREE.Vector3(3.5, 0, 6.8), retning: Math.PI, vei: [], fart: 1.4, gange: 0, visEtasje: 0 };
+    const knapp = id => document.getElementById(id);
+    function visEtasje(f) {
+      tilstand.visEtasje = f;
+      vis.etasje = f + 1; oppdater();
+      for (const n of [1, 2, 3]) knapp(`etg${n}`).classList.toggle('på', n === f + 1);
+    }
+    function gåTil(f, x, z) {
+      // nærmeste gangbare rute rundt klikket
+      let [ci, cj] = celle(x, z), best = null;
+      for (let r = 0; r <= 20 && !best; r++)
+        for (let dj = -r; dj <= r && !best; dj++) for (let di = -r; di <= r; di++)
+          if ((Math.abs(di) === r || Math.abs(dj) === r) && gangbar(f, ci + di, cj + dj)) { best = [ci + di, cj + dj]; break; }
+      if (!best) return false;
+      const [si, sj] = celle(tilstand.pos.x, tilstand.pos.z);
+      let start = [tilstand.f, si, sj];
+      if (!gangbar(...start)) {                                              // stå fast i en kant: start i nærmeste ledige rute
+        for (let r = 1; r <= 6; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++)
+          if (gangbar(tilstand.f, si + di, sj + dj)) { start = [tilstand.f, si + di, sj + dj]; r = 99; dj = di = 99; }
+      }
+      const vei = finnVei(start, [f, ...best]);
+      if (!vei) return false;
+      tilstand.vei = vei.slice(1);
+      const slutt = vei.at(-1).p;
+      ring.position.set(slutt.x, slutt.y + 0.02, slutt.z); ring.material.opacity = 0.9;
+      return true;
+    }
+
+    // klikk/trykk på gulvet (skilles fra dra-for-å-snu ved hvor langt pekeren flyttet seg)
+    const peker = new THREE.Vector2(), stråle = new THREE.Raycaster();
+    let ned = null;
+    renderer.domElement.addEventListener('pointerdown', e => { ned = [e.clientX, e.clientY]; });
+    renderer.domElement.addEventListener('pointerup', e => {
+      if (!ned || Math.hypot(e.clientX - ned[0], e.clientY - ned[1]) > 6) return;
+      peker.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+      stråle.setFromCamera(peker, camera);
+      const f = tilstand.visEtasje, y0 = base(f);
+      const treff = stråle.intersectObjects(scene.children, true).find(t => t.object.visible && t.object !== ring && !figurdeler.has(t.object) && t.point.y < y0 + 1.2);
+      // bruk punktet der strålen krysser gulvnivået hvis treffet er på et møbel
+      const p = treff ? treff.point : null;
+      let x, z;
+      if (p && p.y < y0 + 0.3) { x = p.x; z = p.z; }
+      else {
+        const t = (y0 - stråle.ray.origin.y) / stråle.ray.direction.y;
+        if (!(t > 0)) return;
+        x = stråle.ray.origin.x + stråle.ray.direction.x * t; z = stråle.ray.origin.z + stråle.ray.direction.z * t;
+      }
+      gåTil(f, x, z);
+    });
+
+    // piltaster/WASD: styr selv i forhold til kameraet
+    const taster = new Set();
+    addEventListener('keydown', e => { if (!e.target.closest?.('button')) taster.add(e.key.toLowerCase()); });
+    addEventListener('keyup', e => taster.delete(e.key.toLowerCase()));
+
+    // knapper
+    for (const n of [1, 2, 3]) knapp(`etg${n}`).onclick = () => visEtasje(n - 1);
+    knapp('lave').onclick = e => { vis.lave = e.currentTarget.classList.toggle('på'); oppdater(); };
+
+    // romnavn nederst på skjermen
+    const ROM = [
+      [0, 0.2, 0.2, 5.07, 7.25, 'Stue og spisestue', '35 m²'], [0, 0.2, 7.25, 2.88, 9.65, 'Kjøkken', '8 m²'],
+      [0, 2.98, 7.35, 5.07, 9.65, 'Entré', '4,5 m²'], [0, 0, -4.7, 5.27, 0, 'Terrasse', '25 m²'],
+      [0, 2.8, 9.85, 5.27, 11.7, 'Inngang', '4 m²'], [0, -1, 9.85, 2.8, 15, 'Gårdsplass', ''],
+      [1, 0.2, 0.2, 2.85, 4.55, 'Soverom', '13 m²'], [1, 2.94, 0.2, 5.07, 3.2, 'Soverom', '7 m²'],
+      [1, 0.2, 4.64, 2.85, 7.18, 'Bad', '7,5 m²'], [1, 0.2, 7.3, 5.07, 9.65, 'Soverom', '12 m²'],
+      [1, 2.8, 9.85, 5.27, 11.7, 'Altan', '4 m²'], [1, 2.94, 3.2, 5.07, 7.3, 'Gang', '8,5 m²'],
+      [2, 0, 0, 5.27, 3.15, 'Takterrasse', '17 m²'], [2, 0.2, 3.35, 4.12, 6.9, 'Stue', '15,5 m²'],
+      [2, 0.2, 6.9, 2.9, 9.65, 'Soverom', '8 m²'], [2, 2.95, 7.36, 5.07, 9.65, 'Vaskerom', '4,5 m²'],
+      [2, 2.9, 6.6, 5.07, 7.36, 'Gang', ''],
+    ];
+    let sistRom = '';
+    function oppdaterRom() {
+      const { f, pos } = tilstand;
+      const r = ROM.find(([rf, x1, z1, x2, z2]) => rf === f && pos.x >= x1 && pos.x <= x2 && pos.z >= z1 && pos.z <= z2);
+      const tekst = r ? `${r[5]}<small>${r[6] || `${f + 1}. etasje`}</small>` : `${f + 1}. etasje`;
+      if (tekst !== sistRom) { knapp('rom').innerHTML = tekst; sistRom = tekst; }
+    }
+
+    // ---------- Oppdatering hvert bilde ----------
+    const klokke = new THREE.Clock(), fremover = new THREE.Vector3(), høyre = new THREE.Vector3();
+    function steg(dt) {
+      const t = tilstand;
+      let beveger = false;
+      // tastaturstyring avbryter klikkveien
+      const fx = (taster.has('arrowright') || taster.has('d')) - (taster.has('arrowleft') || taster.has('a'));
+      const fz = (taster.has('arrowup') || taster.has('w')) - (taster.has('arrowdown') || taster.has('s'));
+      if (fx || fz) {
+        t.vei = [];
+        camera.getWorldDirection(fremover); fremover.y = 0; fremover.normalize();
+        høyre.crossVectors(fremover, camera.up).normalize();
+        const v = fremover.multiplyScalar(fz).add(høyre.multiplyScalar(fx)).normalize().multiplyScalar(t.fart * dt);
+        const prøv = (dx, dz) => {
+          const [i, j] = celle(t.pos.x + dx, t.pos.z + dz);
+          if (!gangbar(t.f, i, j)) return false;
+          t.pos.x += dx; t.pos.z += dz; return true;
+        };
+        if (prøv(v.x, v.z) || prøv(v.x, 0) || prøv(0, v.z)) beveger = true;
+        t.retning = Math.atan2(v.x, v.z);
+        const h = høydeVed(t.f, t.pos.x, t.pos.z);
+        if (!Number.isNaN(h)) t.pos.y += (h - t.pos.y) * Math.min(1, dt * 12);
+        // gå inn i trappa når man står ved foten eller toppen og går mot den
+        for (const tr of trapper) {
+          const [a, b] = t.f === tr.f ? [tr.bane[0], tr.bane[1]] : t.f === tr.f + 1 ? [tr.bane.at(-1), tr.bane.at(-2)] : [];
+          if (a && Math.hypot(t.pos.x - a.x, t.pos.z - a.z) < 0.2 && (b.x - a.x) * v.x + (b.z - a.z) * v.z > 0) {
+            const opp = t.f === tr.f;
+            t.vei = (opp ? tr.bane : [...tr.bane].reverse()).map(p => ({ p: p.clone(), f: opp ? tr.f + 1 : tr.f, trapp: true }));
+          }
+        }
+      }
+      // følg veien
+      let igjen = t.fart * dt;
+      while (t.vei.length && igjen > 0) {
+        const mål = t.vei[0], d = new THREE.Vector3().subVectors(mål.p, t.pos);
+        const flat = Math.hypot(d.x, d.z), lengde = mål.trapp ? d.length() : flat;
+        if (flat > 1e-3) t.retning = Math.atan2(d.x, d.z);
+        if (lengde <= igjen) {
+          t.pos.copy(mål.p); igjen -= lengde;
+          if (mål.f !== t.f) { t.f = mål.f; visEtasje(t.f); }              // ny etasje: vis den
+          t.vei.shift();
+        } else {
+          t.pos.addScaledVector(d, igjen / lengde);
+          if (!mål.trapp) { const h = høydeVed(t.f, t.pos.x, t.pos.z); if (!Number.isNaN(h)) t.pos.y += (h - t.pos.y) * Math.min(1, dt * 12); }
+          igjen = 0;
+        }
+        beveger = true;
+      }
+      // figur og gange
+      figur.position.copy(t.pos);
+      let dr = t.retning - figur.rotation.y;
+      dr = Math.atan2(Math.sin(dr), Math.cos(dr));
+      figur.rotation.y += dr * Math.min(1, dt * 10);
+      t.gange = beveger ? t.gange + dt * 7.5 : t.gange * 0.85;
+      const sving = beveger ? Math.sin(t.gange) * 0.55 : Math.sin(t.gange) * 0.55 * 0.85;
+      benV.rotation.x = sving; benH.rotation.x = -sving;
+      armV.rotation.x = -sving * 0.8; armH.rotation.x = sving * 0.8;
+      diamant.rotation.y += dt * 1.6;
+      diamant.position.y = 2.05 + Math.sin(performance.now() / 500) * 0.03;
+      ring.material.opacity = Math.max(0, ring.material.opacity - dt * (t.vei.length ? 0.2 : 1.2));
+      oppdaterRom();
+    }
+
+    // kameraet følger figuren mykt
+    const fokus = new THREE.Vector3();
+    function følg(dt, hopp = false) {
+      fokus.set(tilstand.pos.x, base(tilstand.visEtasje) + 0.9, tilstand.pos.z);
+      const flytt = hopp ? 1 : Math.min(1, dt * 4);
+      const d = new THREE.Vector3().subVectors(fokus, controls.target).multiplyScalar(flytt);
+      controls.target.add(d); camera.position.add(d);
+    }
+
+    // ---------- Start ----------
+    requestAnimationFrame(() => setTimeout(() => {
+      byggKart();
+      åpneTrappeender();
+      vis.lave = true;
+      visEtasje(0);
+      tilstand.pos.y = høydeVed(0, tilstand.pos.x, tilstand.pos.z) || 0;
+      camera.position.set(tilstand.pos.x + 5.5, 8.5, tilstand.pos.z - 6.5);
+      controls.target.set(tilstand.pos.x, 0.9, tilstand.pos.z);
+      controls.update();
+      knapp('laster').remove();
+      renderer.setAnimationLoop(() => {
+        const dt = Math.min(0.05, klokke.getDelta());
+        steg(dt); følg(dt); controls.update(); composer.render();
+      });
+    }, 30));
+
+    // for testing og opptak
+    window.spill = { THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret };
+  </script>
+</body>
+</html>

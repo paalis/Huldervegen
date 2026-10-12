@@ -2,7 +2,9 @@
 
 Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 
-- `index.html` – selve 3D-modellen (én selvstendig fil)
+- `index.html` – 3D-modellen med knapper for etasjer, visninger og video
+- `spill.html` – gå rundt i huset med en figur (klikk for å gå, piltaster/WASD, trapper mellom etasjene)
+- `hus.js` – selve huset (geometri, materialer, lys og romnavn), delt mellom `index.html` og `spill.html`
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
 - `video/` – videoer laget med `/brag-slim` fra selve 3D-modellen, åpnes med knappen «Se video» øverst til høyre:
   omvisning i øyehøyde fra hoveddøra gjennom alle rom (1:31) og en kort presentasjon (0:22)
