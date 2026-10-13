@@ -141,7 +141,7 @@
       scene.updateMatrixWorld(true);
       const b = new THREE.Box3(), str = new THREE.Vector3();
       scene.traverse(o => {
-        if (!o.isMesh || åpne.has(o.material) || o.material === M.porteTak) return;   // tak over inngangen er ikke gulv
+        if (!o.isMesh || åpne.has(o.material) || o.material === M.porteTak || figurdeler.has(o)) return;   // tak over inngangen er ikke gulv
         b.setFromObject(o); b.getSize(str);
         for (let f = 0; f < ETASJER; f++) {
           const y0 = base(f);
@@ -337,7 +337,7 @@
       const hånd = ledd(0, -0.27, 0, albue);
       del(new THREE.BoxGeometry(0.03, 0.09, 0.07), hud, 0, -0.03, 0.005, hånd).geometry = new RoundedBoxGeometry(0.03, 0.09, 0.07, 2, 0.013);
       del(new THREE.CapsuleGeometry(0.011, 0.035, 4, 8), hud, -sx * 0.012, -0.02, 0.04, hånd).rotation.x = 0.6;
-      return { skulder, albue };
+      return { skulder, albue, hånd };
     };
     const benV = ben(-1), benH = ben(1), armV = arm(-1), armH = arm(1);
     // hode: hodeskalle og kjeve, ører, øyne med iris og pupill, bryn, nese, lepper og skjeggstubb
@@ -362,6 +362,20 @@
     del(new THREE.SphereGeometry(0.102, 24, 14, Math.PI, Math.PI, Math.PI * 0.38, Math.PI * 0.27), hår, 0, 0.01, -0.006, hodet).scale.set(0.83, 1.09, 0.99);
     const topp = del(new THREE.SphereGeometry(0.088, 24, 14), hår, 0.008, 0.083, 0.014, hodet);
     topp.scale.set(0.8, 0.22, 0.98); topp.rotation.z = -0.12;
+    // jakke til å gå ut: mørk vindjakke utenpå T-skjorta, med lange ermer og krage (skjult inne)
+    const jakkeStoff = mat(0x23262b, 0.7), jakke = [];
+    {
+      const j = del(new THREE.LatheGeometry(profil.map(v => new THREE.Vector2(v.x + 0.012, v.y)), 28), jakkeStoff, 0, -0.02, 0);
+      j.scale.set(1.12, 1, 0.70); jakke.push(j);
+      jakke.push(del(new THREE.CylinderGeometry(0.06, 0.068, 0.07, 20), jakkeStoff, 0, 1.53, 0.0));   // krage
+      for (const a of [armV, armH]) {
+        jakke.push(del(new THREE.CylinderGeometry(0.062, 0.05, 0.31, 14), jakkeStoff, 0, -0.15, 0, a.skulder));
+        jakke.push(del(new THREE.CylinderGeometry(0.048, 0.04, 0.23, 14), jakkeStoff, 0, -0.11, 0, a.albue));
+      }
+      for (const d of jakke) d.visible = false;
+    }
+    const harJakke = () => jakke[0].visible;
+    const settJakke = på => { if (harJakke() !== på) { for (const d of jakke) d.visible = på; oppdaterKnapper(); } };
     figur.rotation.order = 'YXZ';
     scene.add(figur);
     const figurdeler = new Set();
@@ -478,6 +492,21 @@
       armV.skulder.rotation.z = 0.28 + Math.sin(tt * 10) * 0.06;
       armH.skulder.rotation.z = -0.28 - Math.sin(tt * 10) * 0.06;
     };
+    const slappAv = tt => {                                                   // lener seg tilbake med et glass
+      const slurk = Math.max(0, Math.sin(tt * 0.7)) ** 6;
+      armV.skulder.rotation.x = -0.55 - slurk * 0.6; armV.albue.rotation.x = -1.0 - slurk * 0.9;
+      armV.skulder.rotation.z = 0.1 + slurk * 0.3;
+      armH.skulder.rotation.x = -0.35; armH.albue.rotation.x = -0.5; armH.skulder.rotation.z = -0.25;
+      figur.rotation.x = -0.12;
+      hodet.rotation.y = Math.sin(tt * 0.3) * 0.35;
+    };
+    const jakkeArmer = tt => {                                                // armene inn i ermene, én om gangen
+      const a = tt < 1.5 ? armV : armH, u = (tt % 1.5) / 1.5;
+      a.skulder.rotation.x = -0.6 * Math.sin(u * π); a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.9 * Math.sin(u * π);
+      a.albue.rotation.x = -0.4;
+    };
+    const SKJORTER = [0x1f5a56, 0x8a1e2d, 0x2c3f6b, 0xd9d4c7, 0x3d3d3d, 0x6b7a3a];
+    let skjorteNr = 0;
     const HANDLINGER = {
       piano: { navn: 'Spill piano', ikon: '🎹', f: 2, gå: [1.35, 5.90], pos: [0.89, 5.90], retning: -π / 2, holdning: 'sitt', sete: 0.53,
         lyd: 'lyder/piano.mp3', gjenta: true,
@@ -536,6 +565,94 @@
           if (tt % 9 < 0.4) armV.skulder.rotation.x -= Math.sin(tt % 9 / 0.4 * π) * 0.12;   // bytter av og til
           tegnTv(tt);
         } },
+      netflix3: { navn: 'Se Netflix', rom: 'stua', ikon: '📺', f: 2, gå: [2.30, 4.95], pos: [2.25, 3.95], retning: 0, holdning: 'sitt', sete: 0.45,
+        lyd: 'lyder/netflix.mp3', gjenta: true,
+        før: () => { fjernkontroll.visible = tvBilde3.visible = true; }, etter: () => { fjernkontroll.visible = tvBilde3.visible = false; },
+        armer: tt => { HANDLINGER.netflix.armer(tt); } },
+      middag: { navn: 'Spis middag', ikon: '🍽️', f: 0, gå: [2.55, 4.20], pos: [2.10, 4.62], retning: 0, holdning: 'sitt', sete: 0.49,
+        lyd: 'lyder/middag.mp3', gjenta: true,
+        før: () => { middag.visible = gaffel.visible = true; }, etter: () => { middag.visible = gaffel.visible = false; },
+        armer: tt => {
+          const løft = Math.max(0, Math.sin(tt * 1.6)) ** 2;                    // gaffelen fra tallerkenen til munnen
+          armV.skulder.rotation.x = -0.75 - løft * 0.45; armV.albue.rotation.x = -0.7 - løft * 1.2;
+          armV.skulder.rotation.z = 0.12 + løft * 0.25;
+          armH.skulder.rotation.x = -0.6; armH.albue.rotation.x = -0.75; armH.skulder.rotation.z = -0.1;
+          hodet.rotation.x = 0.25 - løft * 0.2;
+        } },
+      kaffe: { navn: 'Lag kaffe', ikon: '☕', f: 0, gå: [1.30, 8.70], pos: [1.02, 8.86], retning: -0.5, holdning: 'stå',
+        lyd: 'lyder/kaffe.mp3', gjenta: false,
+        før: () => { koppMaskin.visible = true; }, etter: () => { koppMaskin.visible = koppHånd.visible = damp.visible = false; },
+        armer: tt => {
+          if (tt < 1.2) {                                                       // trykker på knappen
+            const r = Math.sin(Math.min(1, tt / 1.2) * π);
+            armV.skulder.rotation.x = -1.25 * r; armV.albue.rotation.x = -0.2;
+          } else if (tt < 6) {                                                  // venter mens kaffen renner
+            armV.skulder.rotation.x = -0.15; armH.skulder.rotation.x = -0.15;
+            visDamp(new THREE.Vector3(0.66, 0.98, 9.29), tt);
+            hodet.rotation.y = Math.sin(tt * 0.8) * 0.2;
+          } else {                                                              // drikker
+            if (koppMaskin.visible) { koppMaskin.visible = false; koppHånd.visible = true; }
+            const slurk = Math.max(0, Math.sin((tt - 6) * 0.9)) ** 3;
+            armV.skulder.rotation.x = -0.7 - slurk * 0.45; armV.albue.rotation.x = -1.2 - slurk * 0.7;
+            armV.skulder.rotation.z = 0.15 + slurk * 0.25;
+            hodet.rotation.x = -slurk * 0.15;
+            visDamp(koppHånd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.08, 0)), tt);
+          }
+        } },
+      ute: { navn: 'Slapp av ute', rom: 'terrassen', ikon: '🌤️', f: 0, gå: [2.65, -1.40], pos: [1.55, -0.66], retning: π, holdning: 'sitt', sete: 0.47,
+        lyd: 'lyder/ute.mp3', gjenta: true,
+        før: () => { glass.visible = true; }, etter: () => { glass.visible = false; }, armer: slappAv },
+      ut: { navn: 'Gå ut', rom: 'tar på jakke', ikon: '🚪', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
+        lyd: 'lyder/jakke.mp3', gjenta: false, varighet: 3, vis: () => !harJakke(),
+        armer: tt => { jakkeArmer(tt); if (tt > 1.6) settJakke(true); },
+        ferdig: () => gåTil(0, 3.55, 10.75) },
+      inn: { navn: 'Gå inn', rom: 'tar av jakka', ikon: '🏠', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
+        lyd: 'lyder/jakke.mp3', gjenta: false, varighet: 3, vis: harJakke,
+        armer: tt => { jakkeArmer(tt); if (tt > 1.6) settJakke(false); } },
+      dusj: { navn: 'Dusj', rom: 'badet', ikon: '🚿', f: 1, gå: [1.30, 5.20], pos: [0.55, 5.04], retning: π / 2, holdning: 'stå',
+        lyd: 'lyder/dusj.mp3', gjenta: false, varighet: 14,
+        før: () => { vann.visible = true; }, etter: () => { vann.visible = damp.visible = false; },
+        armer: tt => {                                                          // vasker håret
+          for (const [a, sz] of [[armV, 0.55], [armH, -0.55]]) {
+            a.skulder.rotation.x = -2.2 + Math.sin(tt * 6 + (a === armV ? 0 : 1.5)) * 0.12; a.skulder.rotation.z = sz;
+            a.albue.rotation.x = -1.7;
+          }
+          hodet.rotation.x = -0.15;
+          oppdaterVann(tt);
+          visDamp(new THREE.Vector3(0.55, F + 1.9, 5.04), tt);
+        } },
+      tenner: { navn: 'Puss tennene', rom: 'badet', ikon: '🪥', f: 1, gå: [1.48, 6.25], pos: [1.48, 6.42], retning: 0, holdning: 'stå',
+        lyd: 'lyder/tannpuss.mp3', gjenta: false, varighet: 10,
+        før: () => { tannbørste.visible = true; }, etter: () => { tannbørste.visible = false; },
+        armer: tt => {
+          armV.skulder.rotation.x = -1.25; armV.albue.rotation.x = -1.95;
+          armV.skulder.rotation.z = 0.55 + Math.sin(tt * 14) * 0.06;             // børster fram og tilbake
+          hodet.rotation.x = 0.1;
+        } },
+      klær: { navn: 'Skift T-skjorte', rom: 'garderoben', ikon: '👕', f: 1, gå: [1.40, 3.50], pos: [1.40, 3.62], retning: 0, holdning: 'stå',
+        lyd: 'lyder/garderobe.mp3', gjenta: false, varighet: 4,
+        armer: tt => {
+          if (tt < 1.2) {                                                       // åpner skapet og finner en skjorte
+            armV.skulder.rotation.x = -1.2 * Math.sin(tt / 1.2 * π); armV.albue.rotation.x = -0.3;
+          } else {                                                              // trekker den over hodet
+            const o = Math.sin(Math.min(1, (tt - 1.2) / 2.4) * π);
+            for (const a of [armV, armH]) { a.skulder.rotation.x = -2.6 * o; a.albue.rotation.x = -0.9 * o; }
+            if (tt > 2.4 && !tilstand.handling.skiftet) {
+              tilstand.handling.skiftet = true;
+              skjorteNr = (skjorteNr + 1) % SKJORTER.length; skjorte.color.setHex(SKJORTER[skjorteNr]);
+            }
+          }
+        } },
+      utsikt: { navn: 'Se utover', rom: 'altanen', ikon: '🌇', f: 1, gå: [3.80, 10.60], pos: [3.80, 11.30], retning: 0, holdning: 'stå',
+        lyd: 'lyder/utsikt.mp3', gjenta: true,
+        armer: tt => {                                                          // albuene på rekkverket, ser seg rundt
+          for (const [a, sz] of [[armV, 0.3], [armH, -0.3]]) { a.skulder.rotation.x = -0.75; a.skulder.rotation.z = sz; a.albue.rotation.x = -1.35; }
+          hodet.rotation.y = Math.sin(tt * 0.35) * 0.55;
+          figur.rotation.x = 0.08;
+        } },
+      takterrasse: { navn: 'Slapp av', rom: 'takterrassen', ikon: '🌅', f: 2, gå: [1.20, 1.10], pos: [1.15, 2.58], retning: π, holdning: 'sitt', sete: 0.48,
+        lyd: 'lyder/takterrasse.mp3', gjenta: true,
+        før: () => { glass.visible = true; }, etter: () => { glass.visible = false; }, armer: slappAv },
       playstation: { navn: 'Spill PlayStation', rom: 'kontoret', ikon: '🎮', f: 2, gå: [1.05, 8.55], pos: [1.60, 8.55], retning: π / 2, holdning: 'sitt', sete: 0.51,
         lyd: 'lyder/playstation.mp3', gjenta: true,
         før: () => { kontroll.visible = skjermlys.visible = true; }, etter: () => { kontroll.visible = skjermlys.visible = false; },
@@ -580,6 +697,90 @@
         g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 150, w, 30);
       }
       tvTekstur.needsUpdate = true;
+    }
+    // TV-en i stua i 3. etasje viser det samme
+    const tvBilde3 = new THREE.Mesh(tvBilde.geometry.clone().scale(0.86 / 1.46, 0.50 / 0.81, 1), tvBilde.material);
+    tvBilde3.position.set(2.30, G3 + 0.81, 6.605); tvBilde3.rotation.y = π; tvBilde3.visible = false; scene.add(tvBilde3);
+    // ting figuren holder i høyre hånd (hånda peker nedover langs underarmen, fingrene mot +z)
+    const iHånd = (o, x = 0, y = -0.06, z = 0.03) => { o.position.set(x, y, z); o.visible = false; armV.hånd.add(o); return o; };
+    const stål = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, roughness: 0.3, metalness: 0.8 });
+    const gaffel = iHånd(new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.006), stål), 0, -0.07, 0.05);
+    gaffel.rotation.x = 1.2;
+    const lagKopp = () => {
+      const k = new THREE.Group(), keramikk = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.35 });
+      const kar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.034, 0.09, 24), keramikk); kar.position.y = 0.045; k.add(kar);
+      const kaffe = new THREE.Mesh(new THREE.CircleGeometry(0.036, 20), new THREE.MeshStandardMaterial({ color: 0x3b2314, roughness: 0.2 }));
+      kaffe.rotation.x = -π / 2; kaffe.position.y = 0.08; k.add(kaffe);
+      const hank = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 16), keramikk); hank.position.set(0.045, 0.05, 0); k.add(hank);
+      return k;
+    };
+    const koppMaskin = lagKopp(); koppMaskin.position.set(0.66, 0.935, 9.30); koppMaskin.visible = false; scene.add(koppMaskin);
+    const koppHånd = iHånd(lagKopp(), 0, -0.10, 0.06); koppHånd.rotation.x = π / 2;
+    const glass = iHånd(new THREE.Group(), 0, -0.09, 0.06); glass.rotation.x = π / 2;
+    {
+      const g1 = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.12, 20), new THREE.MeshStandardMaterial({ color: 0xdfeef2, roughness: 0.05, transparent: true, opacity: 0.45 }));
+      g1.position.y = 0.06; glass.add(g1);
+      const saft = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.028, 0.07, 20), new THREE.MeshStandardMaterial({ color: 0xe8a33a, roughness: 0.3 }));
+      saft.position.y = 0.04; glass.add(saft);
+    }
+    const tannbørste = iHånd(new THREE.Group(), 0, -0.08, 0.05);
+    {
+      const skaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.18, 8), new THREE.MeshStandardMaterial({ color: 0x3a8fd6, roughness: 0.4 }));
+      skaft.position.y = 0.06; tannbørste.add(skaft);
+      const bust = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.025, 0.012), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }));
+      bust.position.set(0, 0.14, 0.008); tannbørste.add(bust);
+      tannbørste.rotation.x = -1.9;                                           // børsten peker mot munnen
+    }
+    // middag på spisebordet: tallerken med mat og et glass vann
+    const middag = new THREE.Group();
+    {
+      const hvit = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+      const tallerken = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.10, 0.02, 32), hvit); tallerken.position.y = 0.01; middag.add(tallerken);
+      for (const [x, z, r, f] of [[-0.04, -0.02, 0.05, 0xd9b26a], [0.045, 0.02, 0.045, 0x5f8f3e], [0.0, 0.055, 0.04, 0x8a4a2c]]) {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 8), new THREE.MeshStandardMaterial({ color: f, roughness: 0.8 }));
+        m.scale.y = 0.35; m.position.set(x, 0.025, z); middag.add(m);
+      }
+      const vannglass = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.03, 0.12, 20), new THREE.MeshStandardMaterial({ color: 0xdfeef2, roughness: 0.05, transparent: true, opacity: 0.4 }));
+      vannglass.position.set(0.22, 0.06, 0.05); middag.add(vannglass);
+      middag.position.set(2.10, G1 + 0.75, 5.00); middag.visible = false; scene.add(middag);
+    }
+    // damp fra koppen og dusjen: noen myke, gjennomsiktige skyer som stiger og blir borte
+    const damp = new THREE.Group();
+    {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,255,255,0.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      const tekstur = new THREE.CanvasTexture(c);
+      for (let i = 0; i < 6; i++) damp.add(new THREE.Sprite(new THREE.SpriteMaterial({ map: tekstur, transparent: true, depthWrite: false })));
+      damp.visible = false; scene.add(damp);
+    }
+    function visDamp(p, tt) {
+      const stor = p.y > F + 1;                                               // dusjen damper mer enn koppen
+      damp.visible = true;
+      damp.children.forEach((sp, i) => {
+        const u = (tt * 0.5 + i / 6) % 1;
+        sp.position.set(p.x + Math.sin(i * 2.3 + tt) * (stor ? 0.25 : 0.02), p.y + u * (stor ? 0.6 : 0.18), p.z + Math.cos(i * 1.7 + tt) * (stor ? 0.25 : 0.02));
+        const r = (stor ? 0.35 : 0.06) * (0.5 + u);
+        sp.scale.set(r, r, 1); sp.material.opacity = (stor ? 0.45 : 0.6) * Math.sin(u * π);
+      });
+    }
+    // vannstråler fra dusjhodet
+    const vann = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xcfe8ff, transparent: true, opacity: 0.55 }));
+    {
+      const n = 70, pos = new Float32Array(n * 6);
+      vann.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      vann.userData.frø = Array.from({ length: n }, (_, i) => [Math.sin(i * 12.9898) * 43758.5453 % 1, Math.sin(i * 78.233) * 12345.678 % 1, (i * 0.618) % 1]);
+      vann.visible = false; vann.frustumCulled = false; scene.add(vann);
+    }
+    function oppdaterVann(tt) {
+      const pos = vann.geometry.attributes.position.array, topp = G2 + 2.02;
+      vann.userData.frø.forEach(([a, b, fase], i) => {
+        const v = a * 2 * π, r = Math.abs(b) * 0.09, u = (tt * 2.2 + fase) % 1;
+        const x = 0.52 + Math.cos(v) * r * (1 + u * 0.6), z = 5.05 + Math.sin(v) * r * (1 + u * 0.6), y = topp - u * 2.0;
+        pos.set([x, y, z, x, y - 0.12, z], i * 6);
+      });
+      vann.geometry.attributes.position.needsUpdate = true;
     }
     // gitaren figuren holder (skjult til den spiller), og gitaren på stativet som skjules imens
     const holdtGitar = new THREE.Group();
@@ -642,7 +843,7 @@
       let best = null, d = 2.5;
       for (const [id, h] of Object.entries(HANDLINGER)) {
         const a = Math.hypot(t.pos.x - h.gå[0], t.pos.z - h.gå[1]);
-        if (h.f === t.f && a < d) { d = a; best = id; }
+        if (h.f === t.f && a < d && (!h.vis || h.vis())) { d = a; best = id; }
       }
       if (best) planlegg(best);
     }
@@ -664,7 +865,7 @@
         for (const [di, dj] of [[r, 0], [-r, 0], [0, r], [0, -r]]) if (gangbar(t.f, i + di, j + dj)) { t.pos.x += di * R; t.pos.z += dj * R; break; }
       h.etter?.();
       if (h.lydVed === undefined) stoppLyd();
-      figur.rotation.x = 0; zzz.visible = false;
+      figur.rotation.x = 0; zzz.visible = false; hodet.rotation.set(0, 0, 0);
       t.handling = null;
       oppdaterKnapper();
     }
@@ -682,7 +883,7 @@
       const tt = hd.tid;
       for (const b of [benV, benH]) { b.hofte.rotation.x = 0; b.kne.rotation.x = 0; }
       for (const a of [armV, armH]) { a.skulder.rotation.x = 0; a.albue.rotation.x = -0.1; a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.08; }
-      figur.rotation.x = 0; zzz.visible = false;
+      figur.rotation.x = 0; zzz.visible = false; hodet.rotation.set(0, 0, 0);
       figur.position.y = t.pos.y;
       if (h.holdning === 'sitt') {
         for (const b of [benV, benH]) { b.hofte.rotation.x = -1.5; b.kne.rotation.x = 1.45; }
@@ -706,13 +907,13 @@
         vaskTid = h.maskinGår;
         l.addEventListener('loadedmetadata', () => { if (Number.isFinite(l.duration)) vaskTid = l.duration; });
       }
-      if (h.varighet && tt > h.varighet) stoppHandling();
+      if (h.varighet && tt > h.varighet) { stoppHandling(); h.ferdig?.(); }
     }
     function oppdaterKnapper() {
       const div = knapp('handlinger');
       div.innerHTML = '';
       for (const [id, h] of Object.entries(HANDLINGER)) {
-        if (h.f !== tilstand.visEtasje) continue;                            // bare handlingene i etasjen som vises
+        if (h.f !== tilstand.visEtasje || (h.vis && !h.vis())) continue;     // bare handlingene i etasjen som vises
         const b = document.createElement('button');
         const aktiv = tilstand.handling?.id === id;
         b.textContent = aktiv ? '⏹ Stopp' : `${h.ikon} ${h.navn}${h.rom ? ` (${h.rom})` : ''}`;
@@ -890,6 +1091,7 @@
 
     // ---------- Start ----------
     requestAnimationFrame(() => setTimeout(() => {
+      figur.traverse(o => figurdeler.add(o));                                 // også det figuren holder
       byggKart();
       åpneTrappeender();
       vis.lave = true;

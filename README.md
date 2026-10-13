@@ -4,7 +4,9 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 
 - `index.html` – 3D-modellen med knapper for etasjer, visninger og video
 - `spill.html` – gå rundt i huset med en figur (klikk for å gå, piltaster/WASD, trapper mellom etasjene)
-  og handlinger: piano, gitar, PlayStation, Netflix, vaskemaskin, gå på do, vaske hendene, steke mat og sove
+  og handlinger: piano, gitar, PlayStation, Netflix (1. og 3. etasje), vaskemaskin, gå på do, vaske hendene, steke mat, sove,
+  spise middag, lage kaffe, slappe av ute og på takterrassen, gå inn og ut, dusje, pusse tennene,
+  skifte T-skjorte og se utover fra altanen
 - `lyder/` – lydfiler til handlingene i spillet (se `lyder/README.md` for filnavnene)
 - `hus.js` – selve huset (geometri, materialer, lys og romnavn), delt mellom `index.html` og `spill.html`
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
