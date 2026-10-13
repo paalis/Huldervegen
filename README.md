@@ -9,6 +9,7 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
   skifte T-skjorte og se utover fra altanen
 - `flerspiller.js`, `firebase-config.js`, `database.rules.json` – flerspiller: logg inn og gå rundt sammen med andre,
   med egen figur (se `FLERSPILLER.md` for oppsett av Firebase)
+- `figurer/` – 3D-modeller av figurer (GLB med Mixamo-skjelett, f.eks. fra Avaturn) som kan velges i spillet
 - `lyder/` – lydfiler til handlingene i spillet (se `lyder/README.md` for filnavnene)
 - `hus.js` – selve huset (geometri, materialer, lys og romnavn), delt mellom `index.html` og `spill.html`
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
