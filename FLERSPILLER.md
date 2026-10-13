@@ -21,7 +21,9 @@ Så lenge `firebase-config.js` inneholder `null`, virker spillet som før, bare 
 1. I menyen til venstre velger du **Build → Authentication → Kom i gang** (Get started).
 2. Åpne fanen **Sign-in method** og slå på:
    - **Google**: velg e-postadressen din som støtteadresse og lagre.
-   - **E-post/passord** (Email/Password): slå på den første bryteren og lagre.
+   - **E-post/passord** (Email/Password): slå på den første bryteren og lagre. Spillet bruker denne
+     for innlogging med brukernavn og passord (brukernavnet gjøres om til en usynlig adresse
+     `brukernavn@huldervegen.spill`, så ingen trenger å oppgi e-post).
 3. Åpne fanen **Settings → Authorized domains** og velg **Add domain**. Legg til `huldervegen.vercel.app`.
 
 ### 3. Opprett sanntidsdatabasen
@@ -63,7 +65,9 @@ ikke hemmelige, for tilgangen styres av reglene i steg 3.
 
 ## Bruk
 - Trykk **👥 Logg inn og spill med andre** i panelet.
-- Logg inn med Google, eller lag en konto med e-post og passord.
+- Logg inn med Google, eller med brukernavn og passord. Første gang trykker man «Lag ny bruker».
+- Glemt passord: slett brukeren under **Authentication → Users** i Firebase-konsollen
+  (den heter `brukernavn@huldervegen.spill`), så kan personen lage den på nytt.
 - Under **Din figur** velger du navn, hudfarge, hårfarge og frisyre, skjegg, klær og høyde.
   🎲 gir en tilfeldig figur. Figuren lagres på kontoen din og i nettleseren.
 - Øverst til høyre ser du hvem som er i huset, hvilken etasje de er i, og hva de gjør.
