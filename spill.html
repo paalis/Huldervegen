@@ -112,10 +112,11 @@
       <div id="fler-ut" hidden>
         <p>Logg inn for å gå rundt sammen med de andre som er i huset nå.</p>
         <button id="google" class="hoved">Logg inn med Google</button>
-        <p>eller med e-post og passord:</p>
-        <input id="epost" type="email" placeholder="E-post" autocomplete="email">
+        <p>eller med brukernavn og passord:</p>
+        <input id="brukernavn" type="text" placeholder="Brukernavn" autocomplete="username" maxlength="20">
         <input id="passord" type="password" placeholder="Passord (minst 6 tegn)" autocomplete="current-password">
-        <div><button id="logginn">Logg inn</button><button id="nykonto">Lag ny konto</button><button id="glemt">Glemt passord</button></div>
+        <div><button id="logginn">Logg inn</button><button id="nykonto">Lag ny bruker</button></div>
+        <p style="font-size:11px">Første gang: skriv et brukernavn og et passord og trykk «Lag ny bruker».</p>
         <p class="feil" id="fler-feil"></p>
       </div>
       <div id="fler-inne" hidden>
@@ -1526,8 +1527,8 @@
     knapp('fler-lukk').onclick = () => { knapp('fler').hidden = true; };
     knapp('fler').addEventListener('pointerdown', e => { if (e.target === knapp('fler')) knapp('fler').hidden = true; });
     const FEIL = {
-      'auth/invalid-credential': 'Feil e-post eller passord.', 'auth/wrong-password': 'Feil passord.', 'auth/user-not-found': 'Finner ingen konto med den e-posten.',
-      'auth/invalid-email': 'Ugyldig e-postadresse.', 'auth/email-already-in-use': 'Det finnes allerede en konto med den e-posten – logg inn i stedet.',
+      'auth/invalid-credential': 'Feil brukernavn eller passord.', 'auth/wrong-password': 'Feil passord.', 'auth/user-not-found': 'Finner ingen bruker med det navnet.',
+      'auth/invalid-email': 'Brukernavnet må ha minst 2 bokstaver eller tall.', 'auth/email-already-in-use': 'Brukernavnet er opptatt – velg et annet, eller logg inn hvis det er ditt.',
       'auth/weak-password': 'Passordet må ha minst 6 tegn.', 'auth/missing-password': 'Skriv inn et passord.',
       'auth/popup-closed-by-user': 'Innloggingsvinduet ble lukket.', 'auth/popup-blocked': 'Nettleseren blokkerte innloggingsvinduet.',
       'auth/unauthorized-domain': 'Dette domenet er ikke godkjent i Firebase ennå (se FLERSPILLER.md).',
@@ -1538,12 +1539,13 @@
       try { await fn(); } catch (e) { knapp('fler-feil').textContent = FEIL[e.code] || `Noe gikk galt: ${e.code || e.message}`; }
     };
     knapp('google').onclick = () => prøv(() => fler.google());
-    knapp('logginn').onclick = () => prøv(() => fler.epost(knapp('epost').value.trim(), knapp('passord').value));
-    knapp('nykonto').onclick = () => prøv(() => fler.nyKonto(knapp('epost').value.trim(), knapp('passord').value));
-    knapp('glemt').onclick = () => prøv(async () => {
-      await fler.glemtPassord(knapp('epost').value.trim());
-      knapp('fler-feil').textContent = 'Vi har sendt deg en e-post for å lage nytt passord.';
+    knapp('logginn').onclick = () => prøv(() => fler.brukernavn(knapp('brukernavn').value, knapp('passord').value));
+    knapp('nykonto').onclick = () => prøv(() => {
+      const n = knapp('brukernavn').value.trim();
+      if (!knapp('u-navn').value.trim()) { knapp('u-navn').value = n.slice(0, 20); knapp('u-navn').dispatchEvent(new Event('change')); }   // navnet over hodet
+      return fler.nyKonto(n, knapp('passord').value);
     });
+    knapp('passord').addEventListener('keydown', e => { if (e.key === 'Enter') knapp('logginn').click(); });
     knapp('loggut').onclick = () => prøv(() => fler.loggUt());
     async function startFlerspiller() {
       if (!firebaseConfig) return;                                           // ikke satt opp: spill alene

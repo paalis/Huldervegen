@@ -5,6 +5,15 @@
 // nettleser, uten Firebase – for testing.
 const V = '10.14.1', CDN = `https://www.gstatic.com/firebasejs/${V}/`;
 
+// Innlogging med brukernavn: Firebase krever e-post, så brukernavnet gjøres om til en usynlig adresse
+// (Pål Andre → pal-andre@huldervegen.spill). Brukernavnet slik det ble skrevet lagres som visningsnavn.
+export const brukernavnTilEpost = navn => {
+  const id = navn.trim().toLowerCase().replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'aa')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (id.length < 2) throw Object.assign(new Error('kort'), { code: 'auth/invalid-email' });
+  return `${id}@huldervegen.spill`;
+};
+
 export async function kobleTil(config) {
   if (config?.test) return testKobling();
   const [{ initializeApp }, A, D] = await Promise.all([
@@ -13,11 +22,13 @@ export async function kobleTil(config) {
   const app = initializeApp(config), auth = A.getAuth(app), db = D.getDatabase(app);
   let minRef = null, sist = null, tilkoblet = null;
   const api = {
-    påBruker: cb => A.onAuthStateChanged(auth, u => cb(u && { uid: u.uid, navn: u.displayName || (u.email || '').split('@')[0] })),
+    påBruker: cb => { return A.onAuthStateChanged(auth, u => cb(u && { uid: u.uid, navn: u.displayName || (u.email || '').split('@')[0] })); },
     google: () => A.signInWithPopup(auth, new A.GoogleAuthProvider()),
-    epost: (e, p) => A.signInWithEmailAndPassword(auth, e, p),
-    nyKonto: (e, p) => A.createUserWithEmailAndPassword(auth, e, p),
-    glemtPassord: e => A.sendPasswordResetEmail(auth, e),
+    brukernavn: (n, p) => A.signInWithEmailAndPassword(auth, brukernavnTilEpost(n), p),
+    async nyKonto(n, p) {
+      const { user } = await A.createUserWithEmailAndPassword(auth, brukernavnTilEpost(n), p);
+      await A.updateProfile(user, { displayName: n.trim().slice(0, 20) });
+    },
     async loggUt() { await api.forlat(); await A.signOut(auth); },
     hentProfil: async uid => (await D.get(D.ref(db, `profiler/${uid}`))).val(),
     lagreProfil: (uid, p) => D.set(D.ref(db, `profiler/${uid}`), p),
@@ -66,9 +77,8 @@ function testKobling() {
   const api = {
     påBruker: cb => { brukerCb = cb; cb(bruker); },
     google: async () => loggInn('Google-test'),
-    epost: async e => loggInn(e.split('@')[0]),
-    nyKonto: async e => loggInn(e.split('@')[0]),
-    glemtPassord: async () => {},
+    brukernavn: async n => { brukernavnTilEpost(n); loggInn(n.trim()); },
+    nyKonto: async n => { brukernavnTilEpost(n); loggInn(n.trim()); },
     async loggUt() { await api.forlat(); bruker = null; brukerCb(null); },
     hentProfil: async () => null,
     lagreProfil: async () => {},
