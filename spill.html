@@ -35,6 +35,12 @@
     #online b { display: block; font-size: 13px; margin-bottom: 3px; }
     #online span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #online i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+    .navnelapp {
+      position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; white-space: nowrap;
+      background: rgba(255,255,255,.92); border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 13px; font-weight: 600;
+      color: #2a1d14; box-shadow: 0 1px 6px rgba(0,0,0,.18);
+    }
+    .navnelapp i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
     #fler {
       position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(30,22,16,.35);
     }
@@ -449,7 +455,7 @@
       // langt hår: kalotten pluss hår som faller ned bak og på sidene til skuldrene
       const langt = [
         del(new THREE.SphereGeometry(0.108, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.45), m.hår, 0, 0.016, -0.004, hodet),
-        del(new THREE.CylinderGeometry(0.098, 0.115, 0.26, 28, 1, true, Math.PI * 0.62, Math.PI * 1.76), m.hår, 0, -0.07, -0.012, hodet),
+        del(new THREE.CylinderGeometry(0.098, 0.115, 0.26, 28, 1, true, Math.PI * 0.3, Math.PI * 1.4), m.hår, 0, -0.07, -0.012, hodet),
       ];
       langt[0].scale.set(0.86, 1.1, 1.02); langt[1].scale.set(0.9, 1, 0.92);
       langt[1].material = m.hår; langt[1].geometry.computeVertexNormals();
@@ -1246,7 +1252,7 @@
       knapp('laster').remove();
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
-        steg(dt); tegnAndre(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update(); composer.render();
+        steg(dt); tegnAndre(dt); flerTikk(dt); følg(dt); plasserLapper(); if (kamera.modus !== 'bak') controls.update(); composer.render();
       });
     }, 30));
 
@@ -1258,7 +1264,7 @@
     const lagretNavn = (() => { try { return localStorage.getItem('huldervegen-navn') || ''; } catch { return ''; } })();
     const mittNavn = () => (knapp('u-navn').value.trim() || bruker?.navn || 'Gjest').slice(0, 20);
     function opptatt(id) {
-      for (const a of andre.values()) if (a.data.h === id && performance.now() - a.mottatt < 20000) return true;
+      for (const a of andre.values()) if (a.data.h === id && performance.now() - a.mottatt < 30000) return true;
       return false;
     }
     function byttUtseende(u) {
@@ -1268,38 +1274,31 @@
       if (bruker) fler.lagreProfil(bruker.uid, { navn: mittNavn(), utseende: meg.utseende }).catch(() => {});
       fyllSkjema();
     }
-    // navnelapp over hodet: avrundet hvit lapp med navnet, alltid lesbar
-    function navnelapp(tekst, farge) {
-      const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false, transparent: true }));
-      sp.renderOrder = 10; sp.scale.set(0.62, 0.155, 1);
-      sp.userData.skriv = (t, f) => {
-        const g = c.getContext('2d'); g.clearRect(0, 0, 256, 64);
-        g.font = '600 30px system-ui, sans-serif'; const w = Math.min(240, g.measureText(t).width + 44);
-        g.fillStyle = 'rgba(255,255,255,0.92)'; g.beginPath(); g.roundRect(128 - w / 2, 8, w, 48, 24); g.fill();
-        g.fillStyle = f; g.beginPath(); g.arc(128 - w / 2 + 20, 32, 7, 0, 2 * π); g.fill();
-        g.fillStyle = '#2a1d14'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 128 + 8, 33, 196);
-        sp.material.map.needsUpdate = true;
+    // navnelapp over hodet: en HTML-lapp som følger hodet på skjermen (skarp, og uten skyggeeffekten)
+    function navnelapp() {
+      const el = document.createElement('div'); el.className = 'navnelapp';
+      el.innerHTML = '<i></i><span></span>'; document.body.appendChild(el);
+      return {
+        el, synlig: false, position: new THREE.Vector3(),
+        skriv(t, f) { el.querySelector('span').textContent = t; el.querySelector('i').style.background = f; },
       };
-      sp.userData.skriv(tekst, farge);
-      return sp;
     }
     function håndterSpiller(hva, uid, d) {
       if (uid === bruker?.uid) return;
       let a = andre.get(uid);
       if (hva === 'borte' || !d) {
-        if (a) { scene.remove(a.rigg.figur, a.lapp); andre.delete(uid); oppdaterKnapper(); oppdaterOnline(); }
+        if (a) { scene.remove(a.rigg.figur); a.lapp.el.remove(); andre.delete(uid); oppdaterKnapper(); oppdaterOnline(); }
         return;
       }
       if (!a) {
         const r = lagFigur(d.utseende || {}); scene.add(r.figur); r.figur.traverse(o => figurdeler.add(o));
-        const lapp = navnelapp(d.navn || '?', d.utseende?.skjorte || '#888'); scene.add(lapp);
+        const lapp = navnelapp();
         a = { rigg: r, lapp, data: {}, pos: new THREE.Vector3(d.x, d.y, d.z), r: d.r || 0, uj: '', navn: '' };
         andre.set(uid, a);
       }
       const uj = JSON.stringify(d.utseende || {});
       if (uj !== a.uj) { settUtseende(a.rigg, d.utseende || {}); a.uj = uj; a.navn = ''; }
-      if (d.navn !== a.navn) { a.navn = d.navn; a.lapp.userData.skriv(d.navn || '?', a.rigg.utseende.skjorte); oppdaterOnline(); }
+      if (d.navn !== a.navn) { a.navn = d.navn; a.lapp.skriv(d.navn || '?', a.rigg.utseende.skjorte); oppdaterOnline(); }
       const nyHandling = a.data.h !== d.h, nyEtasje = a.data.f !== d.f;
       a.data = d; a.mottatt = performance.now();
       if (nyHandling) oppdaterKnapper();
@@ -1309,9 +1308,9 @@
       const nå = performance.now();
       for (const a of andre.values()) {
         const d = a.data, r = a.rigg, f = r.figur;
-        const synlig = d.f <= tilstand.visEtasje && nå - a.mottatt < 20000;   // ikke i etasjer over den som vises
-        f.visible = a.lapp.visible = synlig;
-        if (!synlig) continue;
+        const synlig = d.f <= tilstand.visEtasje && nå - a.mottatt < 30000;   // ikke i etasjer over den som vises
+        f.visible = a.lapp.synlig = synlig;
+        if (!synlig) { a.lapp.el.style.display = 'none'; continue; }
         // glid mot siste kjente posisjon og retning
         const mål = new THREE.Vector3(d.x, d.y, d.z);
         const flytt = a.pos.distanceTo(mål) > 3 ? 1 : Math.min(1, dt * 10);
@@ -1330,7 +1329,16 @@
           }
         });
         f.updateMatrixWorld(true);
-        r.hodet.getWorldPosition(a.lapp.position); a.lapp.position.y += 0.32;
+        r.hodet.getWorldPosition(a.lapp.position); a.lapp.position.y += 0.2;
+      }
+    }
+    // navnelappene plasseres etter kameraet er flyttet, rett før bildet tegnes
+    function plasserLapper() {
+      for (const a of andre.values()) {
+        const l = a.lapp, p = l.position.clone().project(camera);
+        const inne = l.synlig && p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
+        l.el.style.display = inne ? '' : 'none';
+        if (inne) l.el.style.transform = `translate(${(p.x + 1) / 2 * innerWidth}px, ${(1 - p.y) / 2 * innerHeight}px) translate(-50%, -100%)`;
       }
     }
     const rund = x => Math.round(x * 100) / 100;
@@ -1356,6 +1364,7 @@
         + [...andre.values()].map(a => rad(a.navn || '?', a.rigg.utseende.skjorte, a.data)).join('');
     }
     setInterval(() => iHuset && oppdaterOnline(), 1500);
+    setInterval(() => { if (iHuset && document.hidden) flerTikk(5); }, 4000);   // livstegn også når fanen ligger i bakgrunnen
     async function gåInnIHuset() {
       if (iHuset || !bruker) return;
       const t = tilstand;
@@ -1444,7 +1453,7 @@
     startFlerspiller();
 
     // for testing og opptak
-    window.spill = { andre, meg, byttUtseende, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+    window.spill = { andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>
