@@ -123,6 +123,7 @@
            <button id="loggut">Logg ut</button></p>
       </div>
       <h3>Din figur</h3>
+      <p style="margin-top:0">Ferdige figurer: <span id="ferdige"></span></p>
       <label style="margin-bottom:8px">Navn <input id="u-navn" type="text" maxlength="20" placeholder="Navnet over hodet" style="width:65%"></label>
       <div class="felt">
         <label>Hud <input id="u-hud" type="color"></label>
@@ -132,6 +133,7 @@
         <label>Sko <input id="u-sko" type="color"></label>
         <label>Frisyre <select id="u-frisyre"><option value="kort">Kort</option><option value="langt">Langt</option><option value="skallet">Skallet</option></select></label>
         <label>Skjegg <select id="u-skjegg"><option value="ingen">Ingen</option><option value="stubb">Stubb</option><option value="skjegg">Fullskjegg</option></select></label>
+        <label>Kropp <select id="u-kropp"><option value="mann">Mann</option><option value="kvinne">Kvinne</option></select></label>
         <label>Høyde <span><input id="u-høyde" type="range" min="150" max="200" step="1" style="width:80px"> <span id="u-høyde-tekst"></span></span></label>
       </div>
       <div class="knapper">
@@ -373,7 +375,7 @@
     // hår med sideskill, lys hud, lett skjeggstubb, mørk turkisgrønn T-skjorte, mørk olabukse og hvite
     // joggesko. Menneskelige proporsjoner (hodet ca. 1/8 av høyden), formet overkropp og ledd i skulder,
     // albue, hofte og kne for en naturlig gange. Utseendet kan endres (farger, frisyre, skjegg og høyde).
-    const STANDARD_UTSEENDE = { hud: '#e3b79b', hår: '#3f2a1d', skjorte: '#1f5a56', bukse: '#2b3448', sko: '#f2f0ea', frisyre: 'kort', skjegg: 'stubb', høyde: 1.82 };
+    const STANDARD_UTSEENDE = { hud: '#e3b79b', hår: '#3f2a1d', skjorte: '#1f5a56', bukse: '#2b3448', sko: '#f2f0ea', frisyre: 'kort', skjegg: 'stubb', høyde: 1.82, kropp: 'mann' };
     const mat = (color, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
     const profil = [[0.150, 0.92], [0.158, 0.98], [0.150, 1.05], [0.158, 1.15], [0.175, 1.28], [0.178, 1.38], [0.160, 1.45], [0.10, 1.50], [0.055, 1.52]]
       .map(([r, y]) => new THREE.Vector2(r, y));
@@ -396,10 +398,13 @@
         del(new THREE.SphereGeometry(r2, 14, 10), mt, 0, -l, 0, foreldre);
       };
       // overkropp: dreid profil (midje, bryst, skuldre) i T-skjorte, flatere forfra og bakfra
-      del(new THREE.LatheGeometry(profil, 28), m.skjorte, 0, 0, 0).scale.set(1.12, 1, 0.66);
+      const kropp = del(new THREE.LatheGeometry(profil, 28), m.skjorte, 0, 0, 0);
+      kropp.scale.set(1.12, 1, 0.66);
       del(new THREE.CylinderGeometry(0.168, 0.165, 0.07, 28), m.bukse, 0, 0.92, 0).scale.set(1.12, 1, 0.68);   // linning
       del(new THREE.CylinderGeometry(0.046, 0.054, 0.10, 14), m.hud, 0, 1.56, 0.005);                       // hals
-      for (const sx of [-1, 1]) del(new THREE.SphereGeometry(0.058, 16, 12), m.skjorte, sx * 0.185, 1.435, 0).scale.set(1, 0.75, 0.85);   // skuldre
+      const skuldre = [-1, 1].map(sx => del(new THREE.SphereGeometry(0.058, 16, 12), m.skjorte, sx * 0.185, 1.435, 0));   // skuldre
+      for (const d of skuldre) d.scale.set(1, 0.75, 0.85);
+      const linning = figur.children[1];
       // ben: hofte → lår → kne → legg → sko
       const ben = sx => {
         const hofte = ledd(sx * 0.088, 0.93, 0);
@@ -473,10 +478,15 @@
       }
       langt[1].material.side = THREE.DoubleSide;
       figur.rotation.order = 'YXZ';
-      const rigg = { figur, benV, benH, armV, armH, hodet, m, kort, langt, stubb, skjegg, jakke, gange: 0 };
+      const rigg = { figur, benV, benH, armV, armH, hodet, m, kort, langt, stubb, skjegg, jakke, kropp, skuldre, linning, gange: 0 };
       settUtseende(rigg, u);
       return rigg;
     }
+    // ferdige figurer å velge mellom
+    const FERDIGE = {
+      'Pablo Andrés': STANDARD_UTSEENDE,
+      'Ingeridia': { hud: '#efc6ab', hår: '#9a6a3c', skjorte: '#c2577a', bukse: '#33415e', sko: '#f2f0ea', frisyre: 'langt', skjegg: 'ingen', høyde: 1.68, kropp: 'kvinne' },
+    };
     function settUtseende(r, u) {
       u = { ...STANDARD_UTSEENDE, ...u };
       for (const k of ['hud', 'hår', 'skjorte', 'bukse', 'sko']) r.m[k].color.set(u[k]);
@@ -487,6 +497,14 @@
       r.skjegg.visible = u.skjegg === 'skjegg';
       const s = Math.min(2.05, Math.max(1.4, +u.høyde || 1.82)) / 1.82;
       r.figur.scale.setScalar(s);
+      // kvinnekropp: smalere skuldre og bryst, litt bredere hofter
+      const kvinne = u.kropp === 'kvinne', sk = kvinne ? 0.165 : 0.185;
+      r.kropp.scale.set(kvinne ? 1.0 : 1.12, 1, kvinne ? 0.70 : 0.66);
+      r.linning.scale.set(kvinne ? 1.16 : 1.12, 1, kvinne ? 0.72 : 0.68);
+      r.skuldre.forEach((d, i) => { d.position.x = (i ? 1 : -1) * sk; d.scale.set(kvinne ? 0.85 : 1, 0.75, 0.85); });
+      for (const [a, sx] of [[r.armV, -1], [r.armH, 1]]) a.skulder.position.x = sx * (kvinne ? 0.183 : 0.205);
+      for (const [b, sx] of [[r.benV, -1], [r.benH, 1]]) b.hofte.position.x = sx * (kvinne ? 0.092 : 0.088);
+      r.jakke[0].scale.set(kvinne ? 1.0 : 1.12, 1, kvinne ? 0.74 : 0.70);
       r.utseende = u;
     }
     const lagretUtseende = (() => { try { return JSON.parse(localStorage.getItem('huldervegen-utseende')) || {}; } catch { return {}; } })();
@@ -1375,7 +1393,15 @@
     }
 
     // skjemaet for innlogging og egen figur
-    const SKJEMA = ['hud', 'hår', 'skjorte', 'bukse', 'sko', 'frisyre', 'skjegg', 'høyde'];
+    const SKJEMA = ['hud', 'hår', 'skjorte', 'bukse', 'sko', 'frisyre', 'skjegg', 'høyde', 'kropp'];
+    for (const [navn, u] of Object.entries(FERDIGE)) {                       // knapper for de ferdige figurene
+      const b = document.createElement('button'); b.textContent = navn;
+      b.onclick = () => {
+        byttUtseende(u);
+        knapp('u-navn').value = navn; knapp('u-navn').dispatchEvent(new Event('change'));
+      };
+      knapp('ferdige').appendChild(b);
+    }
     function fyllSkjema() {
       const u = meg.utseende;
       for (const k of SKJEMA) knapp('u-' + k).value = k === 'høyde' ? Math.round(u.høyde * 100) : u[k];
@@ -1399,7 +1425,7 @@
         bukse: velg(['#2b3448', '#1c1c1c', '#5a4a3a', '#8a8f96', '#3b5170']),
         sko: velg(['#f2f0ea', '#1c1c1c', '#7a5236', '#c23b2f']),
         frisyre: velg(['kort', 'kort', 'langt', 'langt', 'skallet']), skjegg: velg(['ingen', 'ingen', 'stubb', 'skjegg']),
-        høyde: 1.55 + Math.round(Math.random() * 35) / 100,
+        høyde: 1.55 + Math.round(Math.random() * 35) / 100, kropp: velg(['mann', 'kvinne']),
       });
     };
     knapp('u-standard').onclick = () => byttUtseende(STANDARD_UTSEENDE);
@@ -1453,7 +1479,7 @@
     startFlerspiller();
 
     // for testing og opptak
-    window.spill = { andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+    window.spill = { FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>
