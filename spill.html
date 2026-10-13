@@ -599,14 +599,14 @@
             visDamp(koppHånd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.08, 0)), tt);
           }
         } },
-      ute: { navn: 'Slapp av ute', rom: 'terrassen', ikon: '🌤️', f: 0, gå: [2.65, -1.40], pos: [1.55, -0.66], retning: π, holdning: 'sitt', sete: 0.47,
+      ute: { medJakke: true, navn: 'Slapp av ute', rom: 'terrassen', ikon: '🌤️', f: 0, gå: [2.65, -1.40], pos: [1.55, -0.66], retning: π, holdning: 'sitt', sete: 0.47,
         lyd: 'lyder/ute.mp3', gjenta: true,
         før: () => { glass.visible = true; }, etter: () => { glass.visible = false; }, armer: slappAv },
-      ut: { navn: 'Gå ut', rom: 'tar på jakke', ikon: '🚪', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
+      ut: { medJakke: true, navn: 'Gå ut', rom: 'tar på jakke', ikon: '🚪', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
         lyd: 'lyder/jakke.mp3', gjenta: false, varighet: 3, vis: () => !harJakke(),
         armer: tt => { jakkeArmer(tt); if (tt > 1.6) settJakke(true); },
         ferdig: () => gåTil(0, 3.55, 10.75) },
-      inn: { navn: 'Gå inn', rom: 'tar av jakka', ikon: '🏠', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
+      inn: { medJakke: true, navn: 'Gå inn', rom: 'tar av jakka', ikon: '🏠', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
         lyd: 'lyder/jakke.mp3', gjenta: false, varighet: 3, vis: harJakke,
         armer: tt => { jakkeArmer(tt); if (tt > 1.6) settJakke(false); } },
       dusj: { navn: 'Dusj', rom: 'badet', ikon: '🚿', f: 1, gå: [1.30, 5.20], pos: [0.55, 5.04], retning: π / 2, holdning: 'stå',
@@ -643,14 +643,14 @@
             }
           }
         } },
-      utsikt: { navn: 'Se utover', rom: 'altanen', ikon: '🌇', f: 1, gå: [3.80, 10.60], pos: [3.80, 11.30], retning: 0, holdning: 'stå',
+      utsikt: { medJakke: true, navn: 'Se utover', rom: 'altanen', ikon: '🌇', f: 1, gå: [3.80, 10.60], pos: [3.80, 11.30], retning: 0, holdning: 'stå',
         lyd: 'lyder/utsikt.mp3', gjenta: true,
         armer: tt => {                                                          // albuene på rekkverket, ser seg rundt
           for (const [a, sz] of [[armV, 0.3], [armH, -0.3]]) { a.skulder.rotation.x = -0.75; a.skulder.rotation.z = sz; a.albue.rotation.x = -1.35; }
           hodet.rotation.y = Math.sin(tt * 0.35) * 0.55;
           figur.rotation.x = 0.08;
         } },
-      takterrasse: { navn: 'Slapp av', rom: 'takterrassen', ikon: '🌅', f: 2, gå: [1.20, 1.10], pos: [1.15, 2.58], retning: π, holdning: 'sitt', sete: 0.48,
+      takterrasse: { medJakke: true, navn: 'Slapp av', rom: 'takterrassen', ikon: '🌅', f: 2, gå: [1.20, 1.10], pos: [1.15, 2.58], retning: π, holdning: 'sitt', sete: 0.48,
         lyd: 'lyder/takterrasse.mp3', gjenta: true,
         før: () => { glass.visible = true; }, etter: () => { glass.visible = false; }, armer: slappAv },
       playstation: { navn: 'Spill PlayStation', rom: 'kontoret', ikon: '🎮', f: 2, gå: [1.05, 8.55], pos: [1.60, 8.55], retning: π / 2, holdning: 'sitt', sete: 0.51,
@@ -852,6 +852,7 @@
       t.handling = { id, tid: 0 };
       t.pos.set(h.pos[0], base(h.f), h.pos[1]);
       t.retning = h.retning; figur.rotation.y = h.retning;
+      if (!h.medJakke) settJakke(false);                                       // jakka henges av når figuren gjør noe inne
       h.før?.();
       if (h.lydVed === undefined) spillLyd(h);
       oppdaterKnapper();
