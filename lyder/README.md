@@ -8,6 +8,7 @@ i `spill.html`. Mp3 virker i alle nettlesere. Mangler en fil, kjører handlingen
 | `piano.mp3`         | Spill piano (stua, 3. etasje)              | i loop til figuren gjør noe annet                |
 | `gitar.mp3`         | Spill gitar (kontoret, 3. etasje)          | i loop til figuren gjør noe annet                |
 | `playstation.mp3`   | Spill PlayStation (kontoret, 3. etasje)    | i loop til figuren gjør noe annet                |
+| `netflix.mp3`       | Se Netflix (stua, 1. etasje)               | i loop til figuren gjør noe annet                |
 | `vaskemaskin.mp3`   | Start vaskemaskinen (vaskerommet)          | én gang; maskinen rister så lenge lyden varer    |
 | `do.mp3`            | Gå på do (badet og vaskerommet)            | én gang; figuren reiser seg etter 8 sekunder     |
 | `handvask.mp3`      | Vask hendene (badet og vaskerommet)        | én gang; ferdig etter 6 sekunder                 |

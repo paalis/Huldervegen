@@ -527,6 +527,15 @@
         lyd: 'lyder/sove.mp3', gjenta: true },
       sov12: { navn: 'Sov', rom: 'soverom 12 m²', ikon: '😴', f: 1, gå: [2.40, 9.35], pos: [2.15, 8.17], retning: π / 2, holdning: 'ligg', liggehøyde: 0.62,
         lyd: 'lyder/sove.mp3', gjenta: true },
+      netflix: { navn: 'Se Netflix', rom: 'stua', ikon: '📺', f: 0, gå: [2.45, 2.15], pos: [0.78, 2.05], retning: π / 2, holdning: 'sitt', sete: 0.46,
+        lyd: 'lyder/netflix.mp3', gjenta: true,
+        før: () => { fjernkontroll.visible = tvBilde.visible = true; }, etter: () => { fjernkontroll.visible = tvBilde.visible = false; },
+        armer: tt => {
+          sittArmer(tt);
+          armV.skulder.rotation.x = -0.75; armV.albue.rotation.x = -0.95;      // fjernkontrollen i høyre hånd
+          if (tt % 9 < 0.4) armV.skulder.rotation.x -= Math.sin(tt % 9 / 0.4 * π) * 0.12;   // bytter av og til
+          tegnTv(tt);
+        } },
       playstation: { navn: 'Spill PlayStation', rom: 'kontoret', ikon: '🎮', f: 2, gå: [1.05, 8.55], pos: [1.60, 8.55], retning: π / 2, holdning: 'sitt', sete: 0.51,
         lyd: 'lyder/playstation.mp3', gjenta: true,
         før: () => { kontroll.visible = skjermlys.visible = true; }, etter: () => { kontroll.visible = skjermlys.visible = false; },
@@ -544,6 +553,34 @@
     kontroll.position.set(0, 0.88, 0.30); kontroll.visible = false; figur.add(kontroll);
     const skjermlys = new THREE.Mesh(new THREE.PlaneGeometry(0.76, 0.34), new THREE.MeshBasicMaterial({ color: 0x3366aa }));
     skjermlys.position.set(2.566, G3 + 1.05, 8.70); skjermlys.rotation.y = -π / 2; skjermlys.visible = false; scene.add(skjermlys);
+    // fjernkontroll i hånda og bilde på TV-en i stua mens figuren ser Netflix
+    const fjernkontroll = new THREE.Mesh(new RoundedBoxGeometry(0.045, 0.02, 0.17, 2, 0.008), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.5 }));
+    fjernkontroll.position.set(-0.17, 0.80, 0.30); fjernkontroll.visible = false; figur.add(fjernkontroll);
+    const tvLerret = document.createElement('canvas'); tvLerret.width = 320; tvLerret.height = 180;
+    const tvTekstur = new THREE.CanvasTexture(tvLerret); tvTekstur.colorSpace = THREE.SRGBColorSpace;
+    const tvBilde = new THREE.Mesh(new THREE.PlaneGeometry(1.46, 0.81), new THREE.MeshBasicMaterial({ map: tvTekstur, toneMapped: false }));
+    tvBilde.position.set(5.015, G1 + 1.375, 1.90); tvBilde.rotation.y = -π / 2; tvBilde.visible = false; scene.add(tvBilde);
+    function tegnTv(tt) {                                                    // logo først, så en «film» med rolig skiftende bilder
+      const g = tvLerret.getContext('2d'), w = 320, h = 180;
+      if (tt < 3) {
+        g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
+        g.globalAlpha = Math.min(1, tt * 1.5, (3 - tt) * 2);
+        g.font = 'bold 44px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillStyle = '#e50914'; g.fillText('NETFLIX', w / 2, h / 2);
+        g.globalAlpha = 1;
+      } else {
+        const klipp = Math.floor((tt - 3) / 6), u = (tt - 3) % 6 / 6;
+        const hue = (klipp * 67 + 200) % 360;
+        const gr = g.createLinearGradient(0, 0, w, h);
+        gr.addColorStop(0, `hsl(${hue}, 50%, ${45 + 10 * Math.sin(tt * 0.7)}%)`);
+        gr.addColorStop(1, `hsl(${(hue + 40) % 360}, 55%, 22%)`);
+        g.fillStyle = gr; g.fillRect(0, 0, w, h);
+        g.fillStyle = `hsla(${(hue + 180) % 360}, 45%, 70%, 0.7)`;
+        g.beginPath(); g.ellipse(60 + u * 200, 110 - Math.sin(u * π) * 20, 34, 52, 0, 0, 2 * π); g.fill();   // en figur som går over bildet
+        g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 150, w, 30);
+      }
+      tvTekstur.needsUpdate = true;
+    }
     // gitaren figuren holder (skjult til den spiller), og gitaren på stativet som skjules imens
     const holdtGitar = new THREE.Group();
     {
@@ -772,6 +809,7 @@
       if (t.handling) poseHandling(dt);
       oppdaterVask(dt);
       ring.material.opacity = Math.max(0, ring.material.opacity - dt * (t.vei.length ? 0.2 : 1.2));
+      if (beveger && t.visEtasje !== t.f) visEtasje(t.f);                // figuren går: vis etasjen den er i
       oppdaterRom();
     }
 
@@ -833,13 +871,13 @@
       // innenfor ca. 50 cm fra korridoren skjules, så ingen veggbiter står igjen i bildet
       const mål = [figur.localToWorld(new THREE.Vector3(0, 1.1, 0)), figur.localToWorld(new THREE.Vector3(0, 1.8, 0)), kamera.blikk.clone()];
       const p = new THREE.Vector3();
-      for (const { o, b } of høye) {
+      for (const { o, b, grense } of høye) {
         if (!o.visible || !synlig(o)) continue;
         let inni = false;
         for (const m of mål) {
           for (let k = 0; k <= 10 && !inni; k++) {
             p.lerpVectors(camera.position, m, k / 10 * 0.93);
-            if (b.distanceToPoint(p) < 0.5) inni = true;
+            if (b.distanceToPoint(p) < grense) inni = true;            // bilder skjules litt videre, så de ikke henger i lufta
           }
           if (inni) break;
         }
@@ -863,7 +901,8 @@
       scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
       for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
         const b = new THREE.Box3().setFromObject(o);
-        if ((o.material.clippingPlanes || b.max.y - b.min.y > 1.3) && b.max.y - b.min.y < 3.5) høye.push({ o, b });   // også bjelker over dører
+        const tynn = Math.min(b.max.x - b.min.x, b.max.z - b.min.z) < 0.06 && b.max.y - b.min.y > 0.3;   // bilder og annet på veggene
+        if ((o.material.clippingPlanes || tynn || b.max.y - b.min.y > 1.3) && b.max.y - b.min.y < 3.5) høye.push({ o, b, grense: tynn ? 1.0 : 0.5 });   // også bjelker over dører
       }
       settKamera(kamera.modus);
       finnTing();
