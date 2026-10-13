@@ -133,6 +133,7 @@
         <label>Sko <input id="u-sko" type="color"></label>
         <label>Frisyre <select id="u-frisyre"><option value="kort">Kort</option><option value="langt">Langt</option><option value="skallet">Skallet</option></select></label>
         <label>Skjegg <select id="u-skjegg"><option value="ingen">Ingen</option><option value="stubb">Stubb</option><option value="skjegg">Fullskjegg</option></select></label>
+        <label style="grid-column: 1 / -1">Figur <select id="u-modell"><option value="">Tegnet figur (farger under)</option><option value="figurer/pablo.glb">3D-modell: Pablo Andrés</option></select></label>
         <label>Kropp <select id="u-kropp"><option value="mann">Mann</option><option value="kvinne">Kvinne</option></select></label>
         <label>Høyde <span><input id="u-høyde" type="range" min="150" max="200" step="1" style="width:80px"> <span id="u-høyde-tekst"></span></span></label>
       </div>
@@ -148,6 +149,8 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
     import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
     import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
@@ -477,6 +480,7 @@
         for (const d of jakke) d.visible = false;
       }
       langt[1].material.side = THREE.DoubleSide;
+      figur.traverse(o => { if (o.isMesh) o.userData.proxy = true; });       // den tegnede figuren (skjules bak en 3D-modell)
       figur.rotation.order = 'YXZ';
       const rigg = { figur, benV, benH, armV, armH, hodet, m, kort, langt, stubb, skjegg, jakke, kropp, skuldre, linning, gange: 0 };
       settUtseende(rigg, u);
@@ -485,6 +489,7 @@
     // ferdige figurer å velge mellom
     const FERDIGE = {
       'Pablo Andrés': STANDARD_UTSEENDE,
+      'Pablo Andrés (3D)': { ...STANDARD_UTSEENDE, modell: 'figurer/pablo.glb', høyde: 1.85 },
       'Ingeridia': { hud: '#efc6ab', hår: '#9a6a3c', skjorte: '#c2577a', bukse: '#33415e', sko: '#f2f0ea', frisyre: 'langt', skjegg: 'ingen', høyde: 1.68, kropp: 'kvinne' },
     };
     function settUtseende(r, u) {
@@ -506,6 +511,92 @@
       for (const [b, sx] of [[r.benV, -1], [r.benH, 1]]) b.hofte.position.x = sx * (kvinne ? 0.092 : 0.088);
       r.jakke[0].scale.set(kvinne ? 1.0 : 1.12, 1, kvinne ? 0.74 : 0.70);
       r.utseende = u;
+      if ((u.modell || null) !== (r.modellSti || null)) settModell(r, u.modell || null);
+    }
+
+    // ---------- 3D-modell (GLB fra Avaturn/Mixamo-skjelett) ----------
+    // Modellen henges inn i figurgruppa, og den vanlige figuren blir et usynlig «styreskjelett»: alle
+    // bevegelser (gange, trapp, handlinger) regnes ut på den som før, og hvert bilde overføres rotasjonene
+    // i hofter, knær, skuldre, albuer og hode til de tilsvarende knoklene i modellen.
+    const modellCache = new Map();
+    const lastModell = sti => {
+      if (!modellCache.has(sti)) modellCache.set(sti, new GLTFLoader().loadAsync(sti));
+      return modellCache.get(sti);
+    };
+    function proxySynlig(r, på) {
+      r.figur.traverse(o => { if (o.isMesh && o.userData.proxy) o.layers.set(på ? 0 : 1); });   // lag 1 tegnes ikke
+    }
+    async function settModell(r, sti) {
+      r.modellSti = sti;
+      if (r.avatar) { r.figur.remove(r.avatar.rot); r.avatar = null; proxySynlig(r, true); }
+      if (!sti) return;
+      let gltf;
+      try { gltf = await lastModell(sti); } catch (e) { console.warn('Kunne ikke laste', sti, e); return; }
+      if (r.modellSti !== sti) return;                                        // byttet igjen mens den lastet
+      const rot = SkeletonUtils.clone(gltf.scene);
+      rot.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; figurdeler.add(o); } });
+      // samme høyde som styreskjelettet (1,82 m før figurens egen skalering)
+      const boks = new THREE.Box3().setFromObject(rot, true), h = boks.max.y - Math.min(0, boks.min.y);
+      rot.scale.setScalar(1.82 / h);
+      // hvilinger: styreskjelettet i grunnstilling, modellen i sin T-positur
+      const lagret = [];
+      for (const b of [r.benV, r.benH]) lagret.push([b.hofte.rotation.clone(), b.kne.rotation.clone()]);
+      for (const a of [r.armV, r.armH]) lagret.push([a.skulder.rotation.clone(), a.albue.rotation.clone()]);
+      const rx = r.figur.rotation.clone(), hr = r.hodet.rotation.clone();
+      for (const b of [r.benV, r.benH]) { b.hofte.rotation.set(0, 0, 0); b.kne.rotation.set(0, 0, 0); }
+      for (const [a, sx] of [[r.armV, -1], [r.armH, 1]]) { a.skulder.rotation.set(0, 0, sx * 0.08); a.albue.rotation.set(-0.1, 0, 0); }
+      r.figur.rotation.set(0, 0, 0); r.hodet.rotation.set(0, 0, 0);
+      r.figur.add(rot); r.figur.updateMatrixWorld(true);
+      const relQ = o => r.figur.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(o.getWorldQuaternion(new THREE.Quaternion()));
+      const relP = o => r.figur.worldToLocal(o.getWorldPosition(new THREE.Vector3()));
+      // figuren ser mot +z; venstre side av figuren er +x
+      const side = x => (x < 0 ? 'Right' : 'Left');
+      const par = [];
+      const legg = (ledd, navn, barn, rett) => {
+        const ben = rot.getObjectByName(navn);
+        if (!ben) return;
+        let hvile = relQ(ben);
+        if (rett) {                                                            // armene: fra T-positur til hengende
+          const fra = relP(rot.getObjectByName(barn)).sub(relP(ben)).normalize();
+          const til = relP(rett.barn).sub(relP(rett.ledd)).normalize();
+          rett.q = new THREE.Quaternion().setFromUnitVectors(fra, til);
+        }
+        if (rett?.q) hvile = rett.q.clone().multiply(hvile);
+        par.push({ ledd, ben, leddHvile: relQ(ledd), benHvile: hvile });
+      };
+      for (const b of [r.benV, r.benH]) {
+        const sd = side(relP(b.hofte).x);
+        legg(b.hofte, sd + 'UpLeg'); legg(b.kne, sd + 'Leg');
+      }
+      for (const a of [r.armV, r.armH]) {
+        const sd = side(relP(a.skulder).x), rett = { ledd: a.skulder, barn: a.albue };
+        legg(a.skulder, sd + 'Arm', sd + 'ForeArm', rett);
+        const rett2 = { ledd: a.albue, barn: a.hånd };
+        legg(a.albue, sd + 'ForeArm', sd + 'Hand', rett2);
+      }
+      legg(r.hodet, 'Head');
+      // sett styreskjelettet tilbake slik det var
+      r.figur.rotation.copy(rx); r.hodet.rotation.copy(hr);
+      let i = 0;
+      for (const b of [r.benV, r.benH]) { const [h1, k] = lagret[i++]; b.hofte.rotation.copy(h1); b.kne.rotation.copy(k); }
+      for (const a of [r.armV, r.armH]) { const [sk, al] = lagret[i++]; a.skulder.rotation.copy(sk); a.albue.rotation.copy(al); }
+      r.avatar = { rot, par };
+      proxySynlig(r, false);
+      if (r === meg) oppdaterKnapper();
+    }
+    // overfør styreskjelettets stilling til modellens knokler (kalles etter at stillingen er regnet ut)
+    const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), qF = new THREE.Quaternion();
+    function følgSkjelett(r) {
+      if (!r.avatar) return;
+      r.figur.updateMatrixWorld(true);
+      r.figur.getWorldQuaternion(qF); const fInv = qF.clone().invert();
+      for (const { ledd, ben, leddHvile, benHvile } of r.avatar.par) {
+        const nå = fInv.clone().multiply(ledd.getWorldQuaternion(qA));         // leddet nå, i figurens rom
+        const ønsket = nå.multiply(leddHvile.clone().invert()).multiply(benHvile);
+        const forelder = fInv.clone().multiply(ben.parent.getWorldQuaternion(qB));
+        ben.quaternion.copy(forelder.invert().multiply(ønsket));
+        ben.updateMatrixWorld(true);
+      }
     }
     const lagretUtseende = (() => { try { return JSON.parse(localStorage.getItem('huldervegen-utseende')) || {}; } catch { return {}; } })();
     const meg = lagFigur(lagretUtseende);
@@ -1270,7 +1361,7 @@
       knapp('laster').remove();
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
-        steg(dt); tegnAndre(dt); flerTikk(dt); følg(dt); plasserLapper(); if (kamera.modus !== 'bak') controls.update(); composer.render();
+        steg(dt); følgSkjelett(meg); tegnAndre(dt); flerTikk(dt); følg(dt); plasserLapper(); if (kamera.modus !== 'bak') controls.update(); composer.render();
       });
     }, 30));
 
@@ -1346,7 +1437,7 @@
             gangPose(r.gange, går, a.pos.y);
           }
         });
-        f.updateMatrixWorld(true);
+        følgSkjelett(r);
         r.hodet.getWorldPosition(a.lapp.position); a.lapp.position.y += 0.2;
       }
     }
@@ -1393,7 +1484,7 @@
     }
 
     // skjemaet for innlogging og egen figur
-    const SKJEMA = ['hud', 'hår', 'skjorte', 'bukse', 'sko', 'frisyre', 'skjegg', 'høyde', 'kropp'];
+    const SKJEMA = ['hud', 'hår', 'skjorte', 'bukse', 'sko', 'frisyre', 'skjegg', 'høyde', 'kropp', 'modell'];
     for (const [navn, u] of Object.entries(FERDIGE)) {                       // knapper for de ferdige figurene
       const b = document.createElement('button'); b.textContent = navn;
       b.onclick = () => {
@@ -1404,7 +1495,7 @@
     }
     function fyllSkjema() {
       const u = meg.utseende;
-      for (const k of SKJEMA) knapp('u-' + k).value = k === 'høyde' ? Math.round(u.høyde * 100) : u[k];
+      for (const k of SKJEMA) knapp('u-' + k).value = k === 'høyde' ? Math.round(u.høyde * 100) : (u[k] ?? '');
       knapp('u-høyde-tekst').textContent = `${Math.round(u.høyde * 100)} cm`;
     }
     const lesSkjema = () => Object.fromEntries(SKJEMA.map(k => [k, k === 'høyde' ? knapp('u-høyde').value / 100 : knapp('u-' + k).value]));
