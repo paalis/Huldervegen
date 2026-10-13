@@ -27,6 +27,44 @@
       white-space: nowrap; pointer-events: none; transition: opacity .3s;
     }
     #rom small { font-weight: 400; color: #8a6a55; margin-left: 6px; }
+    #online {
+      position: absolute; top: 12px; right: 12px; z-index: 2; max-width: 220px;
+      background: rgba(255,255,255,.92); border-radius: 10px; padding: 8px 12px; font-size: 12px; color: #2a1d14;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    }
+    #online b { display: block; font-size: 13px; margin-bottom: 3px; }
+    #online span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #online i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+    .navnelapp {
+      position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; white-space: nowrap;
+      background: rgba(255,255,255,.92); border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 13px; font-weight: 600;
+      color: #2a1d14; box-shadow: 0 1px 6px rgba(0,0,0,.18);
+    }
+    .navnelapp i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+    #fler {
+      position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(30,22,16,.35);
+    }
+    #fler[hidden] { display: none; }
+    #fler .kort {
+      background: #fff; border-radius: 12px; padding: 16px 18px; width: min(380px, calc(100vw - 48px));
+      max-height: calc(100vh - 48px); overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,.25); font-size: 13px; color: #2a1d14;
+    }
+    #fler h2 { font-size: 17px; margin: 0 0 10px; }
+    #fler h3 { font-size: 14px; margin: 14px 0 8px; }
+    #fler p { margin: 6px 0; color: #555; }
+    #fler button {
+      font: inherit; padding: 6px 11px; border-radius: 6px; border: 1px solid #b9b2a8; background: #fff; cursor: pointer; margin: 2px 4px 2px 0;
+    }
+    #fler button.hoved { background: #4b3324; color: #fff; border-color: #4b3324; }
+    #fler input[type=email], #fler input[type=password], #fler input[type=text] {
+      font: inherit; padding: 6px 8px; border: 1px solid #b9b2a8; border-radius: 6px; width: 100%; box-sizing: border-box; margin: 3px 0;
+    }
+    #fler .felt { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; align-items: center; }
+    #fler label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    #fler input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid #b9b2a8; border-radius: 5px; background: none; }
+    #fler select { font: inherit; padding: 3px; }
+    #fler .feil { color: #a3261b; min-height: 1em; }
+    #fler .knapper { display: flex; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
     #laster {
       position: absolute; inset: 0; display: grid; place-items: center; z-index: 5;
       background: #e9eef2; color: #4b3324; font-size: 15px; font-weight: 600;
@@ -54,6 +92,7 @@
       <button id="bak">Kamera bak figuren</button>
       <button id="lave" class="på">Lave vegger</button>
       <a class="knapp" href="./">Til 3D-modellen</a>
+      <button id="flerknapp">👥 Spill med andre</button>
     </div>
     <div class="rad" id="handlinger" style="margin-top:6px"></div>
     <p>Klikk eller trykk på gulvet for å gå dit, også i en annen etasje.<br>
@@ -62,6 +101,46 @@
        Handlinger: trykk på en knapp, eller E når figuren står i nærheten.</p>
   </div>
   <div id="rom"></div>
+  <div id="online" hidden></div>
+  <div id="fler" hidden>
+    <div class="kort">
+      <h2>Spill med andre</h2>
+      <div id="fler-av">
+        <p>Flerspiller er ikke satt opp ennå. Når Firebase er satt opp (se <b>FLERSPILLER.md</b>), kan dere logge inn
+           og gå rundt i huset sammen. Du kan likevel lage din egen figur her.</p>
+      </div>
+      <div id="fler-ut" hidden>
+        <p>Logg inn for å gå rundt sammen med de andre som er i huset nå.</p>
+        <button id="google" class="hoved">Logg inn med Google</button>
+        <p>eller med e-post og passord:</p>
+        <input id="epost" type="email" placeholder="E-post" autocomplete="email">
+        <input id="passord" type="password" placeholder="Passord (minst 6 tegn)" autocomplete="current-password">
+        <div><button id="logginn">Logg inn</button><button id="nykonto">Lag ny konto</button><button id="glemt">Glemt passord</button></div>
+        <p class="feil" id="fler-feil"></p>
+      </div>
+      <div id="fler-inne" hidden>
+        <p>Innlogget som <b id="megnavn"></b>. Du er i huset, og andre som er logget inn ser deg.
+           <button id="loggut">Logg ut</button></p>
+      </div>
+      <h3>Din figur</h3>
+      <label style="margin-bottom:8px">Navn <input id="u-navn" type="text" maxlength="20" placeholder="Navnet over hodet" style="width:65%"></label>
+      <div class="felt">
+        <label>Hud <input id="u-hud" type="color"></label>
+        <label>Hår <input id="u-hår" type="color"></label>
+        <label>T-skjorte <input id="u-skjorte" type="color"></label>
+        <label>Bukse <input id="u-bukse" type="color"></label>
+        <label>Sko <input id="u-sko" type="color"></label>
+        <label>Frisyre <select id="u-frisyre"><option value="kort">Kort</option><option value="langt">Langt</option><option value="skallet">Skallet</option></select></label>
+        <label>Skjegg <select id="u-skjegg"><option value="ingen">Ingen</option><option value="stubb">Stubb</option><option value="skjegg">Fullskjegg</option></select></label>
+        <label>Høyde <span><input id="u-høyde" type="range" min="150" max="200" step="1" style="width:80px"> <span id="u-høyde-tekst"></span></span></label>
+      </div>
+      <div class="knapper">
+        <button id="u-tilfeldig">🎲 Tilfeldig</button>
+        <button id="u-standard">Tilbakestill</button>
+        <button id="fler-lukk" class="hoved">Ferdig</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module">
     import * as THREE from 'three';
@@ -74,6 +153,8 @@
     import {
       F, TX1, nedreSving, øvreSving, opptrinn, inntrinn, scene, M, vis, oppdater, etiketter,
     } from './hus.js';
+    import { kobleTil } from './flerspiller.js';
+    import { firebaseConfig } from './firebase-config.js';
 
     // ---------- Renderer, kamera, kontroller ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -287,96 +368,140 @@
       return ut;
     }
 
-    // ---------- Figuren ----------
-    // Mann på ca. 1,82 m etter bildene: kort mørkebrunt hår med sideskill, lys hud, lett skjeggstubb,
-    // mørk turkisgrønn T-skjorte, mørk olabukse og hvite joggesko. Menneskelige proporsjoner (hodet
-    // ca. 1/8 av høyden), formet overkropp og ledd i skulder, albue, hofte og kne for en naturlig gange.
+    // ---------- Figurer ----------
+    // Hver figur bygges av lagFigur(utseende). Standard er mannen etter bildene: ca. 1,82 m, kort mørkebrunt
+    // hår med sideskill, lys hud, lett skjeggstubb, mørk turkisgrønn T-skjorte, mørk olabukse og hvite
+    // joggesko. Menneskelige proporsjoner (hodet ca. 1/8 av høyden), formet overkropp og ledd i skulder,
+    // albue, hofte og kne for en naturlig gange. Utseendet kan endres (farger, frisyre, skjegg og høyde).
+    const STANDARD_UTSEENDE = { hud: '#e3b79b', hår: '#3f2a1d', skjorte: '#1f5a56', bukse: '#2b3448', sko: '#f2f0ea', frisyre: 'kort', skjegg: 'stubb', høyde: 1.82 };
     const mat = (color, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
-    const hud = mat(0xe3b79b, 0.62), skjorte = mat(0x1f5a56, 0.92), bukse = mat(0x2b3448, 0.88);
-    const sko = mat(0xf2f0ea, 0.55), såle = mat(0xd8d2c6, 0.7), hår = mat(0x3f2a1d, 0.75);
-    const stubb = new THREE.MeshStandardMaterial({ color: 0x7a5c4a, roughness: 0.95, transparent: true, opacity: 0.16, depthWrite: false }), iris = mat(0x4a5560, 0.3), pupill = mat(0x101010, 0.2), hvitt = mat(0xf4f1ec, 0.35);
-    const lepper = mat(0xb27a6c, 0.55), bryn = mat(0x3a281c, 0.8);
-    const figur = new THREE.Group();
-    const del = (geo, m, x, y, z, foreldre = figur) => {
-      const mesh = new THREE.Mesh(geo, m); mesh.position.set(x, y, z);
-      mesh.castShadow = true; foreldre.add(mesh); return mesh;
-    };
-    const ledd = (x, y, z, foreldre = figur) => { const g = new THREE.Group(); g.position.set(x, y, z); foreldre.add(g); return g; };
-    // avsmalnende lem fra leddet og nedover (r1 øverst, r2 nederst)
-    const lem = (r1, r2, l, m, foreldre) => {
-      del(new THREE.CylinderGeometry(r1, r2, l, 16), m, 0, -l / 2, 0, foreldre);
-      del(new THREE.SphereGeometry(r2, 14, 10), m, 0, -l, 0, foreldre);
-    };
-    // overkropp: dreid profil (midje, bryst, skuldre) i T-skjorte, flatere forfra og bakfra
     const profil = [[0.150, 0.92], [0.158, 0.98], [0.150, 1.05], [0.158, 1.15], [0.175, 1.28], [0.178, 1.38], [0.160, 1.45], [0.10, 1.50], [0.055, 1.52]]
       .map(([r, y]) => new THREE.Vector2(r, y));
-    const kropp = del(new THREE.LatheGeometry(profil, 28), skjorte, 0, 0, 0);
-    kropp.scale.set(1.12, 1, 0.66);
-    del(new THREE.CylinderGeometry(0.168, 0.165, 0.07, 28), bukse, 0, 0.92, 0).scale.set(1.12, 1, 0.68);   // linning
-    del(new THREE.CylinderGeometry(0.046, 0.054, 0.10, 14), hud, 0, 1.56, 0.005);                       // hals
-    for (const sx of [-1, 1]) del(new THREE.SphereGeometry(0.058, 16, 12), skjorte, sx * 0.185, 1.435, 0).scale.set(1, 0.75, 0.85);   // skuldre
-    // ben: hofte → lår → kne → legg → sko
-    const ben = sx => {
-      const hofte = ledd(sx * 0.088, 0.93, 0);
-      lem(0.078, 0.058, 0.44, bukse, hofte);
-      const kne = ledd(0, -0.44, 0, hofte);
-      lem(0.056, 0.042, 0.42, bukse, kne);
-      const fot = ledd(0, -0.43, 0, kne);
-      del(new THREE.SphereGeometry(0.06, 14, 10), sko, 0, -0.03, 0.05, fot).scale.set(0.85, 0.6, 2.0);
-      del(new THREE.BoxGeometry(0.095, 0.022, 0.27), såle, 0, -0.058, 0.05, fot);
-      return { hofte, kne };
-    };
-    // armer: skulder → overarm med kort erme → albue → underarm → hånd med tommel
-    const arm = sx => {
-      const skulder = ledd(sx * 0.205, 1.43, 0);
-      skulder.rotation.z = sx * 0.08;
-      del(new THREE.CylinderGeometry(0.058, 0.054, 0.15, 14), skjorte, 0, -0.06, 0, skulder);   // erme
-      lem(0.044, 0.037, 0.29, hud, skulder);
-      const albue = ledd(0, -0.29, 0, skulder);
-      lem(0.037, 0.028, 0.25, hud, albue);
-      const hånd = ledd(0, -0.27, 0, albue);
-      del(new THREE.BoxGeometry(0.03, 0.09, 0.07), hud, 0, -0.03, 0.005, hånd).geometry = new RoundedBoxGeometry(0.03, 0.09, 0.07, 2, 0.013);
-      del(new THREE.CapsuleGeometry(0.011, 0.035, 4, 8), hud, -sx * 0.012, -0.02, 0.04, hånd).rotation.x = 0.6;
-      return { skulder, albue, hånd };
-    };
-    const benV = ben(-1), benH = ben(1), armV = arm(-1), armH = arm(1);
-    // hode: hodeskalle og kjeve, ører, øyne med iris og pupill, bryn, nese, lepper og skjeggstubb
-    const hodet = ledd(0, 1.70, 0.01);
-    del(new THREE.SphereGeometry(0.1, 32, 24), hud, 0, 0.012, 0, hodet).scale.set(0.82, 1.08, 0.98);
-    del(new THREE.SphereGeometry(0.07, 24, 16), hud, 0, -0.04, 0.008, hodet).scale.set(0.95, 0.85, 1.0);    // kjeve og hake
-    del(new THREE.SphereGeometry(0.0712, 24, 16, Math.PI * 0.15, Math.PI * 0.7, Math.PI * 0.55, Math.PI * 0.4), stubb, 0, -0.04, 0.009, hodet)
-      .scale.set(0.955, 0.86, 1.0);                                                                    // lett skjeggstubb
-    for (const sx of [-1, 1]) {
-      del(new THREE.SphereGeometry(0.02, 12, 10), hud, sx * 0.083, 0.005, -0.008, hodet).scale.set(0.45, 1.15, 0.8);   // ører
-      del(new THREE.SphereGeometry(0.0105, 14, 10), hvitt, sx * 0.031, 0.022, 0.084, hodet).scale.set(1.25, 0.75, 0.6);
-      del(new THREE.SphereGeometry(0.0055, 12, 8), iris, sx * 0.031, 0.022, 0.0905, hodet);
-      del(new THREE.SphereGeometry(0.0026, 8, 6), pupill, sx * 0.031, 0.022, 0.0955, hodet);
-      const b = del(new THREE.BoxGeometry(0.03, 0.0055, 0.008), bryn, sx * 0.032, 0.041, 0.09, hodet);
-      b.rotation.z = -sx * 0.12;
-    }
-    del(new THREE.SphereGeometry(0.012, 12, 10), hud, 0, -0.004, 0.093, hodet).scale.set(0.75, 1.7, 1.0);   // nese
-    del(new THREE.SphereGeometry(0.01, 10, 8), hud, 0, -0.02, 0.096, hodet).scale.set(1.3, 0.75, 0.85);
-    del(new RoundedBoxGeometry(0.032, 0.006, 0.008, 2, 0.0028), lepper, 0, -0.045, 0.082, hodet);         // munn
-    // kort hår: tett kalott, litt mer volum på toppen med sideskill, kortere i nakken og ved ørene
-    del(new THREE.SphereGeometry(0.104, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.42), hår, 0, 0.016, -0.004, hodet).scale.set(0.84, 1.1, 1.0);
-    del(new THREE.SphereGeometry(0.102, 24, 14, Math.PI, Math.PI, Math.PI * 0.38, Math.PI * 0.27), hår, 0, 0.01, -0.006, hodet).scale.set(0.83, 1.09, 0.99);
-    const topp = del(new THREE.SphereGeometry(0.088, 24, 14), hår, 0.008, 0.083, 0.014, hodet);
-    topp.scale.set(0.8, 0.22, 0.98); topp.rotation.z = -0.12;
-    // jakke til å gå ut: mørk vindjakke utenpå T-skjorta, med lange ermer og krage (skjult inne)
-    const jakkeStoff = mat(0x23262b, 0.7), jakke = [];
-    {
-      const j = del(new THREE.LatheGeometry(profil.map(v => new THREE.Vector2(v.x + 0.012, v.y)), 28), jakkeStoff, 0, -0.02, 0);
-      j.scale.set(1.12, 1, 0.70); jakke.push(j);
-      jakke.push(del(new THREE.CylinderGeometry(0.06, 0.068, 0.07, 20), jakkeStoff, 0, 1.53, 0.0));   // krage
-      for (const a of [armV, armH]) {
-        jakke.push(del(new THREE.CylinderGeometry(0.062, 0.05, 0.31, 14), jakkeStoff, 0, -0.15, 0, a.skulder));
-        jakke.push(del(new THREE.CylinderGeometry(0.048, 0.04, 0.23, 14), jakkeStoff, 0, -0.11, 0, a.albue));
+    function lagFigur(u = STANDARD_UTSEENDE) {
+      const m = {
+        hud: mat(0xe3b79b, 0.62), skjorte: mat(0x1f5a56, 0.92), bukse: mat(0x2b3448, 0.88), sko: mat(0xf2f0ea, 0.55), hår: mat(0x3f2a1d, 0.75),
+        stubb: new THREE.MeshStandardMaterial({ color: 0x7a5c4a, roughness: 0.95, transparent: true, opacity: 0.16, depthWrite: false }),
+      };
+      const såle = mat(0xd8d2c6, 0.7), iris = mat(0x4a5560, 0.3), pupill = mat(0x101010, 0.2), hvitt = mat(0xf4f1ec, 0.35);
+      const lepper = mat(0xb27a6c, 0.55), bryn = mat(0x3a281c, 0.8);
+      const figur = new THREE.Group();
+      const del = (geo, mt, x, y, z, foreldre = figur) => {
+        const mesh = new THREE.Mesh(geo, mt); mesh.position.set(x, y, z);
+        mesh.castShadow = true; foreldre.add(mesh); return mesh;
+      };
+      const ledd = (x, y, z, foreldre = figur) => { const g = new THREE.Group(); g.position.set(x, y, z); foreldre.add(g); return g; };
+      // avsmalnende lem fra leddet og nedover (r1 øverst, r2 nederst)
+      const lem = (r1, r2, l, mt, foreldre) => {
+        del(new THREE.CylinderGeometry(r1, r2, l, 16), mt, 0, -l / 2, 0, foreldre);
+        del(new THREE.SphereGeometry(r2, 14, 10), mt, 0, -l, 0, foreldre);
+      };
+      // overkropp: dreid profil (midje, bryst, skuldre) i T-skjorte, flatere forfra og bakfra
+      del(new THREE.LatheGeometry(profil, 28), m.skjorte, 0, 0, 0).scale.set(1.12, 1, 0.66);
+      del(new THREE.CylinderGeometry(0.168, 0.165, 0.07, 28), m.bukse, 0, 0.92, 0).scale.set(1.12, 1, 0.68);   // linning
+      del(new THREE.CylinderGeometry(0.046, 0.054, 0.10, 14), m.hud, 0, 1.56, 0.005);                       // hals
+      for (const sx of [-1, 1]) del(new THREE.SphereGeometry(0.058, 16, 12), m.skjorte, sx * 0.185, 1.435, 0).scale.set(1, 0.75, 0.85);   // skuldre
+      // ben: hofte → lår → kne → legg → sko
+      const ben = sx => {
+        const hofte = ledd(sx * 0.088, 0.93, 0);
+        lem(0.078, 0.058, 0.44, m.bukse, hofte);
+        const kne = ledd(0, -0.44, 0, hofte);
+        lem(0.056, 0.042, 0.42, m.bukse, kne);
+        const fot = ledd(0, -0.43, 0, kne);
+        del(new THREE.SphereGeometry(0.06, 14, 10), m.sko, 0, -0.03, 0.05, fot).scale.set(0.85, 0.6, 2.0);
+        del(new THREE.BoxGeometry(0.095, 0.022, 0.27), såle, 0, -0.058, 0.05, fot);
+        return { hofte, kne };
+      };
+      // armer: skulder → overarm med kort erme → albue → underarm → hånd med tommel
+      const arm = sx => {
+        const skulder = ledd(sx * 0.205, 1.43, 0);
+        skulder.rotation.z = sx * 0.08;
+        del(new THREE.CylinderGeometry(0.058, 0.054, 0.15, 14), m.skjorte, 0, -0.06, 0, skulder);   // erme
+        lem(0.044, 0.037, 0.29, m.hud, skulder);
+        const albue = ledd(0, -0.29, 0, skulder);
+        lem(0.037, 0.028, 0.25, m.hud, albue);
+        const hånd = ledd(0, -0.27, 0, albue);
+        del(new RoundedBoxGeometry(0.03, 0.09, 0.07, 2, 0.013), m.hud, 0, -0.03, 0.005, hånd);
+        del(new THREE.CapsuleGeometry(0.011, 0.035, 4, 8), m.hud, -sx * 0.012, -0.02, 0.04, hånd).rotation.x = 0.6;
+        return { skulder, albue, hånd };
+      };
+      const benV = ben(-1), benH = ben(1), armV = arm(-1), armH = arm(1);
+      // hode: hodeskalle og kjeve, ører, øyne med iris og pupill, bryn, nese, lepper og skjeggstubb
+      const hodet = ledd(0, 1.70, 0.01);
+      del(new THREE.SphereGeometry(0.1, 32, 24), m.hud, 0, 0.012, 0, hodet).scale.set(0.82, 1.08, 0.98);
+      del(new THREE.SphereGeometry(0.07, 24, 16), m.hud, 0, -0.04, 0.008, hodet).scale.set(0.95, 0.85, 1.0);    // kjeve og hake
+      const stubb = del(new THREE.SphereGeometry(0.0712, 24, 16, Math.PI * 0.15, Math.PI * 0.7, Math.PI * 0.55, Math.PI * 0.4), m.stubb, 0, -0.04, 0.009, hodet);
+      stubb.scale.set(0.955, 0.86, 1.0);                                                                 // lett skjeggstubb
+      const skjegg = del(new THREE.SphereGeometry(0.074, 24, 16, Math.PI * 0.12, Math.PI * 0.76, Math.PI * 0.52, Math.PI * 0.45), m.hår, 0, -0.042, 0.008, hodet);
+      skjegg.scale.set(0.97, 0.92, 1.03);                                                                // fullskjegg
+      for (const sx of [-1, 1]) {
+        del(new THREE.SphereGeometry(0.02, 12, 10), m.hud, sx * 0.083, 0.005, -0.008, hodet).scale.set(0.45, 1.15, 0.8);   // ører
+        del(new THREE.SphereGeometry(0.0105, 14, 10), hvitt, sx * 0.031, 0.022, 0.084, hodet).scale.set(1.25, 0.75, 0.6);
+        del(new THREE.SphereGeometry(0.0055, 12, 8), iris, sx * 0.031, 0.022, 0.0905, hodet);
+        del(new THREE.SphereGeometry(0.0026, 8, 6), pupill, sx * 0.031, 0.022, 0.0955, hodet);
+        const b = del(new THREE.BoxGeometry(0.03, 0.0055, 0.008), bryn, sx * 0.032, 0.041, 0.09, hodet);
+        b.rotation.z = -sx * 0.12;
       }
-      for (const d of jakke) d.visible = false;
+      del(new THREE.SphereGeometry(0.012, 12, 10), m.hud, 0, -0.004, 0.093, hodet).scale.set(0.75, 1.7, 1.0);   // nese
+      del(new THREE.SphereGeometry(0.01, 10, 8), m.hud, 0, -0.02, 0.096, hodet).scale.set(1.3, 0.75, 0.85);
+      del(new RoundedBoxGeometry(0.032, 0.006, 0.008, 2, 0.0028), lepper, 0, -0.045, 0.082, hodet);         // munn
+      // kort hår: tett kalott, litt mer volum på toppen med sideskill, kortere i nakken og ved ørene
+      const kort = [
+        del(new THREE.SphereGeometry(0.104, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.42), m.hår, 0, 0.016, -0.004, hodet),
+        del(new THREE.SphereGeometry(0.102, 24, 14, Math.PI, Math.PI, Math.PI * 0.38, Math.PI * 0.27), m.hår, 0, 0.01, -0.006, hodet),
+        del(new THREE.SphereGeometry(0.088, 24, 14), m.hår, 0.008, 0.083, 0.014, hodet),
+      ];
+      kort[0].scale.set(0.84, 1.1, 1.0); kort[1].scale.set(0.83, 1.09, 0.99);
+      kort[2].scale.set(0.8, 0.22, 0.98); kort[2].rotation.z = -0.12;
+      // langt hår: kalotten pluss hår som faller ned bak og på sidene til skuldrene
+      const langt = [
+        del(new THREE.SphereGeometry(0.108, 28, 18, 0, Math.PI * 2, 0, Math.PI * 0.45), m.hår, 0, 0.016, -0.004, hodet),
+        del(new THREE.CylinderGeometry(0.098, 0.115, 0.26, 28, 1, true, Math.PI * 0.3, Math.PI * 1.4), m.hår, 0, -0.07, -0.012, hodet),
+      ];
+      langt[0].scale.set(0.86, 1.1, 1.02); langt[1].scale.set(0.9, 1, 0.92);
+      langt[1].material = m.hår; langt[1].geometry.computeVertexNormals();
+      // jakke til å gå ut: mørk vindjakke utenpå T-skjorta, med lange ermer og krage (skjult inne)
+      const jakkeStoff = mat(0x23262b, 0.7), jakke = [];
+      {
+        const j = del(new THREE.LatheGeometry(profil.map(v => new THREE.Vector2(v.x + 0.012, v.y)), 28), jakkeStoff, 0, -0.02, 0);
+        j.scale.set(1.12, 1, 0.70); jakke.push(j);
+        jakke.push(del(new THREE.CylinderGeometry(0.06, 0.068, 0.07, 20), jakkeStoff, 0, 1.53, 0.0));   // krage
+        for (const a of [armV, armH]) {
+          jakke.push(del(new THREE.CylinderGeometry(0.062, 0.05, 0.31, 14), jakkeStoff, 0, -0.15, 0, a.skulder));
+          jakke.push(del(new THREE.CylinderGeometry(0.048, 0.04, 0.23, 14), jakkeStoff, 0, -0.11, 0, a.albue));
+        }
+        for (const d of jakke) d.visible = false;
+      }
+      langt[1].material.side = THREE.DoubleSide;
+      figur.rotation.order = 'YXZ';
+      const rigg = { figur, benV, benH, armV, armH, hodet, m, kort, langt, stubb, skjegg, jakke, gange: 0 };
+      settUtseende(rigg, u);
+      return rigg;
     }
+    function settUtseende(r, u) {
+      u = { ...STANDARD_UTSEENDE, ...u };
+      for (const k of ['hud', 'hår', 'skjorte', 'bukse', 'sko']) r.m[k].color.set(u[k]);
+      r.m.stubb.color.set(u.hår).lerp(new THREE.Color(u.hud), 0.35);
+      for (const d of r.kort) d.visible = u.frisyre === 'kort';
+      for (const d of r.langt) d.visible = u.frisyre === 'langt';
+      r.stubb.visible = u.skjegg === 'stubb';
+      r.skjegg.visible = u.skjegg === 'skjegg';
+      const s = Math.min(2.05, Math.max(1.4, +u.høyde || 1.82)) / 1.82;
+      r.figur.scale.setScalar(s);
+      r.utseende = u;
+    }
+    const lagretUtseende = (() => { try { return JSON.parse(localStorage.getItem('huldervegen-utseende')) || {}; } catch { return {}; } })();
+    const meg = lagFigur(lagretUtseende);
+    // figur, ben, armer og hode peker på figuren som posers nå (meg, eller en annen spiller via medRigg)
+    let { figur, benV, benH, armV, armH, hodet } = meg;
+    const jakke = meg.jakke;
+    function medRigg(r, fn) {
+      const før = [figur, benV, benH, armV, armH, hodet];
+      ({ figur, benV, benH, armV, armH, hodet } = r);
+      try { fn(); } finally { [figur, benV, benH, armV, armH, hodet] = før; }
+    }
+    const lokal = () => figur === meg.figur;
     const harJakke = () => jakke[0].visible;
     const settJakke = på => { if (harJakke() !== på) { for (const d of jakke) d.visible = på; oppdaterKnapper(); } };
-    figur.rotation.order = 'YXZ';
     scene.add(figur);
     const figurdeler = new Set();
     figur.traverse(o => figurdeler.add(o));
@@ -442,6 +567,7 @@
     // piltaster/WASD: styr selv i forhold til kameraet
     const taster = new Set();
     addEventListener('keydown', e => {
+      if (e.target.closest?.('input, select, textarea')) return;              // skriving i skjemaet
       const k = e.key.toLowerCase();
       if (k === 'e' && !e.repeat) nærmesteHandling();
       if (k.startsWith('arrow') || k === ' ') e.preventDefault();               // ikke rull siden
@@ -505,8 +631,7 @@
       a.skulder.rotation.x = -0.6 * Math.sin(u * π); a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.9 * Math.sin(u * π);
       a.albue.rotation.x = -0.4;
     };
-    const SKJORTER = [0x1f5a56, 0x8a1e2d, 0x2c3f6b, 0xd9d4c7, 0x3d3d3d, 0x6b7a3a];
-    let skjorteNr = 0;
+    const SKJORTER = ['#1f5a56', '#8a1e2d', '#2c3f6b', '#d9d4c7', '#3d3d3d', '#6b7a3a'];
     const HANDLINGER = {
       piano: { navn: 'Spill piano', ikon: '🎹', f: 2, gå: [1.35, 5.90], pos: [0.89, 5.90], retning: -π / 2, holdning: 'sitt', sete: 0.53,
         lyd: 'lyder/piano.mp3', gjenta: true,
@@ -563,7 +688,7 @@
           sittArmer(tt);
           armV.skulder.rotation.x = -0.75; armV.albue.rotation.x = -0.95;      // fjernkontrollen i høyre hånd
           if (tt % 9 < 0.4) armV.skulder.rotation.x -= Math.sin(tt % 9 / 0.4 * π) * 0.12;   // bytter av og til
-          tegnTv(tt);
+          if (lokal()) tegnTv(tt);
         } },
       netflix3: { navn: 'Se Netflix', rom: 'stua', ikon: '📺', f: 2, gå: [2.30, 4.95], pos: [2.25, 3.95], retning: 0, holdning: 'sitt', sete: 0.45,
         lyd: 'lyder/netflix.mp3', gjenta: true,
@@ -588,15 +713,15 @@
             armV.skulder.rotation.x = -1.25 * r; armV.albue.rotation.x = -0.2;
           } else if (tt < 6) {                                                  // venter mens kaffen renner
             armV.skulder.rotation.x = -0.15; armH.skulder.rotation.x = -0.15;
-            visDamp(new THREE.Vector3(0.66, 0.98, 9.29), tt);
+            if (lokal()) visDamp(new THREE.Vector3(0.66, 0.98, 9.29), tt);
             hodet.rotation.y = Math.sin(tt * 0.8) * 0.2;
           } else {                                                              // drikker
-            if (koppMaskin.visible) { koppMaskin.visible = false; koppHånd.visible = true; }
+            if (lokal() && koppMaskin.visible) { koppMaskin.visible = false; koppHånd.visible = true; }
             const slurk = Math.max(0, Math.sin((tt - 6) * 0.9)) ** 3;
             armV.skulder.rotation.x = -0.7 - slurk * 0.45; armV.albue.rotation.x = -1.2 - slurk * 0.7;
             armV.skulder.rotation.z = 0.15 + slurk * 0.25;
             hodet.rotation.x = -slurk * 0.15;
-            visDamp(koppHånd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.08, 0)), tt);
+            if (lokal()) visDamp(koppHånd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.08, 0)), tt);
           }
         } },
       ute: { medJakke: true, navn: 'Slapp av ute', rom: 'terrassen', ikon: '🌤️', f: 0, gå: [2.65, -1.40], pos: [1.55, -0.66], retning: π, holdning: 'sitt', sete: 0.47,
@@ -604,11 +729,11 @@
         før: () => { glass.visible = true; }, etter: () => { glass.visible = false; }, armer: slappAv },
       ut: { medJakke: true, navn: 'Gå ut', rom: 'tar på jakke', ikon: '🚪', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
         lyd: 'lyder/jakke.mp3', gjenta: false, varighet: 3, vis: () => !harJakke(),
-        armer: tt => { jakkeArmer(tt); if (tt > 1.6) settJakke(true); },
+        armer: tt => { jakkeArmer(tt); if (tt > 1.6 && lokal()) settJakke(true); },
         ferdig: () => gåTil(0, 3.55, 10.75) },
       inn: { medJakke: true, navn: 'Gå inn', rom: 'tar av jakka', ikon: '🏠', f: 0, gå: [3.95, 8.55], pos: [4.02, 8.55], retning: π / 2, holdning: 'stå',
         lyd: 'lyder/jakke.mp3', gjenta: false, varighet: 3, vis: harJakke,
-        armer: tt => { jakkeArmer(tt); if (tt > 1.6) settJakke(false); } },
+        armer: tt => { jakkeArmer(tt); if (tt > 1.6 && lokal()) settJakke(false); } },
       dusj: { navn: 'Dusj', rom: 'badet', ikon: '🚿', f: 1, gå: [1.30, 5.20], pos: [0.55, 5.04], retning: π / 2, holdning: 'stå',
         lyd: 'lyder/dusj.mp3', gjenta: false, varighet: 14,
         før: () => { vann.visible = true; }, etter: () => { vann.visible = damp.visible = false; },
@@ -618,8 +743,7 @@
             a.albue.rotation.x = -1.7;
           }
           hodet.rotation.x = -0.15;
-          oppdaterVann(tt);
-          visDamp(new THREE.Vector3(0.55, F + 1.9, 5.04), tt);
+          if (lokal()) { oppdaterVann(tt); visDamp(new THREE.Vector3(0.55, F + 1.9, 5.04), tt); }
         } },
       tenner: { navn: 'Puss tennene', rom: 'badet', ikon: '🪥', f: 1, gå: [1.48, 6.25], pos: [1.48, 6.42], retning: 0, holdning: 'stå',
         lyd: 'lyder/tannpuss.mp3', gjenta: false, varighet: 10,
@@ -637,9 +761,10 @@
           } else {                                                              // trekker den over hodet
             const o = Math.sin(Math.min(1, (tt - 1.2) / 2.4) * π);
             for (const a of [armV, armH]) { a.skulder.rotation.x = -2.6 * o; a.albue.rotation.x = -0.9 * o; }
-            if (tt > 2.4 && !tilstand.handling.skiftet) {
+            if (tt > 2.4 && lokal() && !tilstand.handling.skiftet) {
               tilstand.handling.skiftet = true;
-              skjorteNr = (skjorteNr + 1) % SKJORTER.length; skjorte.color.setHex(SKJORTER[skjorteNr]);
+              const i = (SKJORTER.indexOf(meg.utseende.skjorte) + 1) % SKJORTER.length;
+              byttUtseende({ ...meg.utseende, skjorte: SKJORTER[i] });
             }
           }
         } },
@@ -836,6 +961,7 @@
     function stoppLyd() { if (lyd) { lyd.pause(); lyd = null; } }
     function planlegg(id) {                                                  // gå til handlingen og start den der
       const h = HANDLINGER[id];
+      if (opptatt(id)) return;                                                // en annen spiller er der
       if (gåTil(h.f, ...h.gå, true)) tilstand.planlagt = id;
     }
     function nærmesteHandling() {
@@ -843,7 +969,7 @@
       let best = null, d = 2.5;
       for (const [id, h] of Object.entries(HANDLINGER)) {
         const a = Math.hypot(t.pos.x - h.gå[0], t.pos.z - h.gå[1]);
-        if (h.f === t.f && a < d && (!h.vis || h.vis())) { d = a; best = id; }
+        if (h.f === t.f && a < d && (!h.vis || h.vis()) && !opptatt(id)) { d = a; best = id; }
       }
       if (best) planlegg(best);
     }
@@ -878,30 +1004,36 @@
       if (vaskemaskin) vaskemaskin.position.x = vaskX + s;
       if (vaskeluke) { vaskeluke.position.x = vaskLukeX + s; vaskeluke.rotation.z += dt * 6; }
     }
+    // stillingen i en handling, for egen figur eller (via medRigg) en annen spiller; y = gulvet der den står
+    function posere(h, tt, y) {
+      for (const b of [benV, benH]) { b.hofte.rotation.x = 0; b.kne.rotation.x = 0; }
+      for (const a of [armV, armH]) { a.skulder.rotation.x = 0; a.albue.rotation.x = -0.1; a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.08; }
+      figur.rotation.x = 0; hodet.rotation.set(0, 0, 0);
+      figur.position.y = y;
+      if (h.holdning === 'sitt') {
+        for (const b of [benV, benH]) { b.hofte.rotation.x = -1.5; b.kne.rotation.x = 1.45; }
+        figur.position.y = y + h.sete - 0.89 * figur.scale.y;
+      } else if (h.holdning === 'ligg') {                                    // på ryggen, hodet mot puta
+        figur.rotation.x = -π / 2;
+        figur.position.y = y + h.liggehøyde;
+        for (const a of [armV, armH]) { a.albue.rotation.x = -0.15; a.skulder.rotation.z = (a === armV ? 1 : -1) * 0.02; }
+        figur.position.y += Math.sin(tt * 1.6) * 0.004;                      // pust
+        if (lokal()) {
+          const hode = new THREE.Vector3(0, 1.75, 0).applyEuler(figur.rotation).add(figur.position);
+          zzz.position.set(hode.x, hode.y + 0.35 + (tt % 2.5) * 0.12, hode.z); zzz.visible = true;
+          zzz.material.opacity = 1 - (tt % 2.5) / 2.5;
+        }
+      } else if (h.holdning === 'stå') {
+        figur.position.y = y + Math.abs(Math.sin(tt * 3)) * 0.004;
+      }
+      h.armer?.(tt);
+    }
     function poseHandling(dt) {
       const t = tilstand, h = HANDLINGER[t.handling.id], hd = t.handling;
       hd.tid += dt;
       const tt = hd.tid;
-      for (const b of [benV, benH]) { b.hofte.rotation.x = 0; b.kne.rotation.x = 0; }
-      for (const a of [armV, armH]) { a.skulder.rotation.x = 0; a.albue.rotation.x = -0.1; a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.08; }
-      figur.rotation.x = 0; zzz.visible = false; hodet.rotation.set(0, 0, 0);
-      figur.position.y = t.pos.y;
-      if (h.holdning === 'sitt') {
-        for (const b of [benV, benH]) { b.hofte.rotation.x = -1.5; b.kne.rotation.x = 1.45; }
-        figur.position.y = t.pos.y + h.sete - 0.89;
-      } else if (h.holdning === 'ligg') {                                    // på ryggen, hodet mot puta
-        figur.rotation.x = -π / 2;
-        figur.position.y = t.pos.y + h.liggehøyde;
-        for (const a of [armV, armH]) { a.albue.rotation.x = -0.15; a.skulder.rotation.z = (a === armV ? 1 : -1) * 0.02; }
-        const pust = Math.sin(tt * 1.6) * 0.004;
-        figur.position.y += pust;
-        const hode = new THREE.Vector3(0, 1.75, 0).applyEuler(figur.rotation).add(figur.position);
-        zzz.position.set(hode.x, hode.y + 0.35 + (tt % 2.5) * 0.12, hode.z); zzz.visible = true;
-        zzz.material.opacity = 1 - (tt % 2.5) / 2.5;
-      } else if (h.holdning === 'stå') {
-        figur.position.y = t.pos.y + Math.abs(Math.sin(tt * 3)) * 0.004;
-      }
-      h.armer?.(tt);
+      zzz.visible = false;
+      posere(h, tt, t.pos.y);
       if (h.lydVed !== undefined && tt >= h.lydVed && !hd.lydStartet) {     // vaskemaskinen: trykk, så går den
         hd.lydStartet = true;
         const l = spillLyd(h);
@@ -920,8 +1052,23 @@
         b.textContent = aktiv ? '⏹ Stopp' : `${h.ikon} ${h.navn}${h.rom ? ` (${h.rom})` : ''}`;
         b.classList.toggle('på', aktiv);
         b.onclick = () => aktiv ? stoppHandling() : planlegg(id);
+        if (!aktiv && opptatt(id)) { b.disabled = true; b.textContent += ' – opptatt'; }
         div.appendChild(b);
       }
+    }
+
+    // gange: hofta svinger, kneet bøyes når benet føres fram, armene svinger motsatt med litt bøyd albue
+    function gangPose(gange, beveger, y) {
+      const sving = beveger ? Math.sin(gange) * 0.55 : Math.sin(gange) * 0.55 * 0.85;
+      for (const [b, a, fase] of [[benV, armH, sving], [benH, armV, -sving]]) {
+        b.hofte.rotation.x = fase * 0.75;
+        b.kne.rotation.x = Math.max(0, -Math.sin(gange + (b === benV ? 0 : Math.PI) + 0.9)) * (beveger ? 0.9 : 0);
+        a.skulder.rotation.x = fase * 0.6;
+        a.albue.rotation.x = -0.18 - Math.max(0, fase) * 0.45;
+        a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.08;
+      }
+      figur.rotation.x = 0; hodet.rotation.set(0, 0, 0);
+      figur.position.y = y + (beveger ? Math.abs(Math.cos(gange)) * 0.025 : 0);
     }
 
     // ---------- Oppdatering hvert bilde ----------
@@ -996,16 +1143,8 @@
       dr = Math.atan2(Math.sin(dr), Math.cos(dr));
       figur.rotation.y += kamera.modus === 'bak' && !t.vei.length ? dr : dr * Math.min(1, dt * 10);
       t.gange = beveger ? t.gange + dt * 7.5 * (t.fart / 1.4) * (løper > 1 ? 1.3 : 1) : t.gange * 0.85;
-      const sving = beveger ? Math.sin(t.gange) * 0.55 : Math.sin(t.gange) * 0.55 * 0.85;
-      // gange: hofta svinger, kneet bøyes når benet føres fram, armene svinger motsatt med litt bøyd albue
-      for (const [b, a, fase] of [[benV, armH, sving], [benH, armV, -sving]]) {
-        b.hofte.rotation.x = fase * 0.75;
-        b.kne.rotation.x = Math.max(0, -Math.sin(t.gange + (b === benV ? 0 : Math.PI) + 0.9)) * (beveger ? 0.9 : 0);
-        a.skulder.rotation.x = fase * 0.6;
-        a.albue.rotation.x = -0.18 - Math.max(0, fase) * 0.45;
-        a.skulder.rotation.z = (a === armV ? -1 : 1) * 0.08;
-      }
-      figur.position.y = t.pos.y + (beveger ? Math.abs(Math.cos(t.gange)) * 0.025 : 0);
+      gangPose(t.gange, beveger, t.pos.y);
+      t.beveger = beveger;
       // fremme ved en planlagt handling: start den
       if (t.planlagt && !t.vei.length) { const id = t.planlagt; t.planlagt = null; startHandling(id); }
       if (t.handling) poseHandling(dt);
@@ -1113,12 +1252,208 @@
       knapp('laster').remove();
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
-        steg(dt); følg(dt); if (kamera.modus !== 'bak') controls.update(); composer.render();
+        steg(dt); tegnAndre(dt); flerTikk(dt); følg(dt); plasserLapper(); if (kamera.modus !== 'bak') controls.update(); composer.render();
       });
     }, 30));
 
+    // ---------- Flerspiller ----------
+    // Innlogging og sanntid via Firebase (flerspiller.js, firebase-config.js). Andre spillere vises med sin
+    // egen figur og navn over hodet; posisjon, retning, etasje og handling sendes ca. 8 ganger i sekundet.
+    const andre = new Map();                                                 // uid → { rigg, lapp, data, pos, mottatt }
+    let fler = null, bruker = null, iHuset = false, sistSendt = '', sendTid = 0, lytter = false;
+    const lagretNavn = (() => { try { return localStorage.getItem('huldervegen-navn') || ''; } catch { return ''; } })();
+    const mittNavn = () => (knapp('u-navn').value.trim() || bruker?.navn || 'Gjest').slice(0, 20);
+    function opptatt(id) {
+      for (const a of andre.values()) if (a.data.h === id && performance.now() - a.mottatt < 30000) return true;
+      return false;
+    }
+    function byttUtseende(u) {
+      settUtseende(meg, u);
+      try { localStorage.setItem('huldervegen-utseende', JSON.stringify(meg.utseende)); } catch {}
+      if (iHuset) fler.send({ utseende: meg.utseende });
+      if (bruker) fler.lagreProfil(bruker.uid, { navn: mittNavn(), utseende: meg.utseende }).catch(() => {});
+      fyllSkjema();
+    }
+    // navnelapp over hodet: en HTML-lapp som følger hodet på skjermen (skarp, og uten skyggeeffekten)
+    function navnelapp() {
+      const el = document.createElement('div'); el.className = 'navnelapp';
+      el.innerHTML = '<i></i><span></span>'; document.body.appendChild(el);
+      return {
+        el, synlig: false, position: new THREE.Vector3(),
+        skriv(t, f) { el.querySelector('span').textContent = t; el.querySelector('i').style.background = f; },
+      };
+    }
+    function håndterSpiller(hva, uid, d) {
+      if (uid === bruker?.uid) return;
+      let a = andre.get(uid);
+      if (hva === 'borte' || !d) {
+        if (a) { scene.remove(a.rigg.figur); a.lapp.el.remove(); andre.delete(uid); oppdaterKnapper(); oppdaterOnline(); }
+        return;
+      }
+      if (!a) {
+        const r = lagFigur(d.utseende || {}); scene.add(r.figur); r.figur.traverse(o => figurdeler.add(o));
+        const lapp = navnelapp();
+        a = { rigg: r, lapp, data: {}, pos: new THREE.Vector3(d.x, d.y, d.z), r: d.r || 0, uj: '', navn: '' };
+        andre.set(uid, a);
+      }
+      const uj = JSON.stringify(d.utseende || {});
+      if (uj !== a.uj) { settUtseende(a.rigg, d.utseende || {}); a.uj = uj; a.navn = ''; }
+      if (d.navn !== a.navn) { a.navn = d.navn; a.lapp.skriv(d.navn || '?', a.rigg.utseende.skjorte); oppdaterOnline(); }
+      const nyHandling = a.data.h !== d.h, nyEtasje = a.data.f !== d.f;
+      a.data = d; a.mottatt = performance.now();
+      if (nyHandling) oppdaterKnapper();
+      if (nyEtasje || nyHandling) oppdaterOnline();
+    }
+    function tegnAndre(dt) {
+      const nå = performance.now();
+      for (const a of andre.values()) {
+        const d = a.data, r = a.rigg, f = r.figur;
+        const synlig = d.f <= tilstand.visEtasje && nå - a.mottatt < 30000;   // ikke i etasjer over den som vises
+        f.visible = a.lapp.synlig = synlig;
+        if (!synlig) { a.lapp.el.style.display = 'none'; continue; }
+        // glid mot siste kjente posisjon og retning
+        const mål = new THREE.Vector3(d.x, d.y, d.z);
+        const flytt = a.pos.distanceTo(mål) > 3 ? 1 : Math.min(1, dt * 10);
+        const gammel = a.pos.clone(); a.pos.lerp(mål, flytt);
+        const fart = dt > 0 ? gammel.distanceTo(a.pos) / dt : 0;
+        let dr = (d.r || 0) - a.r; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); a.r += dr * Math.min(1, dt * 10);
+        f.position.copy(a.pos); f.rotation.y = a.r;
+        for (const j of r.jakke) j.visible = !!d.j;
+        medRigg(r, () => {
+          const h = d.h && HANDLINGER[d.h];
+          if (h) { f.position.set(d.x, d.y, d.z); f.rotation.y = d.r; posere(h, (d.ht || 0) + (nå - a.mottatt) / 1000, d.y); }
+          else {
+            const går = !!d.b || fart > 0.3;
+            r.gange = går ? r.gange + dt * 7.5 * Math.min(2, Math.max(0.6, fart / 1.4)) : r.gange * 0.85;
+            gangPose(r.gange, går, a.pos.y);
+          }
+        });
+        f.updateMatrixWorld(true);
+        r.hodet.getWorldPosition(a.lapp.position); a.lapp.position.y += 0.2;
+      }
+    }
+    // navnelappene plasseres etter kameraet er flyttet, rett før bildet tegnes
+    function plasserLapper() {
+      for (const a of andre.values()) {
+        const l = a.lapp, p = l.position.clone().project(camera);
+        const inne = l.synlig && p.z < 1 && Math.abs(p.x) < 1.1 && Math.abs(p.y) < 1.1;
+        l.el.style.display = inne ? '' : 'none';
+        if (inne) l.el.style.transform = `translate(${(p.x + 1) / 2 * innerWidth}px, ${(1 - p.y) / 2 * innerHeight}px) translate(-50%, -100%)`;
+      }
+    }
+    const rund = x => Math.round(x * 100) / 100;
+    function flerTikk(dt) {
+      if (!iHuset) return;
+      const t = tilstand;
+      const d = { f: t.f, x: rund(t.pos.x), y: rund(t.pos.y), z: rund(t.pos.z), r: rund(figur.rotation.y), h: t.handling?.id ?? null, b: t.beveger ? 1 : 0, j: harJakke() ? 1 : 0 };
+      const nøkkel = JSON.stringify(d);
+      sendTid += dt;
+      if ((nøkkel !== sistSendt && sendTid > 0.12) || sendTid > 4) {     // ved endring, og hvert 4. sekund
+        d.ht = t.handling ? rund(t.handling.tid) : 0;
+        fler.send(d); sistSendt = nøkkel; sendTid = 0;
+      }
+    }
+    // liste over hvem som er i huset, øverst til høyre
+    function oppdaterOnline() {
+      const el = knapp('online');
+      el.hidden = !iHuset;
+      if (!iHuset) return;
+      const etg = f => `${f + 1}. etg`;
+      const rad = (navn, farge, d) => `<span><i style="background:${farge}"></i>${navn.replace(/[<&]/g, '')} · ${etg(d.f)}${d.h && HANDLINGER[d.h] ? ' · ' + HANDLINGER[d.h].ikon : ''}</span>`;
+      el.innerHTML = `<b>I huset nå (${andre.size + 1})</b>` + rad(mittNavn() + ' (deg)', meg.utseende.skjorte, { f: tilstand.f, h: tilstand.handling?.id })
+        + [...andre.values()].map(a => rad(a.navn || '?', a.rigg.utseende.skjorte, a.data)).join('');
+    }
+    setInterval(() => iHuset && oppdaterOnline(), 1500);
+    setInterval(() => { if (iHuset && document.hidden) flerTikk(5); }, 4000);   // livstegn også når fanen ligger i bakgrunnen
+    async function gåInnIHuset() {
+      if (iHuset || !bruker) return;
+      const t = tilstand;
+      await fler.bliMed(bruker.uid, { navn: mittNavn(), utseende: meg.utseende, f: t.f, x: rund(t.pos.x), y: rund(t.pos.y), z: rund(t.pos.z), r: rund(figur.rotation.y), h: null, ht: 0, b: 0, j: harJakke() ? 1 : 0 });
+      iHuset = true; sistSendt = '';
+      if (!lytter) { lytter = true; fler.lytt(håndterSpiller); }
+      oppdaterOnline();
+    }
+
+    // skjemaet for innlogging og egen figur
+    const SKJEMA = ['hud', 'hår', 'skjorte', 'bukse', 'sko', 'frisyre', 'skjegg', 'høyde'];
+    function fyllSkjema() {
+      const u = meg.utseende;
+      for (const k of SKJEMA) knapp('u-' + k).value = k === 'høyde' ? Math.round(u.høyde * 100) : u[k];
+      knapp('u-høyde-tekst').textContent = `${Math.round(u.høyde * 100)} cm`;
+    }
+    const lesSkjema = () => Object.fromEntries(SKJEMA.map(k => [k, k === 'høyde' ? knapp('u-høyde').value / 100 : knapp('u-' + k).value]));
+    for (const k of SKJEMA) knapp('u-' + k).addEventListener('input', () => byttUtseende(lesSkjema()));
+    knapp('u-navn').value = lagretNavn;
+    knapp('u-navn').addEventListener('change', () => {
+      try { localStorage.setItem('huldervegen-navn', knapp('u-navn').value.trim()); } catch {}
+      if (iHuset) fler.send({ navn: mittNavn() });
+      if (bruker) fler.lagreProfil(bruker.uid, { navn: mittNavn(), utseende: meg.utseende }).catch(() => {});
+      oppdaterOnline();
+    });
+    knapp('u-tilfeldig').onclick = () => {
+      const velg = a => a[Math.floor(Math.random() * a.length)];
+      byttUtseende({
+        hud: velg(['#f3d2bd', '#e3b79b', '#c99472', '#a8714f', '#7a4b31', '#4f3022']),
+        hår: velg(['#1d1510', '#3f2a1d', '#6b4528', '#a8763e', '#d9b56c', '#8c8c8c', '#b5432a']),
+        skjorte: velg(['#1f5a56', '#8a1e2d', '#2c3f6b', '#d9d4c7', '#3d3d3d', '#6b7a3a', '#e0a526', '#7b4d9e']),
+        bukse: velg(['#2b3448', '#1c1c1c', '#5a4a3a', '#8a8f96', '#3b5170']),
+        sko: velg(['#f2f0ea', '#1c1c1c', '#7a5236', '#c23b2f']),
+        frisyre: velg(['kort', 'kort', 'langt', 'langt', 'skallet']), skjegg: velg(['ingen', 'ingen', 'stubb', 'skjegg']),
+        høyde: 1.55 + Math.round(Math.random() * 35) / 100,
+      });
+    };
+    knapp('u-standard').onclick = () => byttUtseende(STANDARD_UTSEENDE);
+    knapp('flerknapp').onclick = () => { fyllSkjema(); knapp('fler').hidden = false; };
+    knapp('fler-lukk').onclick = () => { knapp('fler').hidden = true; };
+    knapp('fler').addEventListener('pointerdown', e => { if (e.target === knapp('fler')) knapp('fler').hidden = true; });
+    const FEIL = {
+      'auth/invalid-credential': 'Feil e-post eller passord.', 'auth/wrong-password': 'Feil passord.', 'auth/user-not-found': 'Finner ingen konto med den e-posten.',
+      'auth/invalid-email': 'Ugyldig e-postadresse.', 'auth/email-already-in-use': 'Det finnes allerede en konto med den e-posten – logg inn i stedet.',
+      'auth/weak-password': 'Passordet må ha minst 6 tegn.', 'auth/missing-password': 'Skriv inn et passord.',
+      'auth/popup-closed-by-user': 'Innloggingsvinduet ble lukket.', 'auth/popup-blocked': 'Nettleseren blokkerte innloggingsvinduet.',
+      'auth/unauthorized-domain': 'Dette domenet er ikke godkjent i Firebase ennå (se FLERSPILLER.md).',
+      'auth/operation-not-allowed': 'Denne innloggingsmåten er ikke slått på i Firebase (se FLERSPILLER.md).',
+    };
+    const prøv = async fn => {
+      knapp('fler-feil').textContent = '';
+      try { await fn(); } catch (e) { knapp('fler-feil').textContent = FEIL[e.code] || `Noe gikk galt: ${e.code || e.message}`; }
+    };
+    knapp('google').onclick = () => prøv(() => fler.google());
+    knapp('logginn').onclick = () => prøv(() => fler.epost(knapp('epost').value.trim(), knapp('passord').value));
+    knapp('nykonto').onclick = () => prøv(() => fler.nyKonto(knapp('epost').value.trim(), knapp('passord').value));
+    knapp('glemt').onclick = () => prøv(async () => {
+      await fler.glemtPassord(knapp('epost').value.trim());
+      knapp('fler-feil').textContent = 'Vi har sendt deg en e-post for å lage nytt passord.';
+    });
+    knapp('loggut').onclick = () => prøv(() => fler.loggUt());
+    async function startFlerspiller() {
+      if (!firebaseConfig) return;                                           // ikke satt opp: spill alene
+      try { fler = await kobleTil(firebaseConfig); }
+      catch (e) { knapp('fler-av').innerHTML = '<p>Kunne ikke koble til Firebase. Sjekk nettet og firebase-config.js.</p>'; return; }
+      knapp('fler-av').hidden = true;
+      knapp('flerknapp').textContent = '👥 Logg inn og spill med andre';
+      fler.påBruker(async u => {
+        bruker = u;
+        knapp('fler-ut').hidden = !!u; knapp('fler-inne').hidden = !u;
+        if (!u) {                                                             // logget ut: tøm huset for andre
+          iHuset = false;
+          for (const uid of [...andre.keys()]) håndterSpiller('borte', uid);
+          knapp('flerknapp').textContent = '👥 Logg inn og spill med andre';
+          oppdaterOnline();
+          return;
+        }
+        knapp('megnavn').textContent = u.navn || 'deg';
+        knapp('flerknapp').textContent = '👥 Min figur';
+        const p = await fler.hentProfil(u.uid).catch(() => null);
+        if (p?.utseende && !Object.keys(lagretUtseende).length) byttUtseende(p.utseende);    // ny maskin: hent figuren fra kontoen
+        if (!knapp('u-navn').value.trim()) knapp('u-navn').value = (p?.navn || u.navn || '').slice(0, 20);
+        await gåInnIHuset().catch(e => { knapp('fler-feil').textContent = `Kunne ikke gå inn i huset: ${e.code || e.message}`; });
+      });
+    }
+    startFlerspiller();
+
     // for testing og opptak
-    window.spill = { THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+    window.spill = { andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>

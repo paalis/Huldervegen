@@ -7,6 +7,8 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
   og handlinger: piano, gitar, PlayStation, Netflix (1. og 3. etasje), vaskemaskin, gå på do, vaske hendene, steke mat, sove,
   spise middag, lage kaffe, slappe av ute og på takterrassen, gå inn og ut, dusje, pusse tennene,
   skifte T-skjorte og se utover fra altanen
+- `flerspiller.js`, `firebase-config.js`, `database.rules.json` – flerspiller: logg inn og gå rundt sammen med andre,
+  med egen figur (se `FLERSPILLER.md` for oppsett av Firebase)
 - `lyder/` – lydfiler til handlingene i spillet (se `lyder/README.md` for filnavnene)
 - `hus.js` – selve huset (geometri, materialer, lys og romnavn), delt mellom `index.html` og `spill.html`
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
