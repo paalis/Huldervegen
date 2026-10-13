@@ -488,7 +488,7 @@
     }
     // ferdige figurer å velge mellom
     const FERDIGE = {
-      'Pablo Andrés': STANDARD_UTSEENDE,
+      'Pablo Andrés': { ...STANDARD_UTSEENDE, modell: '' },
       'Pablo Andrés (3D)': { ...STANDARD_UTSEENDE, modell: 'figurer/pablo.glb', høyde: 1.85 },
       'Ingeridia': { hud: '#efc6ab', hår: '#9a6a3c', skjorte: '#c2577a', bukse: '#33415e', sko: '#f2f0ea', frisyre: 'langt', skjegg: 'ingen', høyde: 1.68, kropp: 'kvinne' },
     };
@@ -599,7 +599,9 @@
       }
     }
     const lagretUtseende = (() => { try { return JSON.parse(localStorage.getItem('huldervegen-utseende')) || {}; } catch { return {}; } })();
-    const meg = lagFigur(lagretUtseende);
+    // standard er 3D-modellen; et lagret utseende fra før 3D-valget fantes (uten «modell») gir også 3D-modellen
+    const STANDARD_FIGUR = FERDIGE['Pablo Andrés (3D)'];
+    const meg = lagFigur('modell' in lagretUtseende ? lagretUtseende : STANDARD_FIGUR);
     // figur, ben, armer og hode peker på figuren som posers nå (meg, eller en annen spiller via medRigg)
     let { figur, benV, benH, armV, armH, hodet } = meg;
     const jakke = meg.jakke;
@@ -1519,7 +1521,7 @@
         høyde: 1.55 + Math.round(Math.random() * 35) / 100, kropp: velg(['mann', 'kvinne']),
       });
     };
-    knapp('u-standard').onclick = () => byttUtseende(STANDARD_UTSEENDE);
+    knapp('u-standard').onclick = () => byttUtseende(STANDARD_FIGUR);
     knapp('flerknapp').onclick = () => { fyllSkjema(); knapp('fler').hidden = false; };
     knapp('fler-lukk').onclick = () => { knapp('fler').hidden = true; };
     knapp('fler').addEventListener('pointerdown', e => { if (e.target === knapp('fler')) knapp('fler').hidden = true; });
@@ -1562,7 +1564,7 @@
         knapp('megnavn').textContent = u.navn || 'deg';
         knapp('flerknapp').textContent = '👥 Min figur';
         const p = await fler.hentProfil(u.uid).catch(() => null);
-        if (p?.utseende && !Object.keys(lagretUtseende).length) byttUtseende(p.utseende);    // ny maskin: hent figuren fra kontoen
+        if (p?.utseende && 'modell' in p.utseende && !('modell' in lagretUtseende)) byttUtseende(p.utseende);    // ny maskin: hent figuren fra kontoen
         if (!knapp('u-navn').value.trim()) knapp('u-navn').value = (p?.navn || u.navn || '').slice(0, 20);
         await gåInnIHuset().catch(e => { knapp('fler-feil').textContent = `Kunne ikke gå inn i huset: ${e.code || e.message}`; });
       });
