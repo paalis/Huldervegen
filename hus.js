@@ -885,9 +885,10 @@ boks(1.05, F + 0.12, 9.58, 3.10, F + 0.42, 9.65, M.hvit);         // radiator
 boks(2.60, F + 0.65, 7.55, 2.64, F + 1.40, 8.80, M.svart);        // TV på stativ
 boks(2.70, F, 8.15, 2.74, F + 0.65, 8.20, M.svart);
 boks(0.60, F + 2.30, 9.56, 4.30, F + 2.32, 9.58, M.stål);         // gardinstang
-for (const [x1, x2] of [[0.70, 0.99], [3.20, 3.75]]) gardin(x1, x2, 9.53, F + 0.05, F + 2.30, M.gardinBrun);
+for (const [x1, x2] of [[0.70, 0.99], [3.03, 3.33]]) gardin(x1, x2, 9.53, F + 0.05, F + 2.30, M.gardinBrun);
 
 // altan 4 m² over inngangsterrassen
+boks(3.37, F - 0.02, D - T - 0.05, 4.13, F + 0.004, D + 0.05, M.terrasse);  // terskel i altandøra
 boks(2.80, H + 0.1, D, B, F - 0.02, 11.70, M.terrasse);
 spilevegg('x', 11.62, 11.70, 2.80, B, F - 0.02, 1.0);
 spilevegg('z', 2.80, 2.88, D, 11.62, F - 0.02, 1.0);
