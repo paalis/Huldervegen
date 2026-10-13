@@ -506,6 +506,12 @@ for (const x of [1.075, 2.115]) håndtak(x - 0.08, 0.76, fz - 0.025, x + 0.08, 0
 for (const z of [vz1, vz2]) fuge(2.277, 0.10, z - 0.002, 2.28, benkH - 0.05, z + 0.002);
 for (const [z1, z2] of [[7.95, vz1], [vz1, vz2], [vz2, fz]]) håndtak(2.255, 0.76, (z1 + z2) / 2 - 0.06, 2.28, 0.775, (z1 + z2) / 2 + 0.06);
 håndtak(2.255, 0.95, 7.86, 2.28, 1.25, 7.875);                    // høyskap
+// kaffemaskin i hjørnet mellom koketoppen og vinduet: sort kasse, dryppbrett og tut
+rund(0.52, benkH, 9.38, 0.80, benkH + 0.38, 9.62, M.pianoSvart, 0.02);
+rund(0.55, benkH, 9.22, 0.77, benkH + 0.03, 9.40, M.pianoSvart, 0.01);
+boks(0.57, benkH + 0.03, 9.24, 0.75, benkH + 0.035, 9.38, M.stål);              // dryppbrett
+rund(0.55, benkH + 0.27, 9.24, 0.77, benkH + 0.36, 9.40, M.pianoSvart, 0.015);   // tut over koppen
+boks(0.62, benkH + 0.255, 9.29, 0.70, benkH + 0.27, 9.33, M.stål);
 // fliser og overskap
 boks(T, benkH, 6.50, T + 0.01, 1.45, D - T, M.flis);
 boks(0.80, benkH, D - T - 0.01, 2.88, 1.05, D - T, M.flis);
@@ -838,6 +844,11 @@ for (const z of [0.55, 0.95]) boks(2.944, F + 1.30, z, 2.965, F + 1.80, z + 0.32
 boks(T, F, 4.64, 0.95, F + 0.01, 5.45, M.flis);                   // lys mosaikk i dusjen
 boks(0.93, F, 4.64, 0.95, F + 1.95, 5.45, M.glass);
 boks(T, F, 5.43, 0.95, F + 1.95, 5.45, M.glass);
+// dusjhode på stang fra veggen, med blandebatteri
+sylinder(T + 0.02, 5.05, F + 0.95, F + 2.08, 0.012, M.stål);
+boks(T + 0.01, F + 2.06, 5.04, 0.52, F + 2.08, 5.06, M.stål);
+oval(0.52, 5.05, 0.10, 0.10, F + 2.03, F + 2.06, M.stål);
+boks(T + 0.01, F + 1.02, 4.98, T + 0.07, F + 1.08, 5.12, M.stål);
 boks(T, F, 5.75, T + 0.01, F + H, 6.05, M.flisStripe);            // stripe i brun flis
 boks(T + 0.01, F + 1.15, 5.80, T + 0.04, F + 1.17, 6.00, M.stål);   // håndklestang
 boks(0.62, F + 0.45, 6.70, 1.78, F + 0.88, 7.18, M.hvit);         // servant med skuffer
@@ -874,9 +885,10 @@ boks(1.05, F + 0.12, 9.58, 3.10, F + 0.42, 9.65, M.hvit);         // radiator
 boks(2.60, F + 0.65, 7.55, 2.64, F + 1.40, 8.80, M.svart);        // TV på stativ
 boks(2.70, F, 8.15, 2.74, F + 0.65, 8.20, M.svart);
 boks(0.60, F + 2.30, 9.56, 4.30, F + 2.32, 9.58, M.stål);         // gardinstang
-for (const [x1, x2] of [[0.70, 0.99], [3.20, 3.75]]) gardin(x1, x2, 9.53, F + 0.05, F + 2.30, M.gardinBrun);
+for (const [x1, x2] of [[0.70, 0.99], [3.03, 3.33]]) gardin(x1, x2, 9.53, F + 0.05, F + 2.30, M.gardinBrun);
 
 // altan 4 m² over inngangsterrassen
+boks(3.37, F - 0.02, D - T - 0.05, 4.13, F + 0.004, D + 0.05, M.terrasse);  // terskel i altandøra
 boks(2.80, H + 0.1, D, B, F - 0.02, 11.70, M.terrasse);
 spilevegg('x', 11.62, 11.70, 2.80, B, F - 0.02, 1.0);
 spilevegg('z', 2.80, 2.88, D, 11.62, F - 0.02, 1.0);
