@@ -506,12 +506,12 @@ for (const x of [1.075, 2.115]) håndtak(x - 0.08, 0.76, fz - 0.025, x + 0.08, 0
 for (const z of [vz1, vz2]) fuge(2.277, 0.10, z - 0.002, 2.28, benkH - 0.05, z + 0.002);
 for (const [z1, z2] of [[7.95, vz1], [vz1, vz2], [vz2, fz]]) håndtak(2.255, 0.76, (z1 + z2) / 2 - 0.06, 2.28, 0.775, (z1 + z2) / 2 + 0.06);
 håndtak(2.255, 0.95, 7.86, 2.28, 1.25, 7.875);                    // høyskap
-// kaffemaskin i hjørnet mellom koketoppen og vinduet: sort kasse, dryppbrett og tut
-rund(0.52, benkH, 9.38, 0.80, benkH + 0.38, 9.62, M.pianoSvart, 0.02);
-rund(0.55, benkH, 9.22, 0.77, benkH + 0.03, 9.40, M.pianoSvart, 0.01);
-boks(0.57, benkH + 0.03, 9.24, 0.75, benkH + 0.035, 9.38, M.stål);              // dryppbrett
-rund(0.55, benkH + 0.27, 9.24, 0.77, benkH + 0.36, 9.40, M.pianoSvart, 0.015);   // tut over koppen
-boks(0.62, benkH + 0.255, 9.29, 0.70, benkH + 0.27, 9.33, M.stål);
+// kaffemaskin midt under kjøkkenvinduet: sort kasse, dryppbrett og tut
+rund(1.405, benkH, 9.38, 1.685, benkH + 0.38, 9.62, M.pianoSvart, 0.02);
+rund(1.435, benkH, 9.22, 1.655, benkH + 0.03, 9.40, M.pianoSvart, 0.01);
+boks(1.455, benkH + 0.03, 9.24, 1.635, benkH + 0.035, 9.38, M.stål);              // dryppbrett
+rund(1.435, benkH + 0.27, 9.24, 1.655, benkH + 0.36, 9.40, M.pianoSvart, 0.015);   // tut over koppen
+boks(1.505, benkH + 0.255, 9.29, 1.585, benkH + 0.27, 9.33, M.stål);
 // fliser og overskap
 boks(T, benkH, 6.50, T + 0.01, 1.45, D - T, M.flis);
 boks(0.80, benkH, D - T - 0.01, 2.88, 1.05, D - T, M.flis);
