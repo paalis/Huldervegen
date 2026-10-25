@@ -1329,13 +1329,28 @@
         ikoner.set(id, { el, punkt: new THREE.Vector3(h.pos[0], base(h.f) + (IKONHØYDE[h.holdning] ?? 1.8), h.pos[1]), sist: '' });
       }
     }
-    const ikonP = new THREE.Vector3();
+    const ikonP = new THREE.Vector3(), ikonStråle = new THREE.Raycaster();
+    function bakVegg(punkt) {                                                // står noe synlig mellom kameraet og punktet?
+      const r = new THREE.Vector3().subVectors(punkt, camera.position), l = r.length();
+      ikonStråle.set(camera.position, r.normalize()); ikonStråle.far = l - 0.35;
+      return ikonStråle.intersectObjects(hindre, false).some(h => h.object.visible && synlig(h.object));
+    }
     function plasserIkoner() {
       const t = tilstand;
       for (const [id, ik] of ikoner) {
         const h = HANDLINGER[id], el = ik.el;
         let vis = h.f === t.visEtasje && (!h.vis || h.vis()) && knapp('fler').hidden;
         if (vis) { ikonP.copy(ik.punkt).project(camera); vis = ikonP.z < 1 && Math.abs(ikonP.x) < 1.05 && Math.abs(ikonP.y) < 1.05; }
+        // med kamera bak figuren: bare ikoner i nærheten som ikke står bak en vegg (sjekkes noen ganger i sekundet)
+        if (vis && kamera.modus === 'bak' && !(t.handling?.id === id || t.planlagt === id)) {
+          const nærme = Math.hypot(t.pos.x - ik.punkt.x, t.pos.z - ik.punkt.z) < 4.5;
+          if (!nærme) vis = false;
+          else {
+            if (!(ik.sjekk > 0)) { ik.sjekk = 8 + (ik.punkt.x * 7 | 0) % 4; ik.bak = bakVegg(ik.punkt); }
+            ik.sjekk--;
+            vis = !ik.bak;
+          }
+        }
         if (!vis) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }
         const aktiv = t.handling?.id === id, påVei = t.planlagt === id, opp = !aktiv && opptatt(id);
         const tilst = `${aktiv}${påVei}${opp}`;
