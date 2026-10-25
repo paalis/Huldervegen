@@ -10,6 +10,8 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 - `flerspiller.js`, `firebase-config.js`, `database.rules.json` – flerspiller: logg inn og gå rundt sammen med andre,
   med egen figur (se `FLERSPILLER.md` for oppsett av Firebase)
 - `figurer/` – 3D-modeller av figurer (GLB med Mixamo-skjelett, f.eks. fra Avaturn) som kan velges i spillet
+  - `figurer/animasjoner/` – Mixamo-animasjoner (FBX). De er samlet og komprimert i `figurer/animasjoner.json`,
+    som spillet bruker; legges det til nye FBX-filer, må JSON-fila lages på nytt
 - `lyder/` – lydfiler til handlingene i spillet (se `lyder/README.md` for filnavnene)
 - `hus.js` – selve huset (geometri, materialer, lys og romnavn), delt mellom `index.html` og `spill.html`
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
