@@ -578,7 +578,7 @@
     }
     async function settModell(r, sti) {
       r.modellSti = sti;
-      if (r.avatar) { r.figur.remove(r.avatar.rot); r.avatar = null; proxySynlig(r, true); }
+      if (r.avatar) { r.figur.remove(r.avatar.rot); r.avatar = null; r.anim = null; proxySynlig(r, true); }
       if (!sti) return;
       let gltf;
       try { gltf = await lastModell(sti); } catch (e) { console.warn('Kunne ikke laste', sti, e); return; }
@@ -634,16 +634,18 @@
       r.avatar = { rot, par, rygg, ryggHvile: rygg?.quaternion.clone() };
       proxySynlig(r, false);
       if (r === meg) oppdaterKnapper();
+      lagAnimasjoner(r);
     }
     // overfør styreskjelettets stilling til modellens knokler (kalles etter at stillingen er regnet ut)
     const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), qF = new THREE.Quaternion(), Y_AKSE = new THREE.Vector3(0, 1, 0);
-    function følgSkjelett(r) {
+    function følgSkjelett(r, kunArmer = false) {
       if (!r.avatar) return;
       const { rygg, ryggHvile } = r.avatar;                                   // overkroppen vrir seg når figuren går
-      if (rygg) rygg.quaternion.copy(ryggHvile).multiply(qA.setFromAxisAngle(Y_AKSE, -(r.figur.userData.vri || 0)));
+      if (rygg && !kunArmer) rygg.quaternion.copy(ryggHvile).multiply(qA.setFromAxisAngle(Y_AKSE, -(r.figur.userData.vri || 0)));
       r.figur.updateMatrixWorld(true);
       r.figur.getWorldQuaternion(qF); const fInv = qF.clone().invert();
       for (const { ledd, ben, leddHvile, benHvile } of r.avatar.par) {
+        if (kunArmer && /Leg$/.test(ben.name)) continue;                       // bena styres av animasjonen
         const nå = fInv.clone().multiply(ledd.getWorldQuaternion(qA));         // leddet nå, i figurens rom
         const ønsket = nå.multiply(leddHvile.clone().invert()).multiply(benHvile);
         const forelder = fInv.clone().multiply(ben.parent.getWorldQuaternion(qB));
@@ -651,6 +653,101 @@
         ben.updateMatrixWorld(true);
       }
     }
+
+    // ---------- Animasjoner fra Mixamo (figurer/animasjoner.json, laget av FBX-filene i figurer/animasjoner/) ----------
+    // Med 3D-modell spilles ekte animasjoner der de finnes (stå, gå, løpe, sette seg, sitte, reise seg, ligge,
+    // piano, gitar, taste, se utover). Handlinger uten egen animasjon bruker figurens egne bevegelser som før;
+    // sittende handlinger med egne armbevegelser (spise, fjernkontroll, glass) får armene lagt oppå.
+    let animData = null;
+    const lastAnimasjoner = () => animData ??= fetch('figurer/animasjoner.json').then(r => r.ok ? r.json() : null).catch(() => null);
+    const KLIPP_HANDLING = { piano: 'piano', gitar: 'gitar', playstation: 'taster', utsikt: 'utsikt' };
+    const ENGANG = ['setter_seg', 'reiser_seg', 'ligger'];
+    async function lagAnimasjoner(r) {
+      const data = await lastAnimasjoner(), av = r.avatar;
+      if (!data || !av || r.avatar !== av) return;
+      const rot = av.rot, hips = rot.getObjectByName('Hips');
+      if (!hips) return;
+      const hvile = hips.position.clone(), mixer = new THREE.AnimationMixer(rot), handlinger = {}, anker = {};
+      for (const k of data.klipp) {
+        const spor = k.tracks.map(t => t.type === 'quaternion' ? new THREE.QuaternionKeyframeTrack(t.name, t.times, t.values)
+          : new THREE.VectorKeyframeTrack(t.name, t.times, t.values.map((v, i) => hvile.getComponent(i % 3) + v * hvile.y)));
+        const a = mixer.clipAction(new THREE.AnimationClip(k.name, k.duration, spor));
+        if (ENGANG.includes(k.name)) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+        handlinger[k.name] = a;
+        const p = spor.find(t => t.name === 'Hips.position'), n = p.values.length / 3;
+        // hoftene der figuren «står» i animasjonen: slutten av å sette seg, starten av å reise seg, ellers første bilde
+        anker[k.name] = new THREE.Vector3().fromArray(p.values, k.name === 'setter_seg' ? (n - 1) * 3 : 0);
+      }
+      const alle = [];
+      rot.traverse(o => { if (o.isBone) alle.push([o, o.quaternion.clone(), o.position.clone()]); });
+      r.anim = { mixer, handlinger, anker, aktiv: null, modus: 'prosedyre', hvile: alle, hipsHvile: hvile, bland: null };
+    }
+    function byttModus(r, modus) {
+      const A = r.anim;
+      A.bland = { tid: 0, snap: A.hvile.map(([b]) => [b.quaternion.clone(), b.position.clone()]) };   // gli over fra stillingen nå
+      if (modus === 'prosedyre') {
+        A.mixer.stopAllAction(); A.aktiv = null;
+        for (const [b, q, p] of A.hvile) { b.quaternion.copy(q); b.position.copy(p); }
+        r.avatar.rot.position.set(0, 0, 0);
+      }
+      A.modus = modus;
+    }
+    function blandBen(r, dt) {
+      const A = r.anim;
+      if (!A?.bland) return;
+      A.bland.tid += dt;
+      const u = Math.min(1, A.bland.tid / 0.35);
+      if (u >= 1) { A.bland = null; return; }
+      const k = u * u * (3 - 2 * u), q = new THREE.Quaternion(), p = new THREE.Vector3();
+      A.hvile.forEach(([b], i) => {
+        const [sq, sp] = A.bland.snap[i];
+        q.copy(b.quaternion); b.quaternion.slerpQuaternions(sq, q, k);
+        p.copy(b.position); b.position.lerpVectors(sp, p, k);
+      });
+    }
+    // valg = { klipp, tempo, y (gulvet), h (handlingen, for sete- og liggehøyde), armer (legg egne armbevegelser oppå) }
+    function animer(r, valg, dt) {
+      const A = r.anim;
+      if (!A || !valg.klipp || !A.handlinger[valg.klipp]) {
+        if (A && A.modus === 'klipp') byttModus(r, 'prosedyre');
+        følgSkjelett(r); if (A) blandBen(r, dt);
+        return;
+      }
+      if (A.modus !== 'klipp') byttModus(r, 'klipp');
+      const a = A.handlinger[valg.klipp];
+      if (A.aktiv !== a) {
+        a.reset(); a.setEffectiveWeight(1); a.play();
+        if (A.aktiv) a.crossFadeFrom(A.aktiv, 0.3, false);
+        A.aktiv = a;
+      }
+      a.timeScale = valg.tempo ?? 1;
+      A.mixer.update(dt);
+      // plassering: modellen står på gulvet; i sofaen/senga legges hoftene på setet eller madrassen
+      const f = r.figur, rot = r.avatar.rot, s = rot.scale.x, fs = f.scale.x, ank = A.anker[valg.klipp], h = valg.h;
+      f.rotation.x = 0; f.rotation.z = 0; f.position.y = valg.y;
+      rot.position.set(0, 0, 0);
+      if (h?.holdning === 'sitt' || valg.klipp === 'reiser_seg') {
+        const sete = h?.sete ?? 0.46;
+        rot.position.set(-ank.x * s, (sete + 0.07) / fs - ank.y * s, -ank.z * s);
+      } else if (valg.klipp === 'ligger') {
+        rot.position.set(-ank.x * s, (h.liggehøyde - 0.02) / fs - ank.y * s, -0.93 - ank.z * s);   // hoftene der figurens hofter ligger
+      }
+      if (valg.armer) følgSkjelett(r, true);
+      blandBen(r, dt);
+    }
+    // hvilken animasjon som passer nå
+    function velgKlipp(handlingId, går, fart, løper) {
+      const h = handlingId && HANDLINGER[handlingId];
+      if (h) {
+        if (KLIPP_HANDLING[handlingId]) return { klipp: KLIPP_HANDLING[handlingId], h };
+        if (h.holdning === 'sitt') return { klipp: 'setter_seg', h, armer: !!h.armer };
+        if (h.holdning === 'ligg') return { klipp: 'ligger', h };
+        return { klipp: null, h };                                             // egne bevegelser (kaffe, dusj, ...)
+      }
+      if (går) return løper ? { klipp: 'løp', tempo: Math.min(1.6, Math.max(0.7, fart / 3.3)) } : { klipp: 'gå', tempo: Math.min(1.7, Math.max(0.55, fart / 1.35)) };
+      return { klipp: 'stå' };
+    }
+
     const lagretUtseende = (() => { try { return JSON.parse(localStorage.getItem('huldervegen-utseende')) || {}; } catch { return {}; } })();
     // standard er 3D-modellen; et lagret utseende fra før 3D-valget fantes (uten «modell») gir også 3D-modellen
     const STANDARD_FIGUR = FERDIGE['Pablo Andrés (3D)'];
@@ -1152,7 +1249,9 @@
     function stoppHandling() {
       const t = tilstand, h = t.handling && HANDLINGER[t.handling.id];
       if (!h) return;
-      taBilde();                                                               // reis seg mykt
+      if (h.holdning === 'sitt' && meg.anim?.handlinger.reiser_seg)            // 3D-modellen reiser seg ordentlig først
+        t.reiser = { tid: 0, varighet: meg.anim.handlinger.reiser_seg.getClip().duration / 1.4, h, pos: t.pos.clone(), retning: meg.figur.rotation.y, y: t.pos.y };
+      else taBilde();                                                          // reis seg mykt
       t.pos.set(h.gå[0], base(h.f), h.gå[1]);                                // reis seg / gå ut av senga
       const [i, j] = celle(t.pos.x, t.pos.z);
       if (!gangbar(t.f, i, j)) for (let r = 1; r <= 10 && !gangbar(t.f, ...celle(t.pos.x, t.pos.z)); r++)
@@ -1276,6 +1375,19 @@
       for (const a of [armV, armH]) a.skulder.rotation.x += ro * Math.sin(T * 1.25) * 0.015;   // pust
     }
 
+    // 3D-modellen min: velg animasjon ut fra tilstanden
+    const sistPos = new THREE.Vector3();
+    function animerMeg(dt) {
+      const t = tilstand;
+      const fart = dt > 0 ? Math.hypot(t.pos.x - sistPos.x, t.pos.z - sistPos.z) / dt : 0;
+      sistPos.copy(t.pos);
+      let valg;
+      if (t.reiser) valg = { klipp: 'reiser_seg', h: t.reiser.h, tempo: 1.4 };
+      else valg = velgKlipp(t.handling?.id, t.beveger, fart, t.løper);
+      valg.y = t.reiser ? t.reiser.y : t.pos.y;
+      animer(meg, valg, dt);
+    }
+
     // myke overganger: stillingen tas vare på når figuren setter seg, reiser seg eller bytter handling,
     // og den nye stillingen glir inn over den gamle i løpet av et halvt sekund
     const LEDD = () => [meg.benV.hofte, meg.benV.kne, meg.benH.hofte, meg.benH.kne, meg.armV.skulder, meg.armV.albue, meg.armH.skulder, meg.armH.albue, meg.hodet];
@@ -1304,12 +1416,24 @@
     function steg(dt) {
       const t = tilstand;
       let beveger = false;
+      if (t.reiser) {                                                          // reiser seg fra stolen/sofaen
+        t.reiser.tid += dt;
+        if (t.reiser.tid < t.reiser.varighet) {
+          figur.position.copy(t.reiser.pos); figur.rotation.set(0, t.reiser.retning, 0);
+          t.beveger = false; oppdaterVask(dt); oppdaterRom();
+          return;
+        }
+        const hp = meg.avatar?.rot.getObjectByName('Hips')?.getWorldPosition(new THREE.Vector3());
+        if (hp) figur.position.set(hp.x, t.reiser.y, hp.z);                   // fortsett der den står nå
+        t.reiser = null; taBilde(0.4);
+      }
       // tastaturstyring avbryter klikkveien
       const fx = ((taster.has('arrowright') || taster.has('d')) - (taster.has('arrowleft') || taster.has('a'))) || stikke.x;
       const fz = ((taster.has('arrowup') || taster.has('w')) - (taster.has('arrowdown') || taster.has('s'))) || -stikke.y;
       if (!fx) t.sving = 0;
       const iTrapp = t.vei.length && t.vei[0].trapp;                         // i trappa: gå ferdig opp eller ned
       const løper = taster.has('shift') ? 1.6 : 1;                           // Shift: løp
+      t.løper = løper > 1 && (t.beveger || false);
       if ((fx || fz) && !iTrapp) {
         if (t.handling) stoppHandling();
         t.planlagt = null;
@@ -1486,7 +1610,7 @@
       knapp('laster').remove();
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
-        steg(dt); følgSkjelett(meg); tegnAndre(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
+        steg(dt); animerMeg(dt); tegnAndre(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
         plasserLapper(); plasserIkoner(); følgYtelse(); composer.render();
       });
     }, 30));
@@ -1563,7 +1687,9 @@
             gangPose(r.gange, går, a.pos.y);
           }
         });
-        følgSkjelett(r);
+        const valg = velgKlipp(d.h, !!d.b || fart > 0.3, fart, fart > 2.6);
+        valg.y = d.h ? d.y : a.pos.y;
+        animer(r, valg, dt);
         r.hodet.getWorldPosition(a.lapp.position); a.lapp.position.y += 0.2;
       }
     }
@@ -1737,7 +1863,7 @@
     }
 
     // for testing og opptak
-    window.spill = { stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+    window.spill = { animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>
