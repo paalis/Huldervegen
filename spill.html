@@ -1532,7 +1532,7 @@
     // i GTA og trekker seg inn foran vegger og møbler som ville skjult den.
     const kamera = { modus: mobil ? 'ovenfra' : 'bak', avstand: 3.2, blikk: new THREE.Vector3() };
     const fokus = new THREE.Vector3(), ønsket = new THREE.Vector3(), hode = new THREE.Vector3();
-    const hindre = [];
+    const hindre = [], glassFlater = [];
     function settKamera(modus) {
       kamera.modus = modus;
       knapp('bak').classList.toggle('på', modus === 'bak');
@@ -1591,6 +1591,7 @@
       for (const { stråle, lengde } of stråler) {
         kameraStråle.ray.copy(stråle); kameraStråle.near = 0; kameraStråle.far = lengde;
         for (const treff of kameraStråle.intersectObjects(hindre, false)) if (synlig(treff.object, true)) skjul(treff.object);
+        for (const treff of kameraStråle.intersectObjects(glassFlater, false)) if (synlig(treff.object, true)) skjul(treff.object);   // glassdører, vinduer, dusjvegger
       }
       const utvidet = new THREE.Box3(), treffP = new THREE.Vector3();
       for (const { o, b, grense } of høye) {
@@ -1623,6 +1624,7 @@
       controls.target.set(tilstand.pos.x, 0.9, tilstand.pos.z);
       controls.update();
       scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
+      scene.traverse(o => { if (o.isMesh && o.material.transparent && o.material.opacity < 0.9 && !figurdeler.has(o) && o !== ring) glassFlater.push(o); });
       himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
       for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
         const b = new THREE.Box3().setFromObject(o);
@@ -1888,7 +1890,7 @@
     }
 
     // for testing og opptak
-    window.spill = { himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+    window.spill = { glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>
