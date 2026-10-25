@@ -204,9 +204,10 @@
     import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
     import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
     import {
-      F, TX1, nedreSving, øvreSving, opptrinn, inntrinn, scene, M, vis, oppdater, etiketter, sol,
+      F, TX1, nedreSving, øvreSving, opptrinn, inntrinn, scene, M, vis, oppdater, etiketter, sol, midt,
     } from './hus.js';
     import { kobleTil } from './flerspiller.js';
+    import { lagHimmel } from './himmel.js';
     import { firebaseConfig } from './firebase-config.js';
 
     // ---------- Renderer, kamera, kontroller ----------
@@ -966,7 +967,7 @@
           armH.skulder.rotation.x = -0.6; armH.albue.rotation.x = -0.75; armH.skulder.rotation.z = -0.1;
           hodet.rotation.x = 0.25 - løft * 0.2;
         } },
-      kaffe: { navn: 'Lag kaffe', ikon: '☕', f: 0, gå: [1.30, 8.70], pos: [1.02, 8.86], retning: -0.5, holdning: 'stå',
+      kaffe: { navn: 'Lag kaffe', ikon: '☕', f: 0, gå: [1.545, 8.55], pos: [1.545, 8.82], retning: 0, holdning: 'stå',
         lyd: 'lyder/kaffe.mp3', gjenta: false,
         før: () => { koppMaskin.visible = true; }, etter: () => { koppMaskin.visible = koppHånd.visible = damp.visible = false; },
         armer: tt => {
@@ -975,7 +976,7 @@
             armV.skulder.rotation.x = -1.25 * r; armV.albue.rotation.x = -0.2;
           } else if (tt < 6) {                                                  // venter mens kaffen renner
             armV.skulder.rotation.x = -0.15; armH.skulder.rotation.x = -0.15;
-            if (lokal()) visDamp(new THREE.Vector3(0.66, 0.98, 9.29), tt);
+            if (lokal()) visDamp(new THREE.Vector3(1.545, 0.98, 9.29), tt);
             hodet.rotation.y = Math.sin(tt * 0.8) * 0.2;
           } else {                                                              // drikker
             if (lokal() && koppMaskin.visible) { koppMaskin.visible = false; koppHånd.visible = true; }
@@ -1101,7 +1102,7 @@
       const hank = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 8, 16), keramikk); hank.position.set(0.045, 0.05, 0); k.add(hank);
       return k;
     };
-    const koppMaskin = lagKopp(); koppMaskin.position.set(0.66, 0.935, 9.30); koppMaskin.visible = false; scene.add(koppMaskin);
+    const koppMaskin = lagKopp(); koppMaskin.position.set(1.545, 0.935, 9.30); koppMaskin.visible = false; scene.add(koppMaskin);
     const koppHånd = iHånd(lagKopp(), 0, -0.10, 0.06); koppHånd.rotation.x = π / 2;
     const glass = iHånd(new THREE.Group(), 0, -0.09, 0.06); glass.rotation.x = π / 2;
     {
@@ -1556,36 +1557,44 @@
       camera.position.lerp(ønsket, k);
       kamera.blikk.lerp(new THREE.Vector3(t.pos.x + Math.sin(r) * 1.0, t.pos.y + 1.0, t.pos.z + Math.cos(r) * 1.0), k);
       camera.lookAt(kamera.blikk);
-      for (const o of iVeien) o.visible = true;
-      iVeien.length = 0;
+      // Strålene går fra kameraet til punkter på figuren (føtter, hofter, bryst, hode og skuldrene på hver side).
+      // Det som krysser en stråle skjules: møbler og annet treffes nøyaktig, vegger, dører og høye skap med en
+      // smal margin rundt boksen. Det som skjules, blir skjult en liten stund etterpå, så det ikke blinker.
       figur.updateMatrixWorld(true);
-      for (const h of [0.25, 0.9, 1.6, 1.86]) {
-        figur.localToWorld(hode.set(0, h, 0));                               // punkter på kroppen, også når den sitter eller ligger
-        const retning = new THREE.Vector3().subVectors(hode, camera.position), lengde = retning.length();
-        kameraStråle.set(camera.position, retning.normalize()); kameraStråle.far = lengde - 0.25;
-        for (const treff of kameraStråle.intersectObjects(hindre, false))
-          if (treff.object.visible && synlig(treff.object)) { treff.object.visible = false; iVeien.push(treff.object); }
+      const nå = performance.now(), sideveis = new THREE.Vector3().subVectors(kamera.blikk, camera.position).cross(camera.up).normalize();
+      const punkter = [0.3, 0.9, 1.4, 1.75].map(h => figur.localToWorld(new THREE.Vector3(0, h, 0)));
+      for (const h of [1.05, 1.5]) {
+        const m = figur.localToWorld(new THREE.Vector3(0, h, 0));
+        punkter.push(m.clone().addScaledVector(sideveis, 0.24), m.clone().addScaledVector(sideveis, -0.24));
       }
-      // bred korridor fra kameraet til figuren og til punktet den ser mot: alle vegger, dører og høye skap
-      // innenfor ca. 50 cm fra korridoren skjules, så ingen veggbiter står igjen i bildet
-      const mål = [figur.localToWorld(new THREE.Vector3(0, 1.1, 0)), figur.localToWorld(new THREE.Vector3(0, 1.8, 0)), kamera.blikk.clone()];
-      const p = new THREE.Vector3();
+      const avOss = new Set(iVeien);                                          // skjult av kameraet (ikke av spillet ellers)
+      const skjul = o => { if (o.visible || avOss.has(o)) skjultTil.set(o, nå + 350); };
+      const stråler = punkter.map(m => {
+        const retning = new THREE.Vector3().subVectors(m, camera.position), lengde = retning.length();
+        return { stråle: new THREE.Ray(camera.position.clone(), retning.normalize()), lengde: lengde - 0.3 };
+      });
+      for (const { stråle, lengde } of stråler) {
+        kameraStråle.ray.copy(stråle); kameraStråle.near = 0; kameraStråle.far = lengde;
+        for (const treff of kameraStråle.intersectObjects(hindre, false)) if (synlig(treff.object, true)) skjul(treff.object);
+      }
+      const utvidet = new THREE.Box3(), treffP = new THREE.Vector3();
       for (const { o, b, grense } of høye) {
-        if (!o.visible || !synlig(o)) continue;
-        let inni = false;
-        for (const m of mål) {
-          for (let k = 0; k <= 10 && !inni; k++) {
-            p.lerpVectors(camera.position, m, k / 10 * 0.93);
-            if (b.distanceToPoint(p) < grense) inni = true;            // bilder skjules litt videre, så de ikke henger i lufta
-          }
-          if (inni) break;
-        }
-        if (inni) { o.visible = false; iVeien.push(o); }
+        if (!synlig(o, true)) continue;
+        utvidet.copy(b).expandByScalar(grense);
+        if (utvidet.containsPoint(camera.position)) { skjul(o); continue; }       // kameraet står inni veggen
+        for (const { stråle, lengde } of stråler)
+          if (stråle.intersectBox(utvidet, treffP) && treffP.distanceTo(stråle.origin) < lengde) { skjul(o); break; }
       }
+      // vis igjen det som ikke lenger er i veien, skjul det som er det
+      for (const o of iVeien) if (!(skjultTil.get(o) > nå)) { o.visible = true; skjultTil.delete(o); }
+      iVeien.length = 0;
+      for (const [o, til] of skjultTil) if (til > nå) { o.visible = false; iVeien.push(o); }
     }
+    const skjultTil = new Map();
+    let himmel = null;
     const iVeien = [], høye = [];
-    function visAltIgjen() { for (const o of iVeien) o.visible = true; iVeien.length = 0; }
-    const synlig = o => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+    function visAltIgjen() { for (const o of iVeien) o.visible = true; iVeien.length = 0; skjultTil.clear(); }
+    const synlig = (o, ignorerEgen = false) => { for (let p = ignorerEgen ? o.parent : o; p; p = p.parent) if (!p.visible) return false; return true; };
 
     // ---------- Start ----------
     requestAnimationFrame(() => setTimeout(() => {
@@ -1599,10 +1608,11 @@
       controls.target.set(tilstand.pos.x, 0.9, tilstand.pos.z);
       controls.update();
       scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
+      himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
       for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
         const b = new THREE.Box3().setFromObject(o);
         const tynn = Math.min(b.max.x - b.min.x, b.max.z - b.min.z) < 0.06 && b.max.y - b.min.y > 0.3;   // bilder og annet på veggene
-        if ((o.material.clippingPlanes || tynn || b.max.y - b.min.y > 1.3) && b.max.y - b.min.y < 3.5) høye.push({ o, b, grense: tynn ? 1.0 : 0.5 });   // også bjelker over dører
+        if ((o.material.clippingPlanes || tynn || b.max.y - b.min.y > 1.3) && b.max.y - b.min.y < 3.5) høye.push({ o, b, grense: tynn ? 0.35 : 0.06 });   // også bjelker over dører
       }
       settKamera(kamera.modus);
       finnTing();
@@ -1611,7 +1621,7 @@
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
         steg(dt); animerMeg(dt); tegnAndre(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
-        plasserLapper(); plasserIkoner(); følgYtelse(); composer.render();
+        himmel?.oppdater(dt, camera); plasserLapper(); plasserIkoner(); følgYtelse(); composer.render();
       });
     }, 30));
 
@@ -1863,7 +1873,7 @@
     }
 
     // for testing og opptak
-    window.spill = { animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+    window.spill = { himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>
