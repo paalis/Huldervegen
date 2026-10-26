@@ -663,6 +663,7 @@
     // sittende handlinger med egne armbevegelser (spise, fjernkontroll, glass) får armene lagt oppå.
     let animData = null;
     const lastAnimasjoner = () => animData ??= fetch('figurer/animasjoner.json').then(r => r.ok ? r.json() : null).catch(() => null);
+    const FRAMBØY = { Spine: 3, Spine1: 3, Spine2: 3, Neck: -5 };              // grader fram for hvert ledd (se lagAnimasjoner)
     const KLIPP_HANDLING = { piano: 'piano', gitar: 'gitar', playstation: 'taster', utsikt: 'utsikt' };
     const ENGANG = ['setter_seg', 'reiser_seg', 'ligger'];
     async function lagAnimasjoner(r) {
@@ -700,8 +701,8 @@
         return q;
       };
       // Modellens referanse er bindstillingen (T-stilling, fra skjelettets inverse bindmatriser); kildens hvilestilling
-      // har armene ned. Derfor dreies hvert modellben først så det peker samme vei som kildebenet i hvile (begge
-      // skjelettene har benet langs lokal +Y): korr = Gkilde,hvile⁻¹ · S · Gmodell,bind, der S retter opp retningen.
+      // har armene ned. Derfor dreies armbena først så de peker samme vei som kildebenet i hvile (begge skjelettene
+      // har benet langs lokal +Y): korr = Gkilde,hvile⁻¹ · S · Gmodell,bind, der S retter opp retningen.
       const retarget = [], bindG = new Map(), skjelett = rot.getObjectByProperty('isSkinnedMesh', true)?.skeleton;
       skjelett?.bones.forEach((b, i) => {
         const q = new THREE.Quaternion();
@@ -714,8 +715,17 @@
           const kb = kildeBen.get(b.name);
           if (!kb) continue;
           const kG = globalHvile(kb, kildeLok, kilde), mG = bindG.get(b) ?? globalHvile(b, modellLok, rot);
-          const S = new THREE.Quaternion().setFromUnitVectors(Y_AKSE.clone().applyQuaternion(mG), Y_AKSE.clone().applyQuaternion(kG));
+          // bare armene rettes inn etter kildens retning (der er hvilestillingene ulike: T-stilling mot armene ned);
+          // rygg, hode og bein har samme nøytrale stilling i begge, og Mixamos krumme rygg ville gitt bakoverlent figur
+          const S = /Shoulder|Arm|Hand/.test(b.name) ? new THREE.Quaternion().setFromUnitVectors(Y_AKSE.clone().applyQuaternion(mG), Y_AKSE.clone().applyQuaternion(kG)) : new THREE.Quaternion();
           retarget.push({ b, kb, korr: kG.clone().invert().multiply(S).multiply(mG) });
+        }
+        // Avaturn-modellen står med hoftene fram og skuldrene bak; ryggen bøyes litt fram (fordelt på ryggvirvlene)
+        // og nakken rettes opp igjen, så figuren står rett. Vinkelen summeres nedover i kjeden (overkroppen følger med).
+        for (const r of retarget) {
+          let v = 0;
+          for (let o = r.b; o && o !== rot; o = o.parent) v += FRAMBØY[o.name] ?? 0;
+          if (v) r.fram = new THREE.Quaternion().setFromAxisAngle(X_AKSE, v * Math.PI / 180);
         }
       }
       r.anim = { mixer, handlinger, anker, aktiv: null, modus: 'prosedyre', hvile: alle, hipsHvile: hvile, bland: null, kilde, kildeBen, retarget };
@@ -726,8 +736,9 @@
       if (!A.retarget.length) return;
       const kG = new Map(), mG = new Map();
       const kildeG = b => { let g = kG.get(b); if (!g) { g = b.parent && b.parent !== A.kilde ? kildeG(b.parent).clone().multiply(b.quaternion) : b.quaternion.clone(); kG.set(b, g); } return g; };
-      for (const { b, kb, korr } of A.retarget) {
+      for (const { b, kb, korr, fram } of A.retarget) {
         const ønsket = kildeG(kb).clone().multiply(korr);                      // modellbenets rotasjon i forhold til roten
+        if (fram) ønsket.premultiply(fram);
         // forelderens nåværende rotasjon i forhold til roten
         let fg;
         if (b.parent && mG.has(b.parent)) fg = mG.get(b.parent);
