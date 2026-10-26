@@ -240,7 +240,7 @@
     const aoRender = ao.render.bind(ao);
     ao.render = (...a) => {
       const skjult = [];
-      scene.traverseVisible(o => { if (o.isMesh && o.material.transparent) { o.visible = false; skjult.push(o); } });
+      scene.traverseVisible(o => { if ((o.isMesh || o.isSprite || o.isLine || o.isPoints) && o.material.transparent) { o.visible = false; skjult.push(o); } });   // gjennomsiktig (glass, damp, vann) blir svart i skyggeeffekten
       aoRender(...a);
       for (const o of skjult) o.visible = true;
     };
