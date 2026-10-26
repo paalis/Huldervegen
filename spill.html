@@ -582,8 +582,9 @@
       r.modellSti = sti;
       if (r.avatar) { r.figur.remove(r.avatar.rot); r.avatar = null; r.anim = null; proxySynlig(r, true); }
       if (!sti) return;
+      proxySynlig(r, false);                                                   // ikke vis den tegnede figuren mens modellen lastes
       let gltf;
-      try { gltf = await lastModell(sti); } catch (e) { console.warn('Kunne ikke laste', sti, e); return; }
+      try { gltf = await lastModell(sti); } catch (e) { console.warn('Kunne ikke laste', sti, e); if (r.modellSti === sti) proxySynlig(r, true); return; }
       if (r.modellSti !== sti) return;                                        // byttet igjen mens den lastet
       const rot = SkeletonUtils.clone(gltf.scene);
       rot.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; figurdeler.add(o); } });
@@ -1069,7 +1070,7 @@
     const KAMERA_FOR = {
       do2: 'side', do3: 'side', piano: 'front', gitar: 'front', middag: 'front', ute: 'front', takterrasse: 'front',
       vask2: 'side', vask3: 'side', tenner: 'side', steke: 'side', kaffe: 'side', sov13: 'side', sov7: 'side', sov12: 'side',
-      dusj: 'side', utsikt: 'høyre', netflix: 'skrå', netflix3: 'skrå', playstation: 'skrå',
+      dusj: 'side', utsikt: 'høyre', vaskemaskin: 'skrå', netflix: 'skrå', netflix3: 'skrå', playstation: 'skrå',
     };
     for (const [id, k] of Object.entries(KAMERA_FOR)) if (HANDLINGER[id]) HANDLINGER[id].kamera = k;
     // kontroll i hendene og lys på skjermen mens figuren spiller
@@ -1752,38 +1753,62 @@
       camera.position.lerp(ønsket, k);
       kamera.blikk.lerp(mål, k);
       camera.lookAt(kamera.blikk);
-      // Strålene går fra kameraet til punkter på figuren (føtter, hofter, bryst, hode og skuldrene på hver side).
-      // Det som krysser en stråle skjules: møbler og annet treffes nøyaktig, vegger, dører og høye skap med en
-      // smal margin rundt boksen. Det som skjules, blir skjult en liten stund etterpå, så det ikke blinker.
+      // Et rutenett av stråler fra kameraet dekker hele omrisset av figuren (fra føttene til over hodet, og
+      // skulderbredden ut på hver side). Alt som en stråle treffer før den når figuren, skjules: vegger, møbler,
+      // trappetrinn, rekkverk og glass. Det som står ved siden av figuren, blir stående. Bilder og annet som
+      // henger på en skjult vegg, skjules sammen med den. Det som skjules, holdes skjult et øyeblikk etterpå,
+      // så det ikke blinker.
       figur.updateMatrixWorld(true);
-      const nå = performance.now(), sideveis = new THREE.Vector3().subVectors(kamera.blikk, camera.position).cross(camera.up).normalize();
-      // under en handling med egen vinkel: bare overkroppen, så bord, piano og senger foran figuren blir stående
-      const punkter = vinkel ? [kropp.hode, kropp.bryst] : [0.3, 0.9, 1.4, 1.75].map(h => figur.localToWorld(new THREE.Vector3(0, h, 0)));
-      for (const m of vinkel ? [kropp.bryst] : [1.05, 1.5].map(h => figur.localToWorld(new THREE.Vector3(0, h, 0))))
-        punkter.push(m.clone().addScaledVector(sideveis, 0.24), m.clone().addScaledVector(sideveis, -0.24));
-      const avOss = new Set(iVeien);                                          // skjult av kameraet (ikke av spillet ellers)
-      const skjul = o => { if (o.visible || avOss.has(o)) skjultTil.set(o, nå + 350); };
-      const stråler = punkter.map(m => {
-        const retning = new THREE.Vector3().subVectors(m, camera.position), lengde = retning.length();
-        return { stråle: new THREE.Ray(camera.position.clone(), retning.normalize()), lengde: lengde - 0.3 };
-      });
-      for (const { stråle, lengde } of stråler) {
-        kameraStråle.ray.copy(stråle); kameraStråle.near = 0; kameraStråle.far = lengde;
-        for (const treff of kameraStråle.intersectObjects(hindre, false)) if (synlig(treff.object, true)) skjul(treff.object);
-        for (const treff of kameraStråle.intersectObjects(glassFlater, false)) if (synlig(treff.object, true)) skjul(treff.object);   // glassdører, vinduer, dusjvegger
+      const nå = performance.now(), sideveis = new THREE.Vector3().subVectors(kamera.blikk, camera.position).setY(0).cross(camera.up).normalize();
+      const punkter = [];
+      if (vinkel) {                                                            // under en handling: bare overkroppen
+        const fra = kropp.bryst.y - 0.2, til = kropp.hode.y + 0.14;
+        for (let i = 0; i < 4; i++) for (const u of [-0.24, -0.12, 0, 0.12, 0.24]) {
+          const p = kropp.bryst.clone().lerp(kropp.hode, i / 3); p.y = fra + (til - fra) * i / 3;
+          punkter.push(p.addScaledVector(sideveis, u));
+        }
+      } else {
+        const fs = figur.scale.y;
+        for (const h of [0.15, 0.45, 0.75, 1.05, 1.35, 1.6, 1.85]) for (const u of [-0.36, -0.24, -0.12, 0, 0.12, 0.24, 0.36])
+          punkter.push(new THREE.Vector3(t.pos.x, t.pos.y + h * fs, t.pos.z).addScaledVector(sideveis, u * (h > 1.65 ? 0.6 : 1)));
       }
-      const utvidet = new THREE.Box3(), treffP = new THREE.Vector3();
-      for (const { o, b, grense } of høye) {
-        if (!synlig(o, true)) continue;
-        utvidet.copy(b).expandByScalar(grense);
-        if (utvidet.containsPoint(camera.position)) { skjul(o); continue; }       // kameraet står inni veggen
-        for (const { stråle, lengde } of stråler)
-          if (stråle.intersectBox(utvidet, treffP) && treffP.distanceTo(stråle.origin) < lengde) { skjul(o); break; }
+      // bare det som ligger i området mellom kameraet og figuren er aktuelt
+      const område = new THREE.Box3().setFromPoints([camera.position, ...punkter]).expandByScalar(0.3);
+      const kandidater = [];
+      for (const o of hindreOgGlass) if (synlig(o, true) && område.intersectsBox(boksFor(o))) kandidater.push(o);
+      const avOss = new Set(iVeien);                                          // skjult av kameraet (ikke av spillet ellers)
+      const skjul = o => {
+        if (!(o.visible || avOss.has(o))) return;
+        skjultTil.set(o, nå + 350);
+        for (const b of påVegg.get(o) ?? []) skjultTil.set(b, nå + 350);      // bilder på veggen
+      };
+      for (const m of punkter) {
+        const retning = new THREE.Vector3().subVectors(m, camera.position), lengde = retning.length();
+        kameraStråle.set(camera.position, retning.normalize()); kameraStråle.far = lengde - 0.22;
+        for (const treff of kameraStråle.intersectObjects(kandidater, false)) skjul(treff.object);
+      }
+      for (const o of kandidater) {
+        const b = boksFor(o);
+        if (o.material.clippingPlanes && b.clone().expandByScalar(0.06).containsPoint(camera.position)) skjul(o);   // kameraet står inni veggen
+        else if (!vinkel && b.min.y > t.pos.y + 2.0 && b.min.y < camera.position.y) skjul(o);   // trinn og bjelker over hodet, mellom kameraet og figuren
       }
       // vis igjen det som ikke lenger er i veien, skjul det som er det
       for (const o of iVeien) if (!(skjultTil.get(o) > nå)) { o.visible = true; skjultTil.delete(o); }
       iVeien.length = 0;
       for (const [o, til] of skjultTil) if (til > nå) { o.visible = false; iVeien.push(o); }
+    }
+    // bokser i verden for alt som kan stå i veien (beregnes én gang; huset står stille)
+    const bokser = new Map(), hindreOgGlass = [], påVegg = new Map();
+    const boksFor = o => { let b = bokser.get(o); if (!b) { b = new THREE.Box3().setFromObject(o); bokser.set(o, b); } return b; };
+    function forberedKamera() {
+      hindreOgGlass.push(...hindre, ...glassFlater);
+      // bilder og andre tynne ting som henger på en vegg, hører til veggen
+      const vegger = hindre.filter(o => o.material.clippingPlanes);
+      for (const o of hindre) {
+        const b = boksFor(o), str = b.getSize(new THREE.Vector3());
+        if (o.material.clippingPlanes || Math.min(str.x, str.z) > 0.06 || str.y < 0.2 || str.y > 2) continue;
+        for (const v of vegger) if (boksFor(v).distanceToPoint(b.getCenter(new THREE.Vector3())) < 0.1) { if (!påVegg.has(v)) påVegg.set(v, []); påVegg.get(v).push(o); }
+      }
     }
     const skjultTil = new Map();
     const KAMERAVINKEL = { høyre: { v: Math.PI / 2, d: 2.4, h: 0.55, side: -1 }, side: { v: Math.PI / 2, d: 2.4, h: 0.55 }, front: { v: 0.4, d: 2.3, h: 0.45 }, skrå: { v: Math.PI - 0.65, d: 2.5, h: 0.75 } };
@@ -1826,6 +1851,7 @@
       controls.update();
       scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
       scene.traverse(o => { if (o.isMesh && o.material.transparent && o.material.opacity < 0.9 && !figurdeler.has(o) && o !== ring) glassFlater.push(o); });
+      forberedKamera();
       himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
       for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
         const b = new THREE.Box3().setFromObject(o);
@@ -2052,7 +2078,7 @@
 
     // ---------- Mobil: meny, hurtigknapper, styrespak og automatisk kvalitet ----------
     const panel = knapp('panel');
-    if (mobil) panel.classList.add('lukket');                               // menyen er lagt sammen på mobil
+    panel.classList.add('lukket');                                          // menyen er lagt sammen fra start (☰ åpner den)
     knapp('meny').onclick = () => panel.classList.toggle('lukket');
     for (const b of document.querySelectorAll('#hurtig [data-etg]')) b.onclick = () => visEtasje(+b.dataset.etg - 1);
     knapp('hurtig-kamera').onclick = () => settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
