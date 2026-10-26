@@ -854,11 +854,11 @@ for (const z of [0.55, 0.95]) boks(2.944, F + 1.30, z, 2.965, F + 1.80, z + 0.32
 boks(T, F, 4.64, 0.95, F + 0.01, 5.45, M.flis);                   // lys mosaikk i dusjen
 boks(0.93, F, 4.64, 0.95, F + 1.95, 5.45, M.glass);
 boks(T, F, 5.43, 0.95, F + 1.95, 5.45, M.glass);
-// dusjhode på stang fra veggen, med blandebatteri
-sylinder(T + 0.02, 5.05, F + 0.95, F + 2.08, 0.012, M.stål);
-boks(T + 0.01, F + 2.06, 5.04, 0.52, F + 2.08, 5.06, M.stål);
+// dusjhode på stang fra veggen mot soverommet (inne i hjørnet), med blandebatteri
+sylinder(0.52, 4.66, F + 0.95, F + 2.08, 0.012, M.stål);
+boks(0.51, F + 2.06, 4.65, 0.53, F + 2.08, 5.05, M.stål);
 oval(0.52, 5.05, 0.10, 0.10, F + 2.03, F + 2.06, M.stål);
-boks(T + 0.01, F + 1.02, 4.98, T + 0.07, F + 1.08, 5.12, M.stål);
+boks(0.45, F + 1.02, 4.64, 0.59, F + 1.08, 4.70, M.stål);
 boks(T, F, 5.75, T + 0.01, F + H, 6.05, M.flisStripe);            // stripe i brun flis
 boks(T + 0.01, F + 1.15, 5.80, T + 0.04, F + 1.17, 6.00, M.stål);   // håndklestang
 boks(0.62, F + 0.45, 6.70, 1.78, F + 0.88, 7.18, M.hvit);         // servant med skuffer
