@@ -639,7 +639,7 @@
       lagAnimasjoner(r);
     }
     // overfør styreskjelettets stilling til modellens knokler (kalles etter at stillingen er regnet ut)
-    const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), qF = new THREE.Quaternion(), Y_AKSE = new THREE.Vector3(0, 1, 0);
+    const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), qF = new THREE.Quaternion(), Y_AKSE = new THREE.Vector3(0, 1, 0), X_AKSE = new THREE.Vector3(1, 0, 0);
     function følgSkjelett(r, kunArmer = false) {
       if (!r.avatar) return;
       const { rygg, ryggHvile } = r.avatar;                                   // overkroppen vrir seg når figuren går
@@ -732,7 +732,7 @@
         const sete = h?.sete ?? 0.46;
         rot.position.set(-ank.x * s, (sete + 0.07) / fs - ank.y * s, -ank.z * s);
       } else if (valg.klipp === 'ligger') {
-        rot.position.set(-ank.x * s, (h.liggehøyde - 0.02) / fs - ank.y * s, -0.93 - ank.z * s);   // hoftene der figurens hofter ligger
+        rot.position.set(-ank.x * s, (h.liggehøyde + 0.1) / fs - ank.y * s, -0.93 - ank.z * s);   // hoftene der figurens hofter ligger
       }
       if (valg.armer) følgSkjelett(r, true);
       blandBen(r, dt);
@@ -919,8 +919,8 @@
         } },
       gitar: { navn: 'Spill gitar', ikon: '🎸', f: 2, gå: [0.95, 8.58], pos: [0.95, 8.58], retning: π / 2, holdning: 'stå',
         lyd: 'lyder/gitar.mp3', gjenta: true,
-        før: () => { holdtGitar.visible = true; if (stativGitar) stativGitar.visible = false; },
-        etter: () => { holdtGitar.visible = false; if (stativGitar) stativGitar.visible = true; },
+        før: () => { holdtGitar.visible = true; if (stativGitar) stativGitar.visible = false; if (kontorstol) kontorstol.visible = false; },
+        etter: () => { holdtGitar.visible = false; if (stativGitar) stativGitar.visible = true; if (kontorstol) kontorstol.visible = true; },
         armer: tt => {
           armV.skulder.rotation.x = -0.35 + Math.sin(tt * 12) * 0.1;          // høyre hånd slår an over lydhullet
           armV.skulder.rotation.z = 0.3; armV.albue.rotation.x = -0.75;
@@ -1109,9 +1109,17 @@
     const tvBilde3 = new THREE.Mesh(tvBilde.geometry.clone().scale(0.86 / 1.46, 0.50 / 0.81, 1), tvBilde.material);
     tvBilde3.position.set(2.30, G3 + 0.81, 6.605); tvBilde3.rotation.y = π; tvBilde3.visible = false; scene.add(tvBilde3);
     // ting figuren holder i høyre hånd (hånda peker nedover langs underarmen, fingrene mot +z)
-    const iHånd = (o, x = 0, y = -0.06, z = 0.03) => { o.position.set(x, y, z); o.visible = false; armV.hånd.add(o); return o; };
+    // ting i hånda henger i en gruppe som flyttes til 3D-modellens håndledd (styreskjelettets hånd ligger litt annerledes)
+    const håndJust = new THREE.Group(); armV.hånd.add(håndJust);
+    const iHånd = (o, x = 0, y = -0.06, z = 0.03) => { o.position.set(x, y, z); o.visible = false; håndJust.add(o); return o; };
     const stål = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, roughness: 0.3, metalness: 0.8 });
-    const gaffel = iHånd(new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.006), stål), 0, -0.07, 0.05);
+    const gaffel = iHånd((() => {                                            // skaft, hals og fire tenner langs +y
+      const g = new THREE.Group();
+      const skaft = new THREE.Mesh(new RoundedBoxGeometry(0.014, 0.12, 0.004, 2, 0.0018), stål); skaft.position.y = -0.02; g.add(skaft);
+      const hals = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.025, 0.003), stål); hals.position.y = 0.05; g.add(hals);
+      for (let k = 0; k < 4; k++) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.0028, 0.04, 0.0025), stål); t.position.set(-0.0075 + k * 0.005, 0.082, 0); g.add(t); }
+      return g;
+    })(), 0, -0.07, 0.05);
     gaffel.rotation.x = 1.2;
     const lagKopp = () => {
       const k = new THREE.Group(), keramikk = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.35 });
@@ -1190,17 +1198,85 @@
       vann.geometry.attributes.position.needsUpdate = true;
     }
     // gitaren figuren holder (skjult til den spiller), og gitaren på stativet som skjules imens
-    const holdtGitar = new THREE.Group();
-    {
-      const tre = new THREE.MeshStandardMaterial({ color: 0x7a2f22, roughness: 0.45 }), hals = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.6 });
-      for (const [y, rr] of [[0, 0.16], [0.21, 0.12]]) {
-        const k = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr, 0.045, 32), tre);
-        k.rotation.x = π / 2; k.position.y = y; k.castShadow = true; holdtGitar.add(k);
+    // Rød Stratocaster: kropp med doble horn, hvit plekterplate, tre pickuper, kam, knotter, lønnehals med
+    // palisandergripebrett og bånd, Strat-hode med stemmeskruer og seks strenger. Lokalt: halsen langs +x,
+    // forsiden mot +z, origo der høyre hånd slår an (mellom pickupene). Plasseres hvert bilde (se plasserGitar).
+    const holdtGitar = (() => {
+      const g = new THREE.Group();
+      const lakk = new THREE.MeshPhysicalMaterial({ color: 0xa80f1a, roughness: 0.28, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.08 });
+      const hvit = new THREE.MeshStandardMaterial({ color: 0xf3f0e8, roughness: 0.4 });
+      const krom = new THREE.MeshStandardMaterial({ color: 0xd8dadc, roughness: 0.2, metalness: 1 });
+      const lønn = new THREE.MeshStandardMaterial({ color: 0xe2c08a, roughness: 0.45 });
+      const palisander = new THREE.MeshStandardMaterial({ color: 0x3a2418, roughness: 0.7 });
+      const form = (pkt, lukk = true) => { const f = new THREE.Shape(); f.moveTo(...pkt[0]); f.splineThru(pkt.slice(1).map(([x, y]) => new THREE.Vector2(x, y))); if (lukk) f.closePath(); return f; };
+      const ekstruder = (f, dybde, fas, m, z) => {
+        const geo = new THREE.ExtrudeGeometry(f, { depth: dybde, bevelEnabled: fas > 0, bevelSize: fas, bevelThickness: fas, bevelSegments: 3, curveSegments: 48 });
+        const mesh = new THREE.Mesh(geo, m); mesh.position.z = z; mesh.castShadow = true; g.add(mesh); return mesh;
+      };
+      // kroppen (4,5 cm tykk, forsiden på z = 0)
+      ekstruder(form([[0.06, 0.03], [0.10, 0.10], [0.085, 0.148], [0.035, 0.152], [-0.015, 0.12], [-0.07, 0.128], [-0.16, 0.158], [-0.26, 0.158],
+        [-0.335, 0.11], [-0.36, 0.0], [-0.335, -0.115], [-0.26, -0.162], [-0.16, -0.155], [-0.075, -0.128], [-0.02, -0.122], [0.03, -0.142], [0.062, -0.118], [0.06, -0.03]]),
+        0.033, 0.006, lakk, -0.039);
+      // plekterplate
+      ekstruder(form([[0.055, 0.032], [0.07, 0.08], [0.03, 0.115], [-0.04, 0.1], [-0.13, 0.11], [-0.2, 0.075], [-0.205, -0.02], [-0.17, -0.09], [-0.1, -0.11],
+        [-0.03, -0.1], [0.04, -0.105], [0.055, -0.07], [0.055, -0.032]]), 0.002, 0, hvit, 0.001);
+      // pickuper (den bakerste på skrå), kam og knotter
+      [[0.0, 0], [-0.052, 0], [-0.11, 0.14]].forEach(([x, vri]) => {
+        const p = new THREE.Mesh(new RoundedBoxGeometry(0.018, 0.072, 0.009, 2, 0.004), hvit); p.position.set(x, 0, 0.006); p.rotation.z = vri; g.add(p);
+      });
+      const kam = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.088, 0.008), krom); kam.position.set(-0.165, 0, 0.005); g.add(kam);
+      for (const [x, y] of [[-0.125, -0.085], [-0.155, -0.1], [-0.19, -0.105]]) {
+        const k = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.012, 0.016, 20), hvit); k.rotation.x = π / 2; k.position.set(x, y, 0.009); g.add(k);
       }
-      const h = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.5, 0.025), hals); h.position.set(0, 0.55, 0.01); holdtGitar.add(h);
-      const hode = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.03), hals); hode.position.set(0, 0.85, 0.01); holdtGitar.add(hode);
-      holdtGitar.position.set(-0.06, 0.98, 0.16); holdtGitar.rotation.z = -1.05;
-      holdtGitar.visible = false; figur.add(holdtGitar);
+      const bryter = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.012, 0.014), hvit); bryter.position.set(-0.075, -0.098, 0.008); bryter.rotation.z = 0.6; g.add(bryter);
+      // hals og gripebrett (mensur 64,8 cm: salen ved x = -0,178, sadelen ved x = 0,47)
+      const hals = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.048, 0.022), lønn); hals.position.set(0.255, 0, -0.008); hals.castShadow = true; g.add(hals);
+      const brett = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.05, 0.006), palisander); brett.position.set(0.265, 0, 0.006); g.add(brett);
+      for (let n = 1; n <= 21; n++) {
+        const x = 0.47 - 0.648 * (1 - Math.pow(2, -n / 12));
+        if (x < 0.065) break;
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.0022, 0.05, 0.0025), krom); b.position.set(x, 0, 0.0095); g.add(b);
+      }
+      for (const n of [3, 5, 7, 9, 12, 15]) {                                  // markeringer på gripebrettet
+        const x = 0.47 - 0.648 * (1 - Math.pow(2, -(n - 0.5) / 12));
+        for (const y of n === 12 ? [-0.012, 0.012] : [0]) { const d = new THREE.Mesh(new THREE.CircleGeometry(0.0035, 12), hvit); d.position.set(x, y, 0.0092); g.add(d); }
+      }
+      const sadel = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.048, 0.005), hvit); sadel.position.set(0.47, 0, 0.0095); g.add(sadel);
+      // Strat-hode med seks stemmeskruer på én side
+      ekstruder(form([[0.47, -0.024], [0.5, -0.03], [0.6, -0.022], [0.665, -0.03], [0.68, -0.012], [0.665, 0.01], [0.6, 0.035], [0.54, 0.052], [0.5, 0.04], [0.47, 0.024]]),
+        0.012, 0.002, lønn, -0.014);
+      for (let k = 0; k < 6; k++) {
+        const x = 0.505 + k * 0.03, y = 0.03 - k * 0.0095;
+        const s1 = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 10), krom); s1.rotation.x = π / 2; s1.position.set(x, y, 0.004); g.add(s1);
+        const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.018, 0.006), krom); s2.position.set(x, y + 0.017, -0.018); g.add(s2);
+      }
+      // strengene
+      const strenger = [];
+      for (let k = 0; k < 6; k++) {
+        const yB = (k - 2.5) * 0.0105, yN = (k - 2.5) * 0.0072;
+        strenger.push(-0.168, yB, 0.011, 0.47, yN, 0.011, 0.47, yN, 0.011, 0.505 + (5 - k) * 0.03, 0.03 - (5 - k) * 0.0095, 0.009);
+      }
+      const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(strenger, 3));
+      g.add(new THREE.LineSegments(sg, new THREE.LineBasicMaterial({ color: 0xe8e8e8 })));
+      g.visible = false; scene.add(g);
+      return g;
+    })();
+    // plasser gitaren: med 3D-modell mellom hendene (høyre hånd slår an over pickupene, halsen peker mot venstre
+    // hånd), ellers foran den tegnede figuren med halsen skrått opp mot venstre
+    function plasserGitar() {
+      if (!holdtGitar.visible) return;
+      const rot = meg.avatar?.rot, R = rot?.getObjectByName('RightHandMiddle1'), L = rot?.getObjectByName('LeftHandMiddle1');
+      meg.figur.updateMatrixWorld(true);
+      if (R && L) {
+        const pr = R.getWorldPosition(new THREE.Vector3()), pl = L.getWorldPosition(new THREE.Vector3());
+        const x = pl.clone().sub(pr).normalize(), fram = new THREE.Vector3(Math.sin(meg.figur.rotation.y), 0, Math.cos(meg.figur.rotation.y));
+        const z = fram.addScaledVector(x, -fram.dot(x)).normalize(), y = new THREE.Vector3().crossVectors(z, x);
+        holdtGitar.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+        holdtGitar.position.copy(pr).addScaledVector(z, -0.045).addScaledVector(y, -0.015);   // kroppen inntil magen, bak hånda
+      } else {
+        const m = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 1.0, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.42)), new THREE.Vector3(1, 1, 1));
+        m.premultiply(meg.figur.matrixWorld).decompose(holdtGitar.position, holdtGitar.quaternion, holdtGitar.scale);
+      }
     }
     // stekepanne på koketoppen mens figuren steker
     const panne = new THREE.Group();
@@ -1220,10 +1296,11 @@
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
       sp.scale.set(0.4, 0.2, 1); sp.visible = false; scene.add(sp); return sp;
     })();
-    let stativGitar = null, vaskemaskin = null, vaskeluke = null, vaskX = 0, vaskLukeX = 0;
+    let kontorstol = null, stativGitar = null, vaskemaskin = null, vaskeluke = null, vaskX = 0, vaskLukeX = 0;
     function finnTing() {
       scene.traverse(o => {
         if (o.isGroup && Math.abs(o.position.x - 0.40) < 0.02 && Math.abs(o.position.y - G3) < 0.02 && Math.abs(o.position.z - 8.58) < 0.02) stativGitar = o;
+        if (o.isGroup && Math.abs(o.position.x - 1.60) < 0.02 && Math.abs(o.position.y - G3) < 0.02 && Math.abs(o.position.z - 8.55) < 0.02) kontorstol = o;
         if (!o.isMesh) return;
         const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3());
         if (Math.abs(c.x - 4.245) < 0.02 && Math.abs(c.z - 9.35) < 0.05 && Math.abs(c.y - (G3 + 0.425)) < 0.03) vaskemaskin = o;
@@ -1434,6 +1511,53 @@
       else valg = velgKlipp(t.handling?.id, t.beveger, fart, t.løper);
       valg.y = t.reiser ? t.reiser.y : t.pos.y;
       animer(meg, valg, dt);
+      oppdaterGrep();
+      plasserGitar();
+    }
+
+    // Ting i hånda: med 3D-modell festes gaffel, glass, kopp og tannbørste i modellens høyre hånd (armV er
+    // figurens høyre arm), og fingrene krummes rundt dem. Fingrene bøyer seg om sin lokale x-akse (målt fra
+    // Mixamo-klippene), og håndflaten vender mot +z i håndens rom.
+    const TING = [[gaffel, { type: 'skaft', ut: 0.035, krum: [1.05, 1.25, 0.9] }], [tannbørste, { type: 'skaft', ut: 0.03, krum: [1.05, 1.25, 0.9] }],
+      [glass, { type: 'beger', r: 0.035, h: 0.12, krum: [0.55, 0.75, 0.55] }], [koppHånd, { type: 'beger', r: 0.04, h: 0.09, krum: [0.6, 0.8, 0.6] }]];
+    for (const [o] of TING) o.userData.opprinnelig = [o.position.clone(), o.quaternion.clone()];
+    const FINGRE = ['Index', 'Middle', 'Ring', 'Pinky'];
+    let grepHånd = null, grepBen = null, grepPå = false;
+    function oppdaterGrep() {
+      const hånd = meg.avatar?.rot.getObjectByName('RightHand') ?? null;
+      if (hånd !== grepHånd) {                                                 // ny modell (eller ingen): flytt tingene
+        grepHånd = hånd; grepBen = null; grepPå = false;
+        for (const [o, def] of TING) {
+          if (!hånd) { håndJust.add(o); o.position.copy(o.userData.opprinnelig[0]); o.quaternion.copy(o.userData.opprinnelig[1]); continue; }
+          const ledd = n => hånd.getObjectByName('RightHand' + n)?.position;
+          const i1 = ledd('Index1'), p1 = ledd('Pinky1'), m1 = ledd('Middle1');
+          if (!i1 || !p1 || !m1) continue;
+          const y = i1.clone().sub(p1).normalize();                            // fra lillefinger mot pekefinger: gjennom grepet
+          const langs = m1.clone().normalize(), flate = new THREE.Vector3(0, 0, 1);
+          const z = flate.addScaledVector(y, -flate.dot(y)).normalize(), x = new THREE.Vector3().crossVectors(y, z);
+          const midt = m1.clone().multiplyScalar(0.6).addScaledVector(langs, 0.01);
+          const pos = def.type === 'skaft'
+            ? midt.clone().addScaledVector(z, 0.022).addScaledVector(y, def.ut)  // skaftet gjennom neven, tennene ut på pekefingersiden
+            : midt.clone().addScaledVector(z, def.r + 0.012).addScaledVector(y, -def.h * 0.45);
+          hånd.add(o); o.position.copy(pos);
+          o.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+          o.scale.setScalar(1 / (meg.avatar.rot.scale.x || 1));                 // modellen er skalert; tingene skal ha ekte størrelse
+        }
+      }
+      if (!hånd || !meg.anim) return;
+      grepBen ??= FINGRE.flatMap(f => [1, 2, 3].map(n => {
+        const b = hånd.getObjectByName(`RightHand${f}${n}`), hv = meg.anim.hvile.find(([bb]) => bb === b);
+        return b && hv ? [b, hv[1], n - 1] : null;
+      }).filter(Boolean));
+      const holdt = TING.find(([o]) => o.visible);
+      if (holdt) {
+        const krum = holdt[1].krum, q = new THREE.Quaternion();
+        for (const [b, hvile, i] of grepBen) b.quaternion.copy(hvile).multiply(q.setFromAxisAngle(X_AKSE, krum[i]));
+        grepPå = true;
+      } else if (grepPå) {
+        for (const [b, hvile] of grepBen) b.quaternion.copy(hvile);
+        grepPå = false;
+      }
     }
 
     // myke overganger: stillingen tas vare på når figuren setter seg, reiser seg eller bytter handling,
@@ -1617,9 +1741,9 @@
         const v = r + vinkel.v * t.handling.kameraSide + kamera.dreiing;
         ønsket.set(mål.x + Math.sin(v) * avst, mål.y + Math.max(-0.6, høyde + kamera.helning), mål.z + Math.cos(v) * avst);
       } else {
-        const rc = r + kamera.dreiing;                                         // dreid med musa
+        const rc = r + kamera.dreiing;                                         // dreid med musa; blikket går gjennom figuren
         ønsket.set(t.pos.x - Math.sin(rc) * a, t.pos.y + Math.max(0.4, 1.6 + a * 0.3 + kamera.helning), t.pos.z - Math.cos(rc) * a);
-        mål = new THREE.Vector3(t.pos.x + Math.sin(r) * 1.0, t.pos.y + 1.0, t.pos.z + Math.cos(r) * 1.0);
+        mål = new THREE.Vector3(t.pos.x + Math.sin(rc) * 1.0, t.pos.y + 1.0, t.pos.z + Math.cos(rc) * 1.0);
       }
       const k = hopp ? 1 : Math.min(1, dt * (vinkel || kamera.fraVinkel > 0 ? 2.5 : 6));    // gli rolig inn i og ut av vinkelen
       kamera.fraVinkel = vinkel ? 1.2 : Math.max(0, (kamera.fraVinkel || 0) - dt);
