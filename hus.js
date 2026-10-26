@@ -757,8 +757,8 @@ boks(3.80, F, 7.30, 3.84, F + 2.03, 8.03, M.hvitDør);             // soverom 12
 // kartplakater i brun treramme på gangveggen ved badet: Hommelvik til venstre for baddøra, Levanger til høyre
 {
   const ramme = new THREE.MeshStandardMaterial({ color: 0x5c3b27, roughness: 0.65 }), x = 2.94, b = 0.55, h = 0.75, r = 0.035;
-  for (const [fil, zm] of [['hommelvik', 6.61], ['levanger', 4.90]]) {
-    const y1 = F + 1.18, y2 = y1 + h, z1 = zm - b / 2, z2 = zm + b / 2, g = new THREE.Group();
+  for (const [fil, zm] of [['hommelvik', 6.70], ['levanger', 5.03]]) {
+    const y1 = F + 1.05, y2 = y1 + h, z1 = zm - b / 2, z2 = zm + b / 2, g = new THREE.Group();
     mål.add(g); veggpynt.push({ o: g, y1 });
     boks(x, y1, z1, x + 0.026, y1 + r, z2, ramme, g); boks(x, y2 - r, z1, x + 0.026, y2, z2, ramme, g);
     boks(x, y1, z1, x + 0.026, y2, z1 + r, ramme, g); boks(x, y1, z2 - r, x + 0.026, y2, z2, ramme, g);
@@ -767,6 +767,10 @@ boks(3.80, F, 7.30, 3.84, F + 2.03, 8.03, M.hvitDør);             // soverom 12
     plakat.rotation.y = Math.PI / 2; plakat.position.set(x + 0.012, (y1 + y2) / 2, zm); plakat.receiveShadow = true; g.add(plakat);
   }
 }
+// styringspanel for ventilasjonen mellom Hommelvik-kartet og baddøra
+rund(2.94, F + 1.18, 6.17, 2.958, F + 1.34, 6.26, M.grått, 0.006);
+boks(2.958, F + 1.22, 6.19, 2.96, F + 1.31, 6.24, M.svart);
+
 
 // Malte rom og flislagt bad: tynt lag på veggflatene inne i rommet, med hull for åpningene.
 const flate = (akse, a, b, fra, til, åpninger, m) =>
