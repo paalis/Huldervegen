@@ -1103,9 +1103,14 @@
         lyd: 'lyder/tannpuss.mp3', gjenta: false, varighet: 10,
         før: () => { tannbørste.visible = true; }, etter: () => { tannbørste.visible = false; },
         armer: tt => {
-          armV.skulder.rotation.x = -1.25; armV.albue.rotation.x = -1.95;
-          armV.skulder.rotation.z = 0.55 + Math.sin(tt * 14) * 0.06;             // børster fram og tilbake
-          hodet.rotation.x = 0.1;
+          // høyre hånd ved munnviken (børsten rettes inn mot munnen i plasserTannbørste), venstre hånd på servanten;
+          // børster fram og tilbake og flytter seg sakte mellom venstre og høyre side av munnen
+          hodet.rotation.x = 0.18;
+          const h = figur.rotation.y, fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
+          const munn = munnPunkt(), gnikk = Math.sin(tt * 11), side = Math.sin(tt * 0.5);
+          rekk(armV, munn.clone().addScaledVector(høyre, 0.12 + gnikk * 0.012).addScaledVector(fram, 0.07 + side * 0.03)
+            .add(new THREE.Vector3(0, -0.13 + Math.cos(tt * 11) * 0.005, 0)));
+          rekk(armH, figur.position.clone().addScaledVector(høyre, -0.26).addScaledVector(fram, 0.27).setY(G2 + 0.95));
         } },
       klær: { navn: 'Skift T-skjorte', rom: 'garderoben', ikon: '👕', f: 1, gå: [1.40, 3.50], pos: [1.40, 3.62], retning: 0, holdning: 'stå',
         lyd: 'lyder/garderobe.mp3', gjenta: false, varighet: 4,
@@ -1604,6 +1609,32 @@
       animer(meg, valg, dt);
       oppdaterGrep();
       plasserGitar();
+      plasserTannbørste();
+    }
+    // munnen: litt foran og under hodebenet (eller styreskjelettets hode uten 3D-modell)
+    function munnPunkt() {
+      const hd = meg.avatar?.rot.getObjectByName('Head');
+      if (hd) return hd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -0.01, 0.105).applyQuaternion(hd.getWorldQuaternion(new THREE.Quaternion())));
+      const h = meg.figur.rotation.y;
+      return meg.hodet.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(Math.sin(h) * 0.1, -0.03, Math.cos(h) * 0.1));
+    }
+    // tannbørsten i hånda dreies så bustene ligger i munnen, med bustene inn mot tennene
+    function plasserTannbørste() {
+      if (!tannbørste.visible || !tannbørste.parent) return;
+      const grep = tannbørste.userData.grep ??= new Map();                     // grepet i hånda (per hånd), utgangspunkt hver gang
+      if (!grep.has(tannbørste.parent)) grep.set(tannbørste.parent, tannbørste.position.clone());
+      tannbørste.position.copy(grep.get(tannbørste.parent)); tannbørste.parent.updateMatrixWorld(true);
+      const munn = munnPunkt(), p = tannbørste.getWorldPosition(new THREE.Vector3()), h = meg.figur.rotation.y;
+      const y = munn.clone().sub(p).normalize(), fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h));
+      const z = fram.negate().addScaledVector(y, fram.dot(y) * -1).normalize(), x = new THREE.Vector3().crossVectors(y, z);
+      const verden = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+      tannbørste.quaternion.copy(tannbørste.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(verden));
+      // bustene (17 cm ut langs skaftet fra grepet) skal være i munnen: skyv børsten langs skaftet om hånda er litt unna
+      const avvik = munn.distanceTo(p) - 0.165;
+      if (Math.abs(avvik) > 0.002) {
+        const ny = p.addScaledVector(y, avvik);
+        tannbørste.position.copy(tannbørste.parent.worldToLocal(ny));
+      }
     }
 
     // Ting i hånda: med 3D-modell festes gaffel, glass, kopp og tannbørste i modellens høyre hånd (armV er
