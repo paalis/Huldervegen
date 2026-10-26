@@ -112,6 +112,7 @@ const M = {
 let mål = scene;       // gruppa nye deler legges i (byttes til etg2 for 2. etasje)
 let standardVegg = M.vegg1;  // veggfarge for vegg() uten egen farge; 1. etasje er mørkere greige
 const veggbokser = []; // vegger og skap som kortes ned med «Lave vegger»
+const veggpynt = [];    // bilder på veggene: skjules når «lave vegger» kutter veggen under dem
 
 // Boks fra min-/maks-hjørner (meter). Returnerer meshet.
 // Møbler og tekstiler får avrundede kanter automatisk; vegger, gulv, fliser og terreng er skarpe.
@@ -753,6 +754,20 @@ boks(3.08, F, 2.44, 3.12, F + 2.03, 3.20, M.hvitDør);             // soverom 7
 boks(2.875, F, 5.45, 2.915, F + 2.03, 6.01, M.hvitDør);           // bad, lukket (slår ut i gangen)
 boks(3.80, F, 7.30, 3.84, F + 2.03, 8.03, M.hvitDør);             // soverom 12
 
+// kartplakater i brun treramme på gangveggen ved badet: Hommelvik til venstre for baddøra, Levanger til høyre
+{
+  const ramme = new THREE.MeshStandardMaterial({ color: 0x5c3b27, roughness: 0.65 }), x = 2.94, b = 0.55, h = 0.75, r = 0.035;
+  for (const [fil, zm] of [['hommelvik', 6.61], ['levanger', 4.90]]) {
+    const y1 = F + 1.18, y2 = y1 + h, z1 = zm - b / 2, z2 = zm + b / 2, g = new THREE.Group();
+    mål.add(g); veggpynt.push({ o: g, y1 });
+    boks(x, y1, z1, x + 0.026, y1 + r, z2, ramme, g); boks(x, y2 - r, z1, x + 0.026, y2, z2, ramme, g);
+    boks(x, y1, z1, x + 0.026, y2, z1 + r, ramme, g); boks(x, y1, z2 - r, x + 0.026, y2, z2, ramme, g);
+    const t = new THREE.TextureLoader().load(`bilder/${fil}.jpg`); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    const plakat = new THREE.Mesh(new THREE.PlaneGeometry(b - 2 * r, h - 2 * r), new THREE.MeshStandardMaterial({ map: t, roughness: 0.2 }));
+    plakat.rotation.y = Math.PI / 2; plakat.position.set(x + 0.012, (y1 + y2) / 2, zm); plakat.receiveShadow = true; g.add(plakat);
+  }
+}
+
 // Malte rom og flislagt bad: tynt lag på veggflatene inne i rommet, med hull for åpningene.
 const flate = (akse, a, b, fra, til, åpninger, m) =>
   vegg(akse, a, b, fra, til, åpninger.map(o => ({ ...o, type: 'åpning' })), m, F);
@@ -780,11 +795,6 @@ for (let z = nedreSving.z2 + 0.06; z < øvreSving.z1; z += 0.12) {
 }
 boks(4.04, F + 0.95, nedreSving.z2, 4.10, F + 1.0, øvreSving.z1, M.hvit);
 boks(4.04, F, øvreSving.z1 - 0.03, 4.10, F + 1.0, øvreSving.z1 + 0.03, M.hvit);
-// kartbilder i gangen
-for (const [z1, z2, y1, y2] of [[4.70, 5.20, 1.25, 1.95], [6.30, 6.58, 1.40, 1.80]]) {
-  boks(2.94, F + y1, z1, 2.965, F + y2, z2, M.bronse);
-  boks(2.965, F + y1 + 0.03, z1 + 0.03, 2.97, F + y2 - 0.03, z2 - 0.03, M.hvit);
-}
 
 // Hjelper: seng med stoppet bunn, lys madrass og dyne
 // hode = 'x1' eller 'z1': enden med hodeputer; dyna dekker resten og henger litt over kantene.
@@ -1127,12 +1137,13 @@ boks(0.85, G, 7.75, 2.00, G + 0.01, 9.30, M.ryeTeppe);
 // stort bilde av en løve i gullramme over skjermen (bilder/love.jpg, laget av et bilde av det ekte bildet)
 {
   const z1 = 8.24, z2 = 9.16, y1 = G + 1.15, y2 = G + 2.30, x = 2.85, r = 0.025, gull = new THREE.MeshStandardMaterial({ color: 0xc9a54e, roughness: 0.3, metalness: 0.8 });
-  boks(x - 0.02, y1, z1, x, y2, z2, M.svart);                        // bakplate
+  const g = new THREE.Group(); mål.add(g); veggpynt.push({ o: g, y1 });
+  boks(x - 0.02, y1, z1, x, y2, z2, M.svart, g);                     // bakplate
   const tekstur = new THREE.TextureLoader().load('bilder/love.jpg'); tekstur.colorSpace = THREE.SRGBColorSpace; tekstur.anisotropy = 4;
   const bilde = new THREE.Mesh(new THREE.PlaneGeometry(z2 - z1 - 2 * r, y2 - y1 - 2 * r), new THREE.MeshStandardMaterial({ map: tekstur, roughness: 0.15 }));
-  bilde.rotation.y = -Math.PI / 2; bilde.position.set(x - 0.0205, (y1 + y2) / 2, (z1 + z2) / 2); mål.add(bilde);
-  boks(x - 0.03, y1, z1, x, y1 + r, z2, gull); boks(x - 0.03, y2 - r, z1, x, y2, z2, gull);   // rammen
-  boks(x - 0.03, y1, z1, x, y2, z1 + r, gull); boks(x - 0.03, y1, z2 - r, x, y2, z2, gull);
+  bilde.rotation.y = -Math.PI / 2; bilde.position.set(x - 0.0205, (y1 + y2) / 2, (z1 + z2) / 2); g.add(bilde);
+  boks(x - 0.03, y1, z1, x, y1 + r, z2, gull, g); boks(x - 0.03, y2 - r, z1, x, y2, z2, gull, g);   // rammen
+  boks(x - 0.03, y1, z1, x, y2, z1 + r, gull, g); boks(x - 0.03, y1, z2 - r, x, y2, z2, gull, g);
 }
 // høyt, mørkt garderobeskap med to dører mot veggen inn mot døra, front mot rommet
 boks(T, G, 7.00, 0.78, G + 2.36, 8.00, M.mørkBrun);
@@ -1352,6 +1363,7 @@ export function oppdater() {
     mesh.scale.y = mesh.visible ? (topp - y1) / (y2 - y1) : 1;
     mesh.position.y = mesh.visible ? (y1 + topp) / 2 : (y1 + y2) / 2;
   }
+  for (const { o, y1 } of veggpynt) o.visible = kuttHøyde > y1 + 0.2;
   for (const o of etiketter) {
     const g = o.userData.gruppe;
     o.visible = vis.etiketter && (g === 'ute' || g === `etg${vis.etasje}`);
