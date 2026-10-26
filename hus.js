@@ -1124,7 +1124,16 @@ for (const z of [7.75, 9.35]) boks(2.55, G + 0.74, z, 2.80, G + 1.05, z + 0.25, 
   g.position.set(1.60, G, 8.55); mål.add(g);
 }
 boks(0.85, G, 7.75, 2.00, G + 0.01, 9.30, M.ryeTeppe);
-boks(2.83, G + 1.25, 7.95, 2.85, G + 2.25, 8.95, M.svart);         // stort bilde over pulten
+// stort bilde av en løve i gullramme over skjermen (bilder/love.jpg, laget av et bilde av det ekte bildet)
+{
+  const z1 = 8.24, z2 = 9.16, y1 = G + 1.15, y2 = G + 2.30, x = 2.85, r = 0.025, gull = new THREE.MeshStandardMaterial({ color: 0xc9a54e, roughness: 0.3, metalness: 0.8 });
+  boks(x - 0.02, y1, z1, x, y2, z2, M.svart);                        // bakplate
+  const tekstur = new THREE.TextureLoader().load('bilder/love.jpg'); tekstur.colorSpace = THREE.SRGBColorSpace; tekstur.anisotropy = 4;
+  const bilde = new THREE.Mesh(new THREE.PlaneGeometry(z2 - z1 - 2 * r, y2 - y1 - 2 * r), new THREE.MeshStandardMaterial({ map: tekstur, roughness: 0.15 }));
+  bilde.rotation.y = -Math.PI / 2; bilde.position.set(x - 0.0205, (y1 + y2) / 2, (z1 + z2) / 2); mål.add(bilde);
+  boks(x - 0.03, y1, z1, x, y1 + r, z2, gull); boks(x - 0.03, y2 - r, z1, x, y2, z2, gull);   // rammen
+  boks(x - 0.03, y1, z1, x, y2, z1 + r, gull); boks(x - 0.03, y1, z2 - r, x, y2, z2, gull);
+}
 // høyt, mørkt garderobeskap med to dører mot veggen inn mot døra, front mot rommet
 boks(T, G, 7.00, 0.78, G + 2.36, 8.00, M.mørkBrun);
 boks(0.78, G + 0.02, 7.497, 0.785, G + 2.34, 7.503, M.svart);     // skille mellom dørene
