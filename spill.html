@@ -1358,6 +1358,12 @@
         const z = fram.addScaledVector(x, -fram.dot(x)).normalize(), y = new THREE.Vector3().crossVectors(z, x);
         holdtGitar.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
         holdtGitar.position.copy(pr).addScaledVector(z, -0.085).addScaledVector(y, -0.02);    // strengene under fingrene, kroppen inntil magen
+        // men aldri inni kroppen: baksiden (4,5 cm bak strengene) skal ligge foran magen, ca. 13 cm foran ryggraden
+        const rygg = rot.getObjectByName('Spine');
+        if (rygg) {
+          const d = holdtGitar.position.clone().sub(rygg.getWorldPosition(new THREE.Vector3())).dot(z);
+          if (d < 0.19) holdtGitar.position.addScaledVector(z, 0.19 - d);
+        }
       } else {
         const m = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 1.0, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.42)), new THREE.Vector3(1, 1, 1));
         m.premultiply(meg.figur.matrixWorld).decompose(holdtGitar.position, holdtGitar.quaternion, holdtGitar.scale);
