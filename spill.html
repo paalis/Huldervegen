@@ -240,7 +240,7 @@
     const aoRender = ao.render.bind(ao);
     ao.render = (...a) => {
       const skjult = [];
-      scene.traverseVisible(o => { if (o.isMesh && o.material.transparent) { o.visible = false; skjult.push(o); } });
+      scene.traverseVisible(o => { if ((o.isMesh || o.isSprite || o.isLine || o.isPoints) && o.material.transparent) { o.visible = false; skjult.push(o); } });   // gjennomsiktig (glass, damp, vann) blir svart i skyggeeffekten
       aoRender(...a);
       for (const o of skjult) o.visible = true;
     };
@@ -663,6 +663,7 @@
     // sittende handlinger med egne armbevegelser (spise, fjernkontroll, glass) får armene lagt oppå.
     let animData = null;
     const lastAnimasjoner = () => animData ??= fetch('figurer/animasjoner.json').then(r => r.ok ? r.json() : null).catch(() => null);
+    const FRAMBØY = { Spine: 3, Spine1: 3, Spine2: 3, Neck: -5 };              // grader fram for hvert ledd (se lagAnimasjoner)
     const KLIPP_HANDLING = { piano: 'piano', gitar: 'gitar', playstation: 'taster', utsikt: 'utsikt' };
     const ENGANG = ['setter_seg', 'reiser_seg', 'ligger'];
     async function lagAnimasjoner(r) {
@@ -700,8 +701,8 @@
         return q;
       };
       // Modellens referanse er bindstillingen (T-stilling, fra skjelettets inverse bindmatriser); kildens hvilestilling
-      // har armene ned. Derfor dreies hvert modellben først så det peker samme vei som kildebenet i hvile (begge
-      // skjelettene har benet langs lokal +Y): korr = Gkilde,hvile⁻¹ · S · Gmodell,bind, der S retter opp retningen.
+      // har armene ned. Derfor dreies armbena først så de peker samme vei som kildebenet i hvile (begge skjelettene
+      // har benet langs lokal +Y): korr = Gkilde,hvile⁻¹ · S · Gmodell,bind, der S retter opp retningen.
       const retarget = [], bindG = new Map(), skjelett = rot.getObjectByProperty('isSkinnedMesh', true)?.skeleton;
       skjelett?.bones.forEach((b, i) => {
         const q = new THREE.Quaternion();
@@ -714,8 +715,17 @@
           const kb = kildeBen.get(b.name);
           if (!kb) continue;
           const kG = globalHvile(kb, kildeLok, kilde), mG = bindG.get(b) ?? globalHvile(b, modellLok, rot);
-          const S = new THREE.Quaternion().setFromUnitVectors(Y_AKSE.clone().applyQuaternion(mG), Y_AKSE.clone().applyQuaternion(kG));
+          // bare armene rettes inn etter kildens retning (der er hvilestillingene ulike: T-stilling mot armene ned);
+          // rygg, hode og bein har samme nøytrale stilling i begge, og Mixamos krumme rygg ville gitt bakoverlent figur
+          const S = /Shoulder|Arm|Hand/.test(b.name) ? new THREE.Quaternion().setFromUnitVectors(Y_AKSE.clone().applyQuaternion(mG), Y_AKSE.clone().applyQuaternion(kG)) : new THREE.Quaternion();
           retarget.push({ b, kb, korr: kG.clone().invert().multiply(S).multiply(mG) });
+        }
+        // Avaturn-modellen står med hoftene fram og skuldrene bak; ryggen bøyes litt fram (fordelt på ryggvirvlene)
+        // og nakken rettes opp igjen, så figuren står rett. Vinkelen summeres nedover i kjeden (overkroppen følger med).
+        for (const r of retarget) {
+          let v = 0;
+          for (let o = r.b; o && o !== rot; o = o.parent) v += FRAMBØY[o.name] ?? 0;
+          if (v) r.fram = new THREE.Quaternion().setFromAxisAngle(X_AKSE, v * Math.PI / 180);
         }
       }
       r.anim = { mixer, handlinger, anker, aktiv: null, modus: 'prosedyre', hvile: alle, hipsHvile: hvile, bland: null, kilde, kildeBen, retarget };
@@ -726,8 +736,9 @@
       if (!A.retarget.length) return;
       const kG = new Map(), mG = new Map();
       const kildeG = b => { let g = kG.get(b); if (!g) { g = b.parent && b.parent !== A.kilde ? kildeG(b.parent).clone().multiply(b.quaternion) : b.quaternion.clone(); kG.set(b, g); } return g; };
-      for (const { b, kb, korr } of A.retarget) {
+      for (const { b, kb, korr, fram } of A.retarget) {
         const ønsket = kildeG(kb).clone().multiply(korr);                      // modellbenets rotasjon i forhold til roten
+        if (fram) ønsket.premultiply(fram);
         // forelderens nåværende rotasjon i forhold til roten
         let fg;
         if (b.parent && mG.has(b.parent)) fg = mG.get(b.parent);
@@ -1092,9 +1103,14 @@
         lyd: 'lyder/tannpuss.mp3', gjenta: false, varighet: 10,
         før: () => { tannbørste.visible = true; }, etter: () => { tannbørste.visible = false; },
         armer: tt => {
-          armV.skulder.rotation.x = -1.25; armV.albue.rotation.x = -1.95;
-          armV.skulder.rotation.z = 0.55 + Math.sin(tt * 14) * 0.06;             // børster fram og tilbake
-          hodet.rotation.x = 0.1;
+          // høyre hånd ved munnviken (børsten rettes inn mot munnen i plasserTannbørste), venstre hånd på servanten;
+          // børster fram og tilbake og flytter seg sakte mellom venstre og høyre side av munnen
+          hodet.rotation.x = 0.18;
+          const h = figur.rotation.y, fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
+          const munn = munnPunkt(), gnikk = Math.sin(tt * 11), side = Math.sin(tt * 0.5);
+          rekk(armV, munn.clone().addScaledVector(høyre, 0.12 + gnikk * 0.012).addScaledVector(fram, 0.07 + side * 0.03)
+            .add(new THREE.Vector3(0, -0.13 + Math.cos(tt * 11) * 0.005, 0)));
+          rekk(armH, figur.position.clone().addScaledVector(høyre, -0.26).addScaledVector(fram, 0.27).setY(G2 + 0.95));
         } },
       klær: { navn: 'Skift T-skjorte', rom: 'garderoben', ikon: '👕', f: 1, gå: [1.40, 3.50], pos: [1.40, 3.62], retning: 0, holdning: 'stå',
         lyd: 'lyder/garderobe.mp3', gjenta: false, varighet: 4,
@@ -1347,6 +1363,12 @@
         const z = fram.addScaledVector(x, -fram.dot(x)).normalize(), y = new THREE.Vector3().crossVectors(z, x);
         holdtGitar.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
         holdtGitar.position.copy(pr).addScaledVector(z, -0.085).addScaledVector(y, -0.02);    // strengene under fingrene, kroppen inntil magen
+        // men aldri inni kroppen: baksiden (4,5 cm bak strengene) skal ligge foran magen, ca. 13 cm foran ryggraden
+        const rygg = rot.getObjectByName('Spine');
+        if (rygg) {
+          const d = holdtGitar.position.clone().sub(rygg.getWorldPosition(new THREE.Vector3())).dot(z);
+          if (d < 0.19) holdtGitar.position.addScaledVector(z, 0.19 - d);
+        }
       } else {
         const m = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 1.0, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.42)), new THREE.Vector3(1, 1, 1));
         m.premultiply(meg.figur.matrixWorld).decompose(holdtGitar.position, holdtGitar.quaternion, holdtGitar.scale);
@@ -1587,6 +1609,32 @@
       animer(meg, valg, dt);
       oppdaterGrep();
       plasserGitar();
+      plasserTannbørste();
+    }
+    // munnen: litt foran og under hodebenet (eller styreskjelettets hode uten 3D-modell)
+    function munnPunkt() {
+      const hd = meg.avatar?.rot.getObjectByName('Head');
+      if (hd) return hd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -0.01, 0.105).applyQuaternion(hd.getWorldQuaternion(new THREE.Quaternion())));
+      const h = meg.figur.rotation.y;
+      return meg.hodet.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(Math.sin(h) * 0.1, -0.03, Math.cos(h) * 0.1));
+    }
+    // tannbørsten i hånda dreies så bustene ligger i munnen, med bustene inn mot tennene
+    function plasserTannbørste() {
+      if (!tannbørste.visible || !tannbørste.parent) return;
+      const grep = tannbørste.userData.grep ??= new Map();                     // grepet i hånda (per hånd), utgangspunkt hver gang
+      if (!grep.has(tannbørste.parent)) grep.set(tannbørste.parent, tannbørste.position.clone());
+      tannbørste.position.copy(grep.get(tannbørste.parent)); tannbørste.parent.updateMatrixWorld(true);
+      const munn = munnPunkt(), p = tannbørste.getWorldPosition(new THREE.Vector3()), h = meg.figur.rotation.y;
+      const y = munn.clone().sub(p).normalize(), fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h));
+      const z = fram.negate().addScaledVector(y, fram.dot(y) * -1).normalize(), x = new THREE.Vector3().crossVectors(y, z);
+      const verden = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+      tannbørste.quaternion.copy(tannbørste.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(verden));
+      // bustene (17 cm ut langs skaftet fra grepet) skal være i munnen: skyv børsten langs skaftet om hånda er litt unna
+      const avvik = munn.distanceTo(p) - 0.165;
+      if (Math.abs(avvik) > 0.002) {
+        const ny = p.addScaledVector(y, avvik);
+        tannbørste.position.copy(tannbørste.parent.worldToLocal(ny));
+      }
     }
 
     // Ting i hånda: med 3D-modell festes gaffel, glass, kopp og tannbørste i modellens høyre hånd (armV er
