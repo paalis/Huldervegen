@@ -995,7 +995,7 @@
           armH.skulder.rotation.x = -0.75; armH.skulder.rotation.z = 0.12;    // venstre hånd på halsen
           armH.albue.rotation.x = -1.05;
         } },
-      vaskemaskin: { navn: 'Start vaskemaskinen', ikon: '🧺', f: 2, gå: [4.25, 8.75], pos: [4.25, 8.75], retning: 0, holdning: 'stå',
+      vaskemaskin: { navn: 'Start vaskemaskinen', ikon: '🧺', f: 2, gå: [4.78, 8.72], pos: [4.78, 8.72], retning: 0, holdning: 'stå',
         lyd: 'lyder/vaskemaskin.mp3', gjenta: false, varighet: 1.4, lydVed: 0.6, maskinGår: 12,
         armer: tt => {
           const løft = tt < 0.45 ? tt / 0.45 : tt < 0.95 ? 1 : Math.max(0, 1 - (tt - 0.95) / 0.4);
@@ -1990,7 +1990,8 @@
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
         steg(dt); animerMeg(dt); tegnAndre(dt); oppdaterDører(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
-        himmel?.oppdater(dt, camera); plasserLapper(); plasserIkoner(); følgYtelse(); composer.render();
+        himmel?.oppdater(dt, camera); plasserLapper(); plasserIkoner(); følgYtelse();
+        if (ao.enabled) composer.render(); else renderer.render(scene, camera);   // uten skyggeeffekten: rett til skjermen, med kantutjevning
       });
     }, 30));
 
@@ -2223,22 +2224,36 @@
     stikkeEl.addEventListener('pointermove', e => { if (e.pointerId === stikkeId) flyttStikke(e); });
     const slippStikke = e => { if (e.pointerId !== stikkeId) return; stikkeId = null; stikke.x = stikke.y = 0; knott.style.transform = ''; };
     stikkeEl.addEventListener('pointerup', slippStikke); stikkeEl.addEventListener('pointercancel', slippStikke);
-    // automatisk kvalitet: går det under ca. 28 bilder i sekundet, skrus skyggeeffekten av og oppløsningen ned
-    const kvalitet = { nivå: 0, bilder: 0, fra: performance.now() + 6000, av: new URLSearchParams(location.search).has('hd') };
+    // automatisk kvalitet: går det jevnt under ca. 28 bilder i sekundet (to målinger på rad), skrus først
+    // skyggeeffekten av, så oppløsningen ned til 1 og til slutt skyggekvaliteten. Oppløsningen går aldri under 1
+    // (det ga et kornete bilde), og den skrus opp igjen når det går lett. Pauser (bakgrunnsfane, innlasting)
+    // starter målingen på nytt, så et enkelt hakk ikke gir dårligere bilde resten av økta.
+    const fullOppløsning = renderer.getPixelRatio();
+    const kvalitet = { nivå: 0, bilder: 0, fra: performance.now() + 6000, sist: 0, lave: 0, høye: 0, hevet: false, av: new URLSearchParams(location.search).has('hd') };
     function følgYtelse() {
       const nå = performance.now();
-      if (kvalitet.av || kvalitet.nivå >= 3 || nå < kvalitet.fra) return;    // la huset og figuren laste først
-      kvalitet.bilder++;
+      if (kvalitet.av || nå < kvalitet.fra) return;                        // la huset og figuren laste først
+      if (document.hidden || nå - kvalitet.sist > 1000) { kvalitet.bilder = 0; kvalitet.fra = kvalitet.sist = nå; return; }
+      kvalitet.sist = nå; kvalitet.bilder++;
       if (nå - kvalitet.fra < 3000) return;
       const fps = kvalitet.bilder / ((nå - kvalitet.fra) / 1000);
       kvalitet.bilder = 0; kvalitet.fra = nå;
-      if (fps >= 28) return;
-      kvalitet.nivå++;
-      if (ao.enabled) { ao.enabled = false; kvalitet.nivå = Math.max(kvalitet.nivå, 1); }
-      else if (renderer.getPixelRatio() > 1) renderer.setPixelRatio(1);
-      else { renderer.setPixelRatio(0.75); sol.shadow.mapSize.set(512, 512); sol.shadow.map?.dispose(); sol.shadow.map = null; kvalitet.nivå = 3; }
+      kvalitet.lave = fps < 28 ? kvalitet.lave + 1 : 0;
+      kvalitet.høye = fps > 50 ? kvalitet.høye + 1 : 0;
+      if (kvalitet.lave >= 2) {
+        kvalitet.lave = 0;
+        if (ao.enabled) ao.enabled = false;
+        else if (renderer.getPixelRatio() > 1) renderer.setPixelRatio(1);
+        else if (sol.shadow.mapSize.x > 512) { sol.shadow.mapSize.set(512, 512); sol.shadow.map?.dispose(); sol.shadow.map = null; }
+        else return;
+        kvalitet.nivå++;
+        console.info('Lavere kvalitet for jevnere bilde:', fps.toFixed(0), 'bilder/s');
+      } else if (kvalitet.høye >= 3 && !kvalitet.hevet && renderer.getPixelRatio() < fullOppløsning) {
+        kvalitet.hevet = true;                                               // bare én gang, så det ikke vipper fram og tilbake
+        renderer.setPixelRatio(fullOppløsning); kvalitet.nivå--;
+        console.info('Høyere oppløsning igjen:', fps.toFixed(0), 'bilder/s');
+      } else return;
       settStørrelse();
-      console.info('Lavere kvalitet for jevnere bilde:', fps.toFixed(0), 'bilder/s');
     }
 
     // for testing og opptak

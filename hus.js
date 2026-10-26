@@ -1124,7 +1124,16 @@ for (const z of [7.75, 9.35]) boks(2.55, G + 0.74, z, 2.80, G + 1.05, z + 0.25, 
   g.position.set(1.60, G, 8.55); mål.add(g);
 }
 boks(0.85, G, 7.75, 2.00, G + 0.01, 9.30, M.ryeTeppe);
-boks(2.83, G + 1.25, 7.95, 2.85, G + 2.25, 8.95, M.svart);         // stort bilde over pulten
+// stort bilde av en løve i gullramme over skjermen (bilder/love.jpg, laget av et bilde av det ekte bildet)
+{
+  const z1 = 8.24, z2 = 9.16, y1 = G + 1.15, y2 = G + 2.30, x = 2.85, r = 0.025, gull = new THREE.MeshStandardMaterial({ color: 0xc9a54e, roughness: 0.3, metalness: 0.8 });
+  boks(x - 0.02, y1, z1, x, y2, z2, M.svart);                        // bakplate
+  const tekstur = new THREE.TextureLoader().load('bilder/love.jpg'); tekstur.colorSpace = THREE.SRGBColorSpace; tekstur.anisotropy = 4;
+  const bilde = new THREE.Mesh(new THREE.PlaneGeometry(z2 - z1 - 2 * r, y2 - y1 - 2 * r), new THREE.MeshStandardMaterial({ map: tekstur, roughness: 0.15 }));
+  bilde.rotation.y = -Math.PI / 2; bilde.position.set(x - 0.0205, (y1 + y2) / 2, (z1 + z2) / 2); mål.add(bilde);
+  boks(x - 0.03, y1, z1, x, y1 + r, z2, gull); boks(x - 0.03, y2 - r, z1, x, y2, z2, gull);   // rammen
+  boks(x - 0.03, y1, z1, x, y2, z1 + r, gull); boks(x - 0.03, y1, z2 - r, x, y2, z2, gull);
+}
 // høyt, mørkt garderobeskap med to dører mot veggen inn mot døra, front mot rommet
 boks(T, G, 7.00, 0.78, G + 2.36, 8.00, M.mørkBrun);
 boks(0.78, G + 0.02, 7.497, 0.785, G + 2.34, 7.503, M.svart);     // skille mellom dørene
@@ -1162,60 +1171,138 @@ rund(4.41, G + 0.26, 8.044, 4.69, G + 0.42, 8.17, M.hvit, 0.03);
 oval(4.55, 8.30, 0.18, 0.22, G + 0.24, G + 0.40, M.hvit).geometry = new THREE.CylinderGeometry(1, 0.62, 0.16, 40);
 oval(4.55, 8.30, 0.19, 0.23, G + 0.40, G + 0.43, M.hvit);          // sete og lokk
 boks(4.47, G + 1.00, 8.044, 4.63, G + 1.15, 8.05, M.stål);        // spyleplate
-// vaskemaskin og tørketrommel, frontmatet: avrundet blank kasse, betjeningspanel med vaskemiddelskuff (eller
-// vanntank), display, knapper og programvelger, rund dør med ring, hengsel og håndtak, glass og trommel med
-// medbringere, og serviceluke nede. Gruppene heter «vaskemaskin» og «tørketrommel» (spillet rister vaskemaskinen
-// og snurrer trommelen når den går).
+// vaskemaskin og tørketrommel, laget etter bilder av de ekte maskinene: vaskemaskinen (inntil veggen) har
+// kromknott, sølvgrått display, vaskemiddelskuff, svart dørring med sølvkant, mørkt glass og serviceluke;
+// tørketrommelen (Electrolux 600 GentleCare 8 kg) har vanntank, hvit programvelger med programnavn, svart
+// display med knapper, stor svart dørring, lys trommel og lufterist nede. Panelene er tegnet på lerret.
+// Gruppene heter «vaskemaskin» og «tørketrommel» (spillet rister vaskemaskinen og snurrer trommelen).
 const hvitevare = (() => {
-  const lakk = new THREE.MeshPhysicalMaterial({ color: 0xf7f7f5, roughness: 0.28, clearcoat: 0.6, clearcoatRoughness: 0.15 });
-  const panel = new THREE.MeshStandardMaterial({ color: 0xe9eaea, roughness: 0.3 });
-  const display = new THREE.MeshStandardMaterial({ color: 0x101316, roughness: 0.12, metalness: 0.2 });
-  const lys = new THREE.MeshBasicMaterial({ color: 0x7fd4ff });
-  const krom = new THREE.MeshStandardMaterial({ color: 0xd5d8db, roughness: 0.18, metalness: 1 });
-  const grå = new THREE.MeshStandardMaterial({ color: 0x8c9196, roughness: 0.4, metalness: 0.3 });
-  const trommelMat = new THREE.MeshStandardMaterial({ color: 0xa9adb1, roughness: 0.35, metalness: 0.9, side: THREE.DoubleSide });
-  const glassMørk = new THREE.MeshPhysicalMaterial({ color: 0x23303a, roughness: 0.05, transparent: true, opacity: 0.55, depthWrite: false });
-  const glassLys = new THREE.MeshPhysicalMaterial({ color: 0xc9d6de, roughness: 0.05, transparent: true, opacity: 0.35, depthWrite: false });
+  const lakk = new THREE.MeshPhysicalMaterial({ color: 0xf6f6f4, roughness: 0.3, clearcoat: 0.5, clearcoatRoughness: 0.2 });
+  const svart = new THREE.MeshPhysicalMaterial({ color: 0x1b1d20, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.2 });
+  const sølv = new THREE.MeshStandardMaterial({ color: 0xc4c8cc, roughness: 0.3, metalness: 0.45 });
+  const krom = new THREE.MeshStandardMaterial({ color: 0xd9dcdf, roughness: 0.22, metalness: 0.5 });
+  const fuge = new THREE.MeshStandardMaterial({ color: 0x9a9fa4, roughness: 0.6 });
+  const trommelVask = new THREE.MeshStandardMaterial({ color: 0x9da2a7, roughness: 0.35, metalness: 0.9, side: THREE.DoubleSide });
+  const trommelTørk = new THREE.MeshStandardMaterial({ color: 0xe4e6e8, roughness: 0.45, metalness: 0.4, side: THREE.DoubleSide });
+  const glassMørk = new THREE.MeshPhysicalMaterial({ color: 0x1c242b, roughness: 0.05, transparent: true, opacity: 0.6, depthWrite: false });
+  const glassLys = new THREE.MeshPhysicalMaterial({ color: 0xd2dce3, roughness: 0.05, transparent: true, opacity: 0.3, depthWrite: false });
+  // panelfront tegnet på lerret (b × h meter), vendt mot -z
+  const tegnet = (b, h, tegn) => {
+    const c = document.createElement('canvas'); c.width = 1024; c.height = Math.round(1024 * h / b);
+    const g = c.getContext('2d'); tegn(g, c.width, c.height);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+    const o = new THREE.Mesh(new THREE.PlaneGeometry(b, h), new THREE.MeshStandardMaterial({ map: t, roughness: 0.35 }));
+    o.rotation.y = Math.PI; return o;
+  };
+  const tekst = (g, t, x, y, px, farge = '#4a4d50', just = 'left', vekt = 400) => {
+    g.font = `${vekt} ${px}px "Helvetica Neue", Arial, sans-serif`; g.fillStyle = farge; g.textAlign = just; g.textBaseline = 'middle'; g.fillText(t, x, y);
+  };
+  const avrundet = (g, x, y, b, h, r) => { g.beginPath(); g.roundRect(x, y, b, h, r); };
+
   return (x1, x2, navn, tørk) => {
     const g = new THREE.Group(); g.name = navn; etg3.add(g);
-    const z1 = 9.05, z2 = D - T, y0 = G, cx = (x1 + x2) / 2, mesh = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
-    rund(x1 + 0.004, y0 + 0.012, z1, x2 - 0.004, y0 + 0.85, z2, lakk, 0.025, g);                   // kassen
-    boks(x1 + 0.02, y0, z1 + 0.03, x2 - 0.02, y0 + 0.012, z2 - 0.03, grå, g);                        // justerbare ben
-    rund(x1 + 0.012, y0 + 0.715, z1 - 0.006, x2 - 0.012, y0 + 0.835, z1 + 0.01, panel, 0.01, g);    // betjeningspanel
-    rund(x1 + 0.025, y0 + 0.73, z1 - 0.013, x1 + 0.195, y0 + 0.822, z1 + 0.002, lakk, 0.008, g);    // skuff / vanntank
-    boks(x1 + 0.06, y0 + 0.74, z1 - 0.0145, x1 + 0.16, y0 + 0.748, z1 - 0.012, grå, g);             // grep i skuffen
-    rund(cx - 0.055, y0 + 0.758, z1 - 0.01, cx + 0.06, y0 + 0.802, z1 - 0.004, display, 0.006, g);  // display
-    boks(cx - 0.035, y0 + 0.772, z1 - 0.0105, cx + 0.005, y0 + 0.789, z1 - 0.0095, lys, g);           // tid
-    for (const dx of [0.022, 0.04]) boks(cx + dx, y0 + 0.775, z1 - 0.0105, cx + dx + 0.008, y0 + 0.785, z1 - 0.0095, lys, g);
-    for (const dx of [-0.045, -0.015, 0.015, 0.045]) {                                               // knapper under displayet
-      const k = mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.006, 16), panel, cx + dx, y0 + 0.738, z1 - 0.011); k.rotation.x = Math.PI / 2;
+    const z1 = 9.05, z2 = D - T, y0 = G, w = x2 - x1;
+    const X = t => x2 - t * w;                                                                       // t: 0 = venstre kant sett forfra
+    const mesh = (geo, m, x, y, z) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+    const sylinder = (r1, r2, l, m, x, y, z, seg = 48) => { const o = mesh(new THREE.CylinderGeometry(r1, r2, l, seg), m, x, y, z); o.rotation.x = Math.PI / 2; return o; };
+    const ring = (r, rør, m, x, y, z) => { const o = mesh(new THREE.TorusGeometry(r, rør, 20, 72), m, x, y, z); o.scale.z = 0.4; return o; };   // flattrykt
+    rund(x1 + 0.004, y0 + 0.012, z1, x2 - 0.004, y0 + 0.85, z2, lakk, 0.022, g);                    // kassen
+    boks(x1 + 0.03, y0, z1 + 0.04, x2 - 0.03, y0 + 0.012, z2 - 0.04, fuge, g);                       // ben
+    const pH = tørk ? 0.125 : 0.11, pY = y0 + 0.85 - pH / 2 - 0.004;                                 // betjeningspanelet
+    rund(x1 + 0.006, pY - pH / 2, z1 - 0.012, x2 - 0.006, pY + pH / 2, z1 + 0.01, lakk, 0.012, g);
+    const panel = tegnet(w - 0.03, pH - 0.012, tørk ? (c, B, H) => {
+      c.fillStyle = '#f7f7f5'; c.fillRect(0, 0, B, H);
+      c.fillStyle = '#d9dbdc'; c.fillRect(Math.round(B * 0.325), 0, 3, H);                           // skille mot vanntanken
+      // Electrolux-logo og modell på vanntanken
+      c.fillStyle = '#3d4044'; avrundet(c, B * 0.105, H * 0.2, H * 0.17, H * 0.17, 4); c.fill();
+      c.fillStyle = '#f7f7f5'; c.fillRect(B * 0.105 + H * 0.07, H * 0.22, H * 0.03, H * 0.13);
+      tekst(c, 'Electrolux', B * 0.105 + H * 0.085, H * 0.48, H * 0.085, '#3d4044', 'center', 500);
+      tekst(c, '600 GENTLECARE | 8kg', B * 0.05, H * 0.7, H * 0.055, '#55585b');
+      c.fillStyle = '#3d4044'; c.fillRect(B * 0.11, H * 0.9, B * 0.14, H * 0.035);                 // grep under vanntanken
+      // programnavn rundt velgeren (velgeren er en egen knott)
+      const v = ['Eco', 'Bedlinen XL', 'Delicates', 'Wool', 'Duvet', 'Sportswear', 'Refresh'], hø = ['MixCare', 'Extra Dry', 'Cupboard Dry', 'Iron Dry', 'Extra Dry', 'Cupboard Dry', 'Easy Iron'];
+      v.forEach((t, i) => { tekst(c, t, B * 0.34, H * (0.1 + i * 0.13), H * 0.06); c.fillStyle = '#9ea2a6'; c.fillRect(B * 0.34, H * (0.15 + i * 0.13), B * 0.07, 2); });
+      hø.forEach((t, i) => { tekst(c, t, B * 0.62, H * (0.1 + i * 0.13), H * 0.06, '#4a4d50', 'right'); c.fillStyle = '#9ea2a6'; c.fillRect(B * 0.54, H * (0.15 + i * 0.13), B * 0.08, 2); });
+      tekst(c, 'Cottons', B * 0.635, H * 0.3, H * 0.05); tekst(c, 'Synthetics', B * 0.635, H * 0.68, H * 0.05);
+      // display og knapper
+      c.fillStyle = '#1e2124'; avrundet(c, B * 0.71, H * 0.12, B * 0.17, H * 0.32, 4); c.fill();
+      c.fillStyle = '#5b636a'; for (const k of [0, 1, 2]) c.fillRect(B * (0.73 + k * 0.05), H * 0.34, B * 0.025, H * 0.04);
+      const knapp = (x, y, t1, t2) => { c.fillStyle = '#2a2d30'; avrundet(c, x, y, B * 0.075, H * 0.18, 3); c.fill(); tekst(c, t1, x + B * 0.0375, y + H * (t2 ? 0.06 : 0.09), H * 0.045, '#e8e8e8', 'center'); if (t2) tekst(c, t2, x + B * 0.0375, y + H * 0.125, H * 0.045, '#e8e8e8', 'center'); };
+      knapp(B * 0.895, H * 0.1, 'Time', 'Dry'); knapp(B * 0.895, H * 0.31, 'Delay', 'Start');
+      knapp(B * 0.715, H * 0.62, 'Extra', 'Anticrease'); knapp(B * 0.8, H * 0.62, 'End', 'Alert');
+      c.strokeStyle = '#2a2d30'; c.lineWidth = 3; avrundet(c, B * 0.885, H * 0.62, B * 0.075, H * 0.18, 3); c.stroke();
+      tekst(c, '▷II', B * 0.9225, H * 0.71, H * 0.07, '#2a2d30', 'center');
+      c.fillStyle = '#2a2d30'; for (const x of [0.74, 0.825, 0.91]) c.fillRect(B * x, H * 0.53, B * 0.025, H * 0.025);
+    } : (c, B, H) => {
+      c.fillStyle = '#f7f7f5'; c.fillRect(0, 0, B, H);
+      // av/på og start/pause, velgeren er en egen kromknott
+      c.strokeStyle = '#7b7f83'; c.lineWidth = 3;
+      c.beginPath(); c.arc(B * 0.2, H * 0.5, H * 0.07, -Math.PI * 0.3, Math.PI * 1.3); c.stroke();
+      c.beginPath(); c.moveTo(B * 0.2, H * 0.4); c.lineTo(B * 0.2, H * 0.5); c.stroke();
+      tekst(c, '▷II', B * 0.415, H * 0.5, H * 0.13, '#7b7f83', 'center');
+      // sølvgrått display med ikoner under
+      const grad = c.createLinearGradient(0, H * 0.18, 0, H * 0.82); grad.addColorStop(0, '#c9ccce'); grad.addColorStop(1, '#aeb2b5');
+      c.fillStyle = grad; avrundet(c, B * 0.465, H * 0.14, B * 0.43, H * 0.72, 6); c.fill();
+      c.fillStyle = '#d7dadc'; avrundet(c, B * 0.475, H * 0.2, B * 0.41, H * 0.42, 4); c.fill();
+      c.fillStyle = '#8d9296'; for (const [k, ikon] of ['🌡', '⌴', '◎', '⚇'].entries()) tekst(c, ikon, B * (0.565 + k * 0.09), H * 0.74, H * 0.11, '#7d8286', 'center');
+      c.fillStyle = '#7b7f83'; c.fillRect(B * 0.92, H * 0.3, B * 0.015, H * 0.2);
+    });
+    panel.position.set((x1 + x2) / 2, pY, z1 - 0.0125); g.add(panel);
+    if (tørk) {
+      // vanntanken stikker litt ut, programvelgeren er hvit, av/på-knapp under panelet
+      boks(X(0.32), pY - pH / 2 + 0.006, z1 - 0.016, X(0.015), pY + pH / 2 - 0.006, z1 - 0.0128, lakk, g);
+      sylinder(0.03, 0.032, 0.03, lakk, X(0.475), pY + 0.005, z1 - 0.027);
+      mesh(new THREE.BoxGeometry(0.003, 0.02, 0.004), svart, X(0.475), pY + 0.018, z1 - 0.043);
+      sylinder(0.034, 0.034, 0.006, fuge, X(0.475), pY + 0.005, z1 - 0.013);
+      rund(X(0.72), y0 + 0.69, z1 - 0.008, X(0.64), y0 + 0.702, z1 + 0.002, lakk, 0.004, g);        // av/på
+    } else {
+      // vaskemiddelskuff under panelet og kromknott
+      rund(X(0.36), y0 + 0.665, z1 - 0.01, X(0.02), y0 + 0.728, z1 + 0.002, lakk, 0.008, g);
+      boks(X(0.36), y0 + 0.662, z1 - 0.004, X(0.02), y0 + 0.665, z1, fuge, g);                    // fuge under skuffen
+      sylinder(0.03, 0.032, 0.03, krom, X(0.3), pY, z1 - 0.027);
+      sylinder(0.022, 0.022, 0.002, sølv, X(0.3), pY, z1 - 0.043);
     }
-    const ring = mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.008, 40), krom, x2 - 0.07, y0 + 0.776, z1 - 0.01); ring.rotation.x = Math.PI / 2;
-    const knott = mesh(new THREE.CylinderGeometry(0.027, 0.029, 0.024, 40), lakk, x2 - 0.07, y0 + 0.776, z1 - 0.022); knott.rotation.x = Math.PI / 2;
-    mesh(new THREE.BoxGeometry(0.004, 0.02, 0.004), grå, x2 - 0.07, y0 + 0.79, z1 - 0.035);           // merke på velgeren
-    // døra: ring, glass og trommel bak
-    const dy = y0 + 0.42, dz = z1 - 0.03;
-    mesh(new THREE.TorusGeometry(0.168, 0.026, 18, 64), tørk ? lakk : krom, cx, dy, dz);
-    if (tørk) mesh(new THREE.TorusGeometry(0.145, 0.006, 10, 64), krom, cx, dy, dz - 0.012);
-    const kant = mesh(new THREE.CylinderGeometry(0.152, 0.152, 0.024, 64, 1, true), grå, cx, dy, dz + 0.01); kant.rotation.x = Math.PI / 2;
-    const glass = mesh(new THREE.SphereGeometry(0.15, 40, 12, 0, Math.PI * 2, 0, 0.62), tørk ? glassLys : glassMørk, cx, dy, dz + 0.085);
-    glass.rotation.x = -Math.PI / 2; glass.scale.set(1, 0.85, 1); glass.castShadow = false;
+    // døra: sentrert litt til venstre, med ring, glass og trommel
+    const dx = X(0.46), dy = y0 + (tørk ? 0.42 : 0.39), dz = z1 - 0.035, R = tørk ? 0.245 : 0.235;
+    if (tørk) {
+      ring(R, 0.018, lakk, dx, dy, z1 - 0.01);                                                       // hvit krage rundt døra
+      ring(R - 0.05, 0.05, svart, dx, dy, dz);                                                       // bred svart ring
+      sylinder(R - 0.025, R - 0.02, 0.03, svart, dx, dy, dz + 0.01);
+    } else {
+      ring(R, 0.012, sølv, dx, dy, dz + 0.004);                                                      // sølvkant
+      ring(R - 0.04, 0.04, svart, dx, dy, dz);
+      sylinder(R - 0.01, R - 0.005, 0.03, svart, dx, dy, dz + 0.012);
+    }
+    mesh(new THREE.CylinderGeometry(R - 0.085, R - 0.085, 0.03, 64, 1, true), fuge, dx, dy, dz + 0.02).rotation.x = Math.PI / 2;
+    const glass = mesh(new THREE.SphereGeometry(R - 0.08, 48, 12, 0, Math.PI * 2, 0, 0.6), tørk ? glassLys : glassMørk, dx, dy, dz + 0.07);
+    glass.rotation.x = -Math.PI / 2; glass.scale.set(1, 0.7, 1); glass.castShadow = false;
     const trommel = new THREE.Group(); trommel.name = tørk ? 'tørketrommel-trommel' : 'trommel';
-    trommel.position.set(cx, dy, z1 + 0.06); g.add(trommel);
-    const bunn = new THREE.Mesh(new THREE.CircleGeometry(0.14, 40), trommelMat); bunn.rotation.y = Math.PI; bunn.position.z = 0.12; trommel.add(bunn);
-    const vegg = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.12, 40, 1, true), trommelMat); vegg.rotation.x = Math.PI / 2; vegg.position.z = 0.06; trommel.add(vegg);
-    for (let i = 0; i < 3; i++) {                                                                    // medbringere i trommelen
-      const m = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.11), grå), v = i * Math.PI * 2 / 3;
-      m.position.set(Math.cos(v) * 0.125, Math.sin(v) * 0.125, 0.06); m.rotation.z = v; trommel.add(m);
+    trommel.position.set(dx, dy, z1 + 0.04); g.add(trommel);
+    const tm = tørk ? trommelTørk : trommelVask, tr = R - 0.07;
+    const bunn = new THREE.Mesh(new THREE.CircleGeometry(tr, 48), tm); bunn.rotation.y = Math.PI; bunn.position.z = 0.16; trommel.add(bunn);
+    const vegg = new THREE.Mesh(new THREE.CylinderGeometry(tr, tr, 0.16, 48, 1, true), tm); vegg.rotation.x = Math.PI / 2; vegg.position.z = 0.08; trommel.add(vegg);
+    for (let i = 0; i < 3; i++) {                                                                    // medbringere
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.15), tørk ? trommelTørk : fuge), v = i * Math.PI * 2 / 3;
+      m.position.set(Math.cos(v) * (tr - 0.015), Math.sin(v) * (tr - 0.015), 0.08); m.rotation.z = v; trommel.add(m);
     }
-    mesh(new THREE.BoxGeometry(0.03, 0.07, 0.03), grå, cx - 0.175, dy, dz + 0.005);                   // hengsel
-    mesh(new THREE.BoxGeometry(0.022, 0.09, 0.02), tørk ? lakk : grå, cx + 0.19, dy, dz - 0.004);    // håndtak
-    rund(x1 + 0.03, y0 + 0.05, z1 - 0.004, x1 + 0.16, y0 + 0.14, z1 + 0.001, lakk, 0.008, g);        // serviceluke / lofilter
+    for (let i = 0; i < 5; i++) {                                                                    // tøy i trommelen
+      const v = new THREE.Mesh(new THREE.SphereGeometry(0.05 + (i % 2) * 0.015, 10, 8), new THREE.MeshStandardMaterial({ color: tørk ? 0xf2f2ee : [0x2a2f38, 0xd9c7a8, 0x3a5f8a, 0x1f1f22, 0xc9a9a0][i], roughness: 0.95 }));
+      v.position.set(-0.08 + i * 0.04, -tr + 0.05 + (i % 2) * 0.03, 0.06 + (i % 3) * 0.03); v.scale.y = 0.6; trommel.add(v);
+    }
+    if (tørk) {
+      // sokkel med luke og lufterist
+      boks(x1 + 0.02, y0 + 0.165, z1 - 0.003, x2 - 0.02, y0 + 0.168, z1, fuge, g);
+      boks(X(0.94), y0 + 0.07, z1 - 0.003, X(0.06), y0 + 0.073, z1, fuge, g);
+      for (let i = 0; i < 26; i++) boks(X(0.132 + i * 0.03), y0 + 0.025, z1 - 0.003, X(0.12 + i * 0.03), y0 + 0.06, z1, svart, g);
+    } else {
+      rund(X(0.93), y0 + 0.025, z1 - 0.006, X(0.69), y0 + 0.17, z1 + 0.001, lakk, 0.008, g);         // serviceluke
+      boks(X(0.82), y0 + 0.165, z1 - 0.008, X(0.79), y0 + 0.17, z1 - 0.004, fuge, g);
+    }
     return g;
   };
 })();
-hvitevare(3.96, 4.53, 'vaskemaskin', false);
-hvitevare(4.53, B - T, 'tørketrommel', true);
+hvitevare(4.50, B - T, 'vaskemaskin', false);                                                        // inntil veggen
+hvitevare(3.93, 4.50, 'tørketrommel', true);
 boks(3.97, G + 1.55, 9.30, 5.00, G + 2.15, D - T, M.skap);
 
 // flatt tak (av/på)
