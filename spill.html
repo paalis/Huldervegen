@@ -732,7 +732,7 @@
         const sete = h?.sete ?? 0.46;
         rot.position.set(-ank.x * s, (sete + 0.07) / fs - ank.y * s, -ank.z * s);
       } else if (valg.klipp === 'ligger') {
-        rot.position.set(-ank.x * s, (h.liggehøyde - 0.02) / fs - ank.y * s, -0.93 - ank.z * s);   // hoftene der figurens hofter ligger
+        rot.position.set(-ank.x * s, (h.liggehøyde + 0.1) / fs - ank.y * s, -0.93 - ank.z * s);   // hoftene der figurens hofter ligger
       }
       if (valg.armer) følgSkjelett(r, true);
       blandBen(r, dt);
@@ -919,8 +919,8 @@
         } },
       gitar: { navn: 'Spill gitar', ikon: '🎸', f: 2, gå: [0.95, 8.58], pos: [0.95, 8.58], retning: π / 2, holdning: 'stå',
         lyd: 'lyder/gitar.mp3', gjenta: true,
-        før: () => { holdtGitar.visible = true; if (stativGitar) stativGitar.visible = false; },
-        etter: () => { holdtGitar.visible = false; if (stativGitar) stativGitar.visible = true; },
+        før: () => { holdtGitar.visible = true; holdtGitar.position.y = meg.avatar ? 0.84 : 0.98; if (stativGitar) stativGitar.visible = false; if (kontorstol) kontorstol.visible = false; },
+        etter: () => { holdtGitar.visible = false; if (stativGitar) stativGitar.visible = true; if (kontorstol) kontorstol.visible = true; },
         armer: tt => {
           armV.skulder.rotation.x = -0.35 + Math.sin(tt * 12) * 0.1;          // høyre hånd slår an over lydhullet
           armV.skulder.rotation.z = 0.3; armV.albue.rotation.x = -0.75;
@@ -1109,7 +1109,9 @@
     const tvBilde3 = new THREE.Mesh(tvBilde.geometry.clone().scale(0.86 / 1.46, 0.50 / 0.81, 1), tvBilde.material);
     tvBilde3.position.set(2.30, G3 + 0.81, 6.605); tvBilde3.rotation.y = π; tvBilde3.visible = false; scene.add(tvBilde3);
     // ting figuren holder i høyre hånd (hånda peker nedover langs underarmen, fingrene mot +z)
-    const iHånd = (o, x = 0, y = -0.06, z = 0.03) => { o.position.set(x, y, z); o.visible = false; armV.hånd.add(o); return o; };
+    // ting i hånda henger i en gruppe som flyttes til 3D-modellens håndledd (styreskjelettets hånd ligger litt annerledes)
+    const håndJust = new THREE.Group(); armV.hånd.add(håndJust);
+    const iHånd = (o, x = 0, y = -0.06, z = 0.03) => { o.position.set(x, y, z); o.visible = false; håndJust.add(o); return o; };
     const stål = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, roughness: 0.3, metalness: 0.8 });
     const gaffel = iHånd(new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.006), stål), 0, -0.07, 0.05);
     gaffel.rotation.x = 1.2;
@@ -1220,10 +1222,11 @@
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
       sp.scale.set(0.4, 0.2, 1); sp.visible = false; scene.add(sp); return sp;
     })();
-    let stativGitar = null, vaskemaskin = null, vaskeluke = null, vaskX = 0, vaskLukeX = 0;
+    let kontorstol = null, stativGitar = null, vaskemaskin = null, vaskeluke = null, vaskX = 0, vaskLukeX = 0;
     function finnTing() {
       scene.traverse(o => {
         if (o.isGroup && Math.abs(o.position.x - 0.40) < 0.02 && Math.abs(o.position.y - G3) < 0.02 && Math.abs(o.position.z - 8.58) < 0.02) stativGitar = o;
+        if (o.isGroup && Math.abs(o.position.x - 1.60) < 0.02 && Math.abs(o.position.y - G3) < 0.02 && Math.abs(o.position.z - 8.55) < 0.02) kontorstol = o;
         if (!o.isMesh) return;
         const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3());
         if (Math.abs(c.x - 4.245) < 0.02 && Math.abs(c.z - 9.35) < 0.05 && Math.abs(c.y - (G3 + 0.425)) < 0.03) vaskemaskin = o;
@@ -1434,6 +1437,9 @@
       else valg = velgKlipp(t.handling?.id, t.beveger, fart, t.løper);
       valg.y = t.reiser ? t.reiser.y : t.pos.y;
       animer(meg, valg, dt);
+      const hånd = meg.avatar?.rot.getObjectByName('RightHand');                 // armV er figurens høyre arm
+      if (hånd) { meg.figur.updateMatrixWorld(true); håndJust.position.copy(meg.armV.hånd.worldToLocal(hånd.getWorldPosition(new THREE.Vector3()))); }
+      else håndJust.position.set(0, 0, 0);
     }
 
     // myke overganger: stillingen tas vare på når figuren setter seg, reiser seg eller bytter handling,
@@ -1617,9 +1623,9 @@
         const v = r + vinkel.v * t.handling.kameraSide + kamera.dreiing;
         ønsket.set(mål.x + Math.sin(v) * avst, mål.y + Math.max(-0.6, høyde + kamera.helning), mål.z + Math.cos(v) * avst);
       } else {
-        const rc = r + kamera.dreiing;                                         // dreid med musa
+        const rc = r + kamera.dreiing;                                         // dreid med musa; blikket går gjennom figuren
         ønsket.set(t.pos.x - Math.sin(rc) * a, t.pos.y + Math.max(0.4, 1.6 + a * 0.3 + kamera.helning), t.pos.z - Math.cos(rc) * a);
-        mål = new THREE.Vector3(t.pos.x + Math.sin(r) * 1.0, t.pos.y + 1.0, t.pos.z + Math.cos(r) * 1.0);
+        mål = new THREE.Vector3(t.pos.x + Math.sin(rc) * 1.0, t.pos.y + 1.0, t.pos.z + Math.cos(rc) * 1.0);
       }
       const k = hopp ? 1 : Math.min(1, dt * (vinkel || kamera.fraVinkel > 0 ? 2.5 : 6));    // gli rolig inn i og ut av vinkelen
       kamera.fraVinkel = vinkel ? 1.2 : Math.max(0, (kamera.fraVinkel || 0) - dt);
