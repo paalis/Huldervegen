@@ -756,10 +756,10 @@ boks(3.80, F, 7.30, 3.84, F + 2.03, 8.03, M.hvitDør);             // soverom 12
 
 // kartplakater i brun treramme på gangveggen ved badet: Hommelvik til venstre for baddøra, Levanger til høyre
 {
-  const ramme = new THREE.MeshStandardMaterial({ color: 0x5c3b27, roughness: 0.65 }), x = 2.94, b = 0.55, h = 0.75, r = 0.035;
+  const ramme = new THREE.MeshStandardMaterial({ color: 0x5c3b27, roughness: 0.65 }), x = 2.94, b = 0.50, h = 0.68, r = 0.032;
   for (const [fil, zm] of [['hommelvik', 6.70], ['levanger', 5.03]]) {
-    const y1 = F + 1.05, y2 = y1 + h, z1 = zm - b / 2, z2 = zm + b / 2, g = new THREE.Group();
-    mål.add(g); veggpynt.push({ o: g, y1 });
+    const y1 = F + 1.085, y2 = y1 + h, z1 = zm - b / 2, z2 = zm + b / 2, g = new THREE.Group();
+    mål.add(g);                                                      // vises også med «lave vegger»
     boks(x, y1, z1, x + 0.026, y1 + r, z2, ramme, g); boks(x, y2 - r, z1, x + 0.026, y2, z2, ramme, g);
     boks(x, y1, z1, x + 0.026, y2, z1 + r, ramme, g); boks(x, y1, z2 - r, x + 0.026, y2, z2, ramme, g);
     const t = new THREE.TextureLoader().load(`bilder/${fil}.jpg`); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
