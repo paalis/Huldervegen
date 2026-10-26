@@ -670,7 +670,16 @@
       if (!data || !av || r.avatar !== av) return;
       const rot = av.rot, hips = rot.getObjectByName('Hips');
       if (!hips) return;
-      const hvile = hips.position.clone(), mixer = new THREE.AnimationMixer(rot), handlinger = {}, anker = {};
+      const hvile = hips.position.clone(), handlinger = {}, anker = {};
+      // Kildeskjelettet (Mixamo) i hvilestilling: animasjonene spilles på det, og hvert bilde regnes rotasjonene
+      // om til modellens skjelett (retargeting): Gmodell = Gkilde · Gkilde,hvile⁻¹ · Gmodell,hvile, i forhold
+      // til roten. Da blir holdningen riktig selv om de to skjelettene har ulike akser i hvilestillingen.
+      const kilde = new THREE.Group(), kildeBen = new Map();
+      for (const k of data.skjelett ?? []) {
+        const b = new THREE.Bone(); b.name = k.navn; b.quaternion.fromArray(k.q);
+        (k.forelder ? kildeBen.get(k.forelder) : kilde).add(b); kildeBen.set(k.navn, b);
+      }
+      const mixer = new THREE.AnimationMixer(data.skjelett ? kilde : rot);
       for (const k of data.klipp) {
         const spor = k.tracks.map(t => t.type === 'quaternion' ? new THREE.QuaternionKeyframeTrack(t.name, t.times, t.values)
           : new THREE.VectorKeyframeTrack(t.name, t.times, t.values.map((v, i) => hvile.getComponent(i % 3) + v * hvile.y)));
@@ -683,7 +692,51 @@
       }
       const alle = [];
       rot.traverse(o => { if (o.isBone) alle.push([o, o.quaternion.clone(), o.position.clone()]); });
-      r.anim = { mixer, handlinger, anker, aktiv: null, modus: 'prosedyre', hvile: alle, hipsHvile: hvile, bland: null };
+      // par av ben (forelder før barn) med hvilerotasjonene i forhold til roten, for kilde og modell
+      const hvileLok = new Map(alle.map(([b, q]) => [b, q]));
+      const globalHvile = (b, lok, rotObj) => {                              // produkt av lokale rotasjoner opp til roten
+        const q = new THREE.Quaternion();
+        for (let o = b; o && o !== rotObj; o = o.parent) q.premultiply(lok(o));
+        return q;
+      };
+      // Modellens referanse er bindstillingen (T-stilling, fra skjelettets inverse bindmatriser); kildens hvilestilling
+      // har armene ned. Derfor dreies hvert modellben først så det peker samme vei som kildebenet i hvile (begge
+      // skjelettene har benet langs lokal +Y): korr = Gkilde,hvile⁻¹ · S · Gmodell,bind, der S retter opp retningen.
+      const retarget = [], bindG = new Map(), skjelett = rot.getObjectByProperty('isSkinnedMesh', true)?.skeleton;
+      skjelett?.bones.forEach((b, i) => {
+        const q = new THREE.Quaternion();
+        new THREE.Matrix4().copy(skjelett.boneInverses[i]).invert().decompose(new THREE.Vector3(), q, new THREE.Vector3());
+        bindG.set(b, q);
+      });
+      if (data.skjelett) {
+        const kildeLok = o => o.quaternion, modellLok = o => hvileLok.get(o) ?? o.quaternion;
+        for (const [b] of alle) {
+          const kb = kildeBen.get(b.name);
+          if (!kb) continue;
+          const kG = globalHvile(kb, kildeLok, kilde), mG = bindG.get(b) ?? globalHvile(b, modellLok, rot);
+          const S = new THREE.Quaternion().setFromUnitVectors(Y_AKSE.clone().applyQuaternion(mG), Y_AKSE.clone().applyQuaternion(kG));
+          retarget.push({ b, kb, korr: kG.clone().invert().multiply(S).multiply(mG) });
+        }
+      }
+      r.anim = { mixer, handlinger, anker, aktiv: null, modus: 'prosedyre', hvile: alle, hipsHvile: hvile, bland: null, kilde, kildeBen, retarget };
+    }
+    // regn om stillingen fra kildeskjelettet til modellen (se lagAnimasjoner)
+    function overførAnimasjon(r) {
+      const A = r.anim;
+      if (!A.retarget.length) return;
+      const kG = new Map(), mG = new Map();
+      const kildeG = b => { let g = kG.get(b); if (!g) { g = b.parent && b.parent !== A.kilde ? kildeG(b.parent).clone().multiply(b.quaternion) : b.quaternion.clone(); kG.set(b, g); } return g; };
+      for (const { b, kb, korr } of A.retarget) {
+        const ønsket = kildeG(kb).clone().multiply(korr);                      // modellbenets rotasjon i forhold til roten
+        // forelderens nåværende rotasjon i forhold til roten
+        let fg;
+        if (b.parent && mG.has(b.parent)) fg = mG.get(b.parent);
+        else { fg = new THREE.Quaternion(); for (let o = b.parent; o && o !== r.avatar.rot; o = o.parent) fg.premultiply(o.quaternion); }
+        b.quaternion.copy(fg.clone().invert().multiply(ønsket));
+        mG.set(b, ønsket);
+      }
+      const kh = A.kildeBen.get('Hips'), mh = r.avatar.rot.getObjectByName('Hips');
+      if (kh && mh) mh.position.copy(kh.position);                             // hoftene (allerede i modellens mål)
     }
     function byttModus(r, modus) {
       const A = r.anim;
@@ -725,6 +778,7 @@
       }
       a.timeScale = valg.tempo ?? 1;
       A.mixer.update(dt);
+      overførAnimasjon(r);
       // plassering: modellen står på gulvet; i sofaen/senga legges hoftene på setet eller madrassen
       const f = r.figur, rot = r.avatar.rot, s = rot.scale.x, fs = f.scale.x, ank = A.anker[valg.klipp], h = valg.h;
       f.rotation.x = 0; f.rotation.z = 0; f.position.y = valg.y;
@@ -894,6 +948,19 @@
       armV.skulder.rotation.z = 0.28 + Math.sin(tt * 10) * 0.06;
       armH.skulder.rotation.z = -0.28 - Math.sin(tt * 10) * 0.06;
     };
+    // to-ledds IK for armene til styreskjelettet: legg håndleddet på et punkt i verden (overarm 0,29, underarm
+    // 0,27, albuen bøyer framover). Brukes når hendene skal treffe noe bestemt, som stekepanna.
+    function rekk(a, mål) {
+      figur.updateMatrixWorld(true);
+      const d = figur.worldToLocal(mål.clone()).sub(a.skulder.position);
+      const A = 0.29, B2 = 0.27, L = Math.min(d.length(), A + B2 - 0.005);
+      const klem = v => Math.min(1, Math.max(-1, v));
+      const sideveis = Math.asin(klem(d.x / L)), fram = Math.atan2(d.z, -d.y);
+      const albue = Math.PI - Math.acos(klem((A * A + B2 * B2 - L * L) / (2 * A * B2)));
+      const alfa = Math.acos(klem((A * A + L * L - B2 * B2) / (2 * A * L)));
+      a.skulder.rotation.set(-(fram - alfa), 0, sideveis);
+      a.albue.rotation.set(-albue, 0, 0);
+    }
     const slappAv = tt => {                                                   // lener seg tilbake med et glass
       const slurk = Math.max(0, Math.sin(tt * 0.7)) ** 6;
       armV.skulder.rotation.x = -0.55 - slurk * 0.6; armV.albue.rotation.x = -1.0 - slurk * 0.9;
@@ -942,14 +1009,14 @@
         lyd: 'lyder/handvask.mp3', gjenta: false, varighet: 6, armer: vaskeArmer },
       vask3: { navn: 'Vask hendene', rom: 'vaskerommet', ikon: '🧼', f: 2, gå: [3.80, 8.50], pos: [3.78, 8.50], retning: -π / 2, holdning: 'stå',
         lyd: 'lyder/handvask.mp3', gjenta: false, varighet: 6, armer: vaskeArmer },
-      steke: { navn: 'Stek mat', ikon: '🍳', f: 0, gå: [1.25, 8.51], pos: [1.12, 8.51], retning: -π / 2, holdning: 'stå',
+      steke: { navn: 'Stek mat', ikon: '🍳', f: 0, gå: [1.25, 8.47], pos: [0.98, 8.47], retning: -π / 2, holdning: 'stå',
         lyd: 'lyder/steking.mp3', gjenta: true,
-        før: () => { panne.visible = true; }, etter: () => { panne.visible = false; },
+        før: () => { panne.visible = stekespade.visible = true; }, etter: () => { panne.visible = stekespade.visible = false; },
         armer: tt => {
-          armV.skulder.rotation.x = -0.9 + Math.sin(tt * 5) * 0.08;           // rører i panna
-          armV.skulder.rotation.z = 0.15 + Math.cos(tt * 5) * 0.08; armV.albue.rotation.x = -0.7;
-          armH.skulder.rotation.x = -0.7; armH.skulder.rotation.z = -0.1; armH.albue.rotation.x = -0.9;   // holder skaftet
-          panne.rotation.y = Math.sin(tt * 2.5) * 0.05;
+          panne.rotation.y = -0.6 + Math.sin(tt * 2.5) * 0.04;                 // skaftet peker mot venstre hånd
+          rekk(armV, new THREE.Vector3(0.76 + Math.cos(tt * 4) * 0.035, G1 + 1.0 + Math.sin(tt * 8) * 0.01, 8.36 + Math.sin(tt * 4) * 0.035));   // rører med stekespaden
+          const skaft = new THREE.Vector3(0.27, 0.035, 0).applyQuaternion(panne.quaternion).add(panne.position);
+          rekk(armH, skaft.setY(skaft.y + 0.05));                               // holder i skaftet
         } },
       sov13: { navn: 'Sov', rom: 'soverom 13 m²', ikon: '😴', f: 1, gå: [1.70, 1.40], pos: [0.81, 2.15], retning: 0, holdning: 'ligg', liggehøyde: 0.62,
         lyd: 'lyder/sove.mp3', gjenta: true },
@@ -1069,8 +1136,8 @@
     // kameravinkel under handlingen (med kamera bak figuren): fra siden, forfra eller på skrå bakfra
     const KAMERA_FOR = {
       do2: 'side', do3: 'side', piano: 'front', gitar: 'front', middag: 'front', ute: 'front', takterrasse: 'front',
-      vask2: 'side', vask3: 'side', tenner: 'side', steke: 'side', kaffe: 'side', sov13: 'side', sov7: 'side', sov12: 'side',
-      dusj: 'side', utsikt: 'høyre', vaskemaskin: 'skrå', netflix: 'skrå', netflix3: 'skrå', playstation: 'skrå',
+      vask2: 'side', vask3: 'side', tenner: 'side', kaffe: 'side', sov13: 'side', sov7: 'side', sov12: 'side',
+      dusj: 'side', utsikt: 'høyre', vaskemaskin: 'skrå', steke: 'høyre', netflix: 'skrå', netflix3: 'skrå', playstation: 'skrå',
     };
     for (const [id, k] of Object.entries(KAMERA_FOR)) if (HANDLINGER[id]) HANDLINGER[id].kamera = k;
     // kontroll i hendene og lys på skjermen mens figuren spiller
@@ -1147,6 +1214,12 @@
       bust.position.set(0, 0.14, 0.008); tannbørste.add(bust);
       tannbørste.rotation.x = -1.9;                                           // børsten peker mot munnen
     }
+    const stekespade = iHånd((() => {                                        // skaft langs +y, bladet ytterst
+      const g = new THREE.Group(), svart = new THREE.MeshStandardMaterial({ color: 0x1d1d1d, roughness: 0.6 });
+      const skaft = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.2, 12), svart); skaft.position.y = 0.02; g.add(skaft);
+      const blad = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.09, 0.004, 2, 0.0018), svart); blad.position.set(0, 0.16, 0.012); blad.rotation.x = 0.35; g.add(blad);
+      return g;
+    })(), 0, -0.07, 0.05);
     // middag på spisebordet: tallerken med mat og et glass vann
     const middag = new THREE.Group();
     {
@@ -1273,7 +1346,7 @@
         const x = pl.clone().sub(pr).normalize(), fram = new THREE.Vector3(Math.sin(meg.figur.rotation.y), 0, Math.cos(meg.figur.rotation.y));
         const z = fram.addScaledVector(x, -fram.dot(x)).normalize(), y = new THREE.Vector3().crossVectors(z, x);
         holdtGitar.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
-        holdtGitar.position.copy(pr).addScaledVector(z, -0.045).addScaledVector(y, -0.015);   // kroppen inntil magen, bak hånda
+        holdtGitar.position.copy(pr).addScaledVector(z, -0.085).addScaledVector(y, -0.02);    // strengene under fingrene, kroppen inntil magen
       } else {
         const m = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 1.0, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.42)), new THREE.Vector3(1, 1, 1));
         m.premultiply(meg.figur.matrixWorld).decompose(holdtGitar.position, holdtGitar.quaternion, holdtGitar.scale);
@@ -1287,7 +1360,7 @@
       const mat1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.012, 20), new THREE.MeshStandardMaterial({ color: 0xc58a4a, roughness: 0.8 }));
       mat1.position.y = 0.035; panne.add(mat1);
       const skaft = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.03), svart); skaft.position.set(0.22, 0.035, 0); panne.add(skaft);
-      panne.position.set(0.50, 0.91, 8.45); panne.visible = false; scene.add(panne);
+      panne.position.set(0.64, 0.91, 8.42); panne.visible = false; scene.add(panne);
     }
     // «Zzz» over hodet mens figuren sover
     const zzz = (() => {
@@ -1304,9 +1377,9 @@
         if (o.isGroup && Math.abs(o.position.x - 1.60) < 0.02 && Math.abs(o.position.y - G3) < 0.02 && Math.abs(o.position.z - 8.55) < 0.02) kontorstol = o;
         if (!o.isMesh) return;
         const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3());
-        if (Math.abs(c.x - 4.245) < 0.02 && Math.abs(c.z - 9.35) < 0.05 && Math.abs(c.y - (G3 + 0.425)) < 0.03) vaskemaskin = o;
-        if (o.geometry.type === 'CircleGeometry' && Math.abs(c.x - 4.245) < 0.02 && Math.abs(c.y - (G3 + 0.45)) < 0.02) vaskeluke = o;
+
       });
+      vaskemaskin = scene.getObjectByName('vaskemaskin'); vaskeluke = scene.getObjectByName('trommel');   // maskinen og trommelen som snurrer
       if (vaskemaskin) vaskX = vaskemaskin.position.x;
       if (vaskeluke) vaskLukeX = vaskeluke.position.x;
     }
@@ -1519,7 +1592,7 @@
     // Ting i hånda: med 3D-modell festes gaffel, glass, kopp og tannbørste i modellens høyre hånd (armV er
     // figurens høyre arm), og fingrene krummes rundt dem. Fingrene bøyer seg om sin lokale x-akse (målt fra
     // Mixamo-klippene), og håndflaten vender mot +z i håndens rom.
-    const TING = [[gaffel, { type: 'skaft', ut: 0.035, krum: [1.05, 1.25, 0.9] }], [tannbørste, { type: 'skaft', ut: 0.03, krum: [1.05, 1.25, 0.9] }],
+    const TING = [[gaffel, { type: 'skaft', ut: 0.035, krum: [1.05, 1.25, 0.9] }], [stekespade, { type: 'skaft', ut: 0.02, krum: [1.1, 1.3, 0.95] }], [tannbørste, { type: 'skaft', ut: 0.03, krum: [1.05, 1.25, 0.9] }],
       [glass, { type: 'beger', r: 0.035, h: 0.12, krum: [0.55, 0.75, 0.55] }], [koppHånd, { type: 'beger', r: 0.04, h: 0.09, krum: [0.6, 0.8, 0.6] }]];
     for (const [o] of TING) o.userData.opprinnelig = [o.position.clone(), o.quaternion.clone()];
     const FINGRE = ['Index', 'Middle', 'Ring', 'Pinky'];
@@ -1799,7 +1872,58 @@
     }
     // bokser i verden for alt som kan stå i veien (beregnes én gang; huset står stille)
     const bokser = new Map(), hindreOgGlass = [], påVegg = new Map();
-    const boksFor = o => { let b = bokser.get(o); if (!b) { b = new THREE.Box3().setFromObject(o); bokser.set(o, b); } return b; };
+    const boksFor = o => {
+      let b = bokser.get(o);
+      if (!b || o.userData.dør) { b = new THREE.Box3().setFromObject(o); bokser.set(o, b); }   // dørene beveger seg
+      return b;
+    };
+
+    // ---------- Dører som åpner seg ----------
+    // I spillet svinger dørene opp på hengslene når noen nærmer seg døråpningen, og lukker seg igjen når de har
+    // gått forbi. Da går ingen gjennom en lukket dør, og åpne dører står ikke ute i rommene og i veien.
+    // Hver dør: dørbladets midtpunkt (for å finne det), hengselet, døråpningens midtpunkt og hvor mye bladet må
+    // dreies fra slik det står i modellen for å være lukket og åpent (radianer om loddrett akse).
+    const DØRER = [
+      { f: 0, blad: [3.14, 7.74], hengsel: [3.14, 7.35], åpning: [3.50, 7.30], lukket: Math.PI / 2, åpen: 0 },           // stue | entré
+      { f: 0, blad: [3.525, 9.80], hengsel: [3.17, 9.80], åpning: [3.525, 9.75], lukket: 0, åpen: Math.PI / 2, ytter: true },   // ytterdøra
+      { f: 1, blad: [2.47, 4.37], hengsel: [2.85, 4.37], åpning: [2.90, 4.01], lukket: -Math.PI / 2, åpen: 0 },          // soverom 13
+      { f: 1, blad: [3.10, 2.82], hengsel: [3.10, 3.20], åpning: [3.46, 3.25], lukket: -Math.PI / 2, åpen: 0 },          // soverom 7
+      { f: 1, blad: [2.895, 5.73], hengsel: [2.915, 6.02], åpning: [2.90, 5.73], lukket: 0, åpen: -Math.PI / 2 },        // bad (slår ut i gangen)
+      { f: 1, blad: [3.82, 7.665], hengsel: [3.82, 7.30], åpning: [3.47, 7.24], lukket: -Math.PI / 2, åpen: 0 },         // soverom 12
+      { f: 2, blad: [1.15, 6.95], hengsel: [1.50, 6.95], åpning: [1.15, 6.95], lukket: 0, åpen: Math.PI / 2 },           // kontoret
+      { f: 2, blad: [3.75, 7.705], hengsel: [3.75, 7.36], åpning: [3.42, 7.31], lukket: -Math.PI / 2, åpen: 0 },         // vaskerommet
+    ];
+    const dører = [];
+    function lagDører() {
+      const kandidater = [];
+      scene.traverse(o => { if (o.isMesh && (o.material === M.hvitDør || o.material === M.ytterdør)) kandidater.push(o); });
+      for (const d of DØRER) {
+        const y0 = base(d.f), c = new THREE.Vector3();
+        const blad = kandidater.find(o => { new THREE.Box3().setFromObject(o).getCenter(c); return Math.abs(c.x - d.blad[0]) < 0.06 && Math.abs(c.z - d.blad[1]) < 0.06 && c.y > y0 && c.y < y0 + 2; });
+        if (!blad) { console.warn('Fant ikke dør', d); continue; }
+        const hengsel = new THREE.Object3D(); hengsel.position.set(d.hengsel[0], 0, d.hengsel[1]);
+        blad.parent.add(hengsel); hengsel.updateMatrixWorld(true); hengsel.attach(blad);
+        blad.userData.dør = true;
+        if (d.ytter) {                                                         // koøyet i ytterdøra følger med
+          const øye = [];
+          scene.traverse(o => { if (o.isMesh && o.geometry.type === 'CircleGeometry' && Math.abs(o.position.x - 3.525) < 0.01 && Math.abs(o.position.y - 1.5) < 0.01) øye.push(o); });
+          for (const o of øye) { hengsel.attach(o); o.userData.dør = true; }
+        }
+        dører.push({ ...d, hengsel, vinkel: d.lukket, y0 });
+        hengsel.rotation.y = d.lukket;
+      }
+    }
+    // hvert bilde: dører med noen i nærheten (figuren eller andre spillere) åpnes, de andre lukkes
+    function oppdaterDører(dt) {
+      const folk = [{ f: tilstand.f, p: tilstand.pos }, ...[...andre.values()].map(a => ({ f: a.data.f, p: a.pos }))];
+      for (const d of dører) {
+        const nær = folk.some(({ f, p }) => f === d.f && Math.hypot(p.x - d.åpning[0], p.z - d.åpning[1]) < 1.25);
+        const mål = nær ? d.åpen : d.lukket, diff = mål - d.vinkel;
+        if (Math.abs(diff) < 1e-3) continue;
+        d.vinkel += Math.sign(diff) * Math.min(Math.abs(diff), dt * 3.2);      // ca. et halvt sekund for å åpne
+        d.hengsel.rotation.y = d.vinkel;
+      }
+    }
     function forberedKamera() {
       hindreOgGlass.push(...hindre, ...glassFlater);
       // bilder og andre tynne ting som henger på en vegg, hører til veggen
@@ -1851,6 +1975,7 @@
       controls.update();
       scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
       scene.traverse(o => { if (o.isMesh && o.material.transparent && o.material.opacity < 0.9 && !figurdeler.has(o) && o !== ring) glassFlater.push(o); });
+      lagDører();
       forberedKamera();
       himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
       for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
@@ -1864,7 +1989,7 @@
       knapp('laster').remove();
       renderer.setAnimationLoop(() => {
         const dt = Math.min(0.05, klokke.getDelta());
-        steg(dt); animerMeg(dt); tegnAndre(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
+        steg(dt); animerMeg(dt); tegnAndre(dt); oppdaterDører(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
         himmel?.oppdater(dt, camera); plasserLapper(); plasserIkoner(); følgYtelse(); composer.render();
       });
     }, 30));
@@ -2117,7 +2242,7 @@
     }
 
     // for testing og opptak
-    window.spill = { glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+    window.spill = { dører, oppdaterDører, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
   </script>
 </body>
 </html>
