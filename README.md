@@ -2,7 +2,8 @@
 
 Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 
-- `index.html` – 3D-modellen med knapper for etasjer, visninger og video
+- `index.html` – 3D-modellen med knapper for etasjer, visninger og video, og «⬇ Last ned 3D-modell»
+  (`eksport.js` lager en .glb av huset i nettleseren, til SketchUp, Blender o.l.)
 - `spill.html` – gå rundt i huset med en figur (klikk for å gå, piltaster/WASD, trapper mellom etasjene)
   og handlinger: piano, gitar, PlayStation, Netflix (1. og 3. etasje), vaskemaskin, gå på do, vaske hendene, steke mat, sove,
   spise middag, lage kaffe, slappe av ute og på takterrassen, gå inn og ut, dusje, pusse tennene,
