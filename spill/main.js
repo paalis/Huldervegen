@@ -16,6 +16,7 @@ import { dører, lagDører, oppdaterDører } from './dorer.js';
 import { munnPunkt, etterAnimasjon } from './hender.js';
 import { slåSammen, skyggeTakt } from './ytelse.js';
 import { del, nårFerdig } from './laster.js';
+import { toneHvert, visAlt, toning } from './toning.js';
 import { lagHåndting, lagStratocaster, koppMaskin, middag, visDamp, damp, vann, oppdaterVann, panne, zzz } from './rekvisitter.js';
 
 // lasteskjermen: huset bygges mens figuren og bevegelsene lastes ned (begge startes med en gang)
@@ -938,9 +939,8 @@ function følg(dt, hopp = false) {
   const område = new THREE.Box3().setFromPoints([camera.position, ...punkter]).expandByScalar(0.3);
   const kandidater = [];
   for (const o of hindreOgGlass) if (synlig(o, true) && område.intersectsBox(boksFor(o))) kandidater.push(o);
-  const avOss = new Set(iVeien);                                          // skjult av kameraet (ikke av spillet ellers)
   const skjul = o => {
-    if (!(o.visible || avOss.has(o))) return;
+    if (!(o.visible || toning(o))) return;                                // skjult av spillet ellers (ikke av kameraet)
     skjultTil.set(o, nå + 350);
     for (const b of påVegg.get(o) ?? []) skjultTil.set(b, nå + 350);      // bilder på veggen
   };
@@ -954,10 +954,10 @@ function følg(dt, hopp = false) {
     if (o.material.clippingPlanes && b.clone().expandByScalar(0.06).containsPoint(camera.position)) skjul(o);   // kameraet står inni veggen
     else if (!vinkel && b.min.y > t.pos.y + 2.0 && b.min.y < camera.position.y) skjul(o);   // trinn og bjelker over hodet, mellom kameraet og figuren
   }
-  // vis igjen det som ikke lenger er i veien, skjul det som er det
-  for (const o of iVeien) if (!(skjultTil.get(o) > nå)) { o.visible = true; skjultTil.delete(o); }
-  iVeien.length = 0;
-  for (const [o, til] of skjultTil) if (til > nå) { o.visible = false; iVeien.push(o); }
+  // tone bort det som er i veien, og tilbake det som ikke lenger er det
+  const bort = new Set();
+  for (const [o, til] of skjultTil) if (til > nå) bort.add(o); else skjultTil.delete(o);
+  toneHvert(bort, hopp ? 1 : dt);
 }
 // bokser i verden for alt som kan stå i veien (beregnes én gang; huset står stille)
 const bokser = new Map(), hindreOgGlass = [], påVegg = new Map();
@@ -1003,8 +1003,8 @@ function velgSide(mål, r, v, avst, høyde) {
   return best;
 }
 let himmel = null;
-const iVeien = [], høye = [];
-function visAltIgjen() { for (const o of iVeien) o.visible = true; iVeien.length = 0; skjultTil.clear(); }
+const høye = [];
+function visAltIgjen() { visAlt(); skjultTil.clear(); }
 const synlig = (o, ignorerEgen = false) => { for (let p = ignorerEgen ? o.parent : o; p; p = p.parent) if (!p.visible) return false; return true; };
 
 // ---------- Start ----------
