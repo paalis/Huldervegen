@@ -6,16 +6,55 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { F, scene } from '../hus.js';
 
 const π = Math.PI, G1 = 0, G2 = F;
-const stål = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, roughness: 0.3, metalness: 0.8 });
+const stål = new THREE.MeshStandardMaterial({ color: 0xd4d8dc, roughness: 0.28, metalness: 0.45 });
 
 // ---------- Ting i hånda ----------
 // Hver figur får sitt eget sett (lagHåndting). Uten 3D-modell henger de i styreskjelettets hånd (hånda peker
 // nedover langs underarmen, fingrene mot +z); med 3D-modell flyttes de til modellens hånd (se spillets oppdaterGrep).
-function lagGaffel() {                                                    // skaft, hals og fire tenner langs +y
+// buet flate langs +y: profil (y, z-bøy, bredde) → mesh med litt tykkelse
+function bueFlate(profil, tykk, mat) {
   const g = new THREE.Group();
-  const skaft = new THREE.Mesh(new RoundedBoxGeometry(0.014, 0.12, 0.004, 2, 0.0018), stål); skaft.position.y = -0.02; g.add(skaft);
-  const hals = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.025, 0.003), stål); hals.position.y = 0.05; g.add(hals);
-  for (let k = 0; k < 4; k++) { const t = new THREE.Mesh(new THREE.BoxGeometry(0.0028, 0.04, 0.0025), stål); t.position.set(-0.0075 + k * 0.005, 0.082, 0); g.add(t); }
+  for (let k = 0; k < profil.length - 1; k++) {
+    const [y1, z1, b1] = profil[k], [y2, z2, b2] = profil[k + 1], l = Math.hypot(y2 - y1, z2 - z1);
+    const m = new THREE.Mesh(new THREE.BoxGeometry((b1 + b2) / 2, l + 0.0008, tykk), mat);
+    m.position.set(0, (y1 + y2) / 2, (z1 + z2) / 2); m.rotation.x = Math.atan2(z2 - z1, y2 - y1); g.add(m);
+  }
+  return g;
+}
+// Gaffel (ca. 20 cm): skaftet buer svakt, halsen dukker og tindene bøyer opp mot forsiden (+z). Origo er
+// der pekefingeren hviler på ryggen; tuppen av tindene er ved y = 0,09.
+function lagGaffel() {
+  const g = new THREE.Group();
+  g.add(bueFlate([[-0.115, 0.004, 0.017], [-0.08, 0.0, 0.015], [-0.04, -0.002, 0.012], [0.0, -0.002, 0.008], [0.03, -0.004, 0.0075], [0.045, -0.003, 0.012]], 0.0035, stål));
+  g.add(bueFlate([[0.045, -0.003, 0.024], [0.052, -0.002, 0.025]], 0.0025, stål));        // der tindene starter
+  for (let k = 0; k < 4; k++) {
+    const t = bueFlate([[0.05, -0.002, 0.0032], [0.07, 0.0, 0.003], [0.085, 0.003, 0.0026], [0.092, 0.006, 0.002]], 0.0022, stål);
+    t.position.x = -0.0093 + k * 0.0062; g.add(t);
+  }
+  return g;
+}
+// Kniv (ca. 22 cm): skaft bak origo, blad foran med eggen mot forsiden (+z) og ryggen der pekefingeren hviler
+function lagKniv() {
+  const g = new THREE.Group();
+  const skaft = new THREE.Mesh(new RoundedBoxGeometry(0.016, 0.105, 0.011, 2, 0.004), stål); skaft.position.y = -0.055; g.add(skaft);
+  const form = new THREE.Shape();                                         // bladet i (y, z): rygg ved z = 0, egg ved z ≈ 0,02
+  form.moveTo(0, -0.001); form.lineTo(0.09, -0.001); form.quadraticCurveTo(0.118, 0.0, 0.122, 0.006);
+  form.quadraticCurveTo(0.11, 0.019, 0.08, 0.02); form.lineTo(0.004, 0.02); form.lineTo(0, 0.008); form.closePath();
+  const geo = new THREE.ExtrudeGeometry(form, { depth: 0.0018, bevelEnabled: false, curveSegments: 8 });
+  geo.translate(0, 0, -0.0009);
+  geo.applyMatrix4(new THREE.Matrix4().set(0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1));   // (u, v, tykkelse) → (y, z, x)
+  g.add(new THREE.Mesh(geo, stål));
+  return g;
+}
+function lagTube() {                                                      // tannkremtube langs +y, korken ved +y
+  const g = new THREE.Group();
+  const kropp = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.11, 18), new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 0.4 }));
+  kropp.scale.z = 0.75; g.add(kropp);
+  const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.0172, 0.0172, 0.035, 18, 1, true), new THREE.MeshStandardMaterial({ color: 0x1f6fd1, roughness: 0.4 }));
+  stripe.scale.z = 0.75; stripe.position.y = 0.01; g.add(stripe);
+  const ende = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.008, 0.004), kropp.material); ende.position.y = -0.058; g.add(ende);
+  const kork = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.009, 0.016, 14), new THREE.MeshStandardMaterial({ color: 0x1f6fd1, roughness: 0.5 }));
+  kork.position.y = 0.063; g.add(kork);
   return g;
 }
 function lagKopp() {
@@ -34,12 +73,17 @@ function lagGlass() {                                                     // gla
   saft.position.y = 0.04; glass.add(saft);
   return glass;
 }
-function lagTannbørste() {                                                // skaft langs +y, bustene ytterst mot +z
-  const t = new THREE.Group();
-  const skaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.18, 8), new THREE.MeshStandardMaterial({ color: 0x3a8fd6, roughness: 0.4 }));
-  skaft.position.y = 0.06; t.add(skaft);
-  const bust = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.025, 0.012), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }));
-  bust.position.set(0, 0.14, 0.008); t.add(bust);
+// Tannbørste (ca. 18 cm) langs +y, bustene på forsiden (+z) ytterst; origo midt på skaftet der neven holder.
+// Tuppen (forkant av hodet) ved y = 0,105; tannkremen ligger oppå bustene (skjult til den klemmes på).
+function lagTannbørste() {
+  const t = new THREE.Group(), blå = new THREE.MeshStandardMaterial({ color: 0x3a8fd6, roughness: 0.35 });
+  const skaft = new THREE.Mesh(new RoundedBoxGeometry(0.012, 0.15, 0.009, 2, 0.004), blå); skaft.position.y = -0.0; t.add(skaft);
+  const hals = new THREE.Mesh(new RoundedBoxGeometry(0.007, 0.03, 0.005, 2, 0.002), blå); hals.position.set(0, 0.075, 0.001); t.add(hals);
+  const hode = new THREE.Mesh(new RoundedBoxGeometry(0.011, 0.026, 0.005, 2, 0.002), blå); hode.position.set(0, 0.092, 0.001); t.add(hode);
+  const bust = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.024, 0.011), new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 0.8 }));
+  bust.position.set(0, 0.092, 0.009); t.add(bust);
+  const krem = new THREE.Mesh(new THREE.CapsuleGeometry(0.0035, 0.016, 4, 8), new THREE.MeshStandardMaterial({ color: 0xe9f3ff, roughness: 0.3 }));
+  krem.position.set(0, 0.092, 0.017); krem.visible = false; krem.name = 'tannkrem'; t.add(krem);
   return t;
 }
 function lagStekespade() {                                                // skaft langs +y, bladet ytterst
@@ -51,8 +95,13 @@ function lagStekespade() {                                                // ska
 // et sett ting til én figur, med plassering i styreskjelettets hånd; alle er skjult til de trengs
 function lagHåndting() {
   const sett = (o, [x, y, z], rx) => { o.position.set(x, y, z); o.rotation.x = rx; o.visible = false; return o; };
+  const gaffel = sett(lagGaffel(), [0, -0.07, 0.05], 1.2);
+  const bit = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), new THREE.MeshStandardMaterial({ color: 0x9a5a34, roughness: 0.8 }));
+  bit.scale.set(1.2, 0.8, 0.8); bit.position.set(0, 0.075, 0.01); bit.name = 'matbit'; bit.visible = false; gaffel.add(bit);
   return {
-    gaffel: sett(lagGaffel(), [0, -0.07, 0.05], 1.2),
+    gaffel,
+    kniv: sett(lagKniv(), [0, -0.07, 0.05], 1.2),
+    tube: sett(lagTube(), [0, -0.09, 0.06], π / 2),
     koppHånd: sett(lagKopp(), [0, -0.10, 0.06], π / 2),
     glass: sett(lagGlass(), [0, -0.09, 0.06], π / 2),
     tannbørste: sett(lagTannbørste(), [0, -0.08, 0.05], -1.9),
@@ -195,4 +244,4 @@ const zzz = (() => {
   sp.scale.set(0.4, 0.2, 1); sp.visible = false; scene.add(sp); return sp;
 })();
 
-export { lagHåndting, lagStratocaster, koppMaskin, middag, damp, visDamp, vann, oppdaterVann, panne, zzz };
+export { lagHåndting, lagStratocaster, lagTube, koppMaskin, middag, damp, visDamp, vann, oppdaterVann, panne, zzz };

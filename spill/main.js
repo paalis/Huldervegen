@@ -14,6 +14,9 @@ import { lagFigur, FERDIGE, settUtseende, figurdeler, figurHendelser } from './f
 import { KLIPP_HANDLING, lagAnimasjoner, animer, lastAnimasjoner } from './animasjon.js';
 import { dører, lagDører, oppdaterDører } from './dorer.js';
 import { munnPunkt, etterAnimasjon } from './hender.js';
+import * as grepModul from './grep.js';
+const { GREP } = grepModul;
+window.grepModul = grepModul;                                           // for testing
 import { slåSammen, skyggeTakt } from './ytelse.js';
 import { del, nårFerdig } from './laster.js';
 import { finnRom } from './rom.js';
@@ -263,6 +266,43 @@ function drikk(tt, ting, hvile, periode = 9) {
   rigg.håndTing = { o: rigg.ting[ting], type: 'beger', w, vipp: 1.0 * w * (0.85 + 0.15 * Math.sin(tt * 2)), munn };
   return w;
 }
+// Middag med kniv og gaffel (gaffelen i venstre hånd, kniven i høyre, pekefingeren på ryggen av begge): kniven
+// sager mens gaffelen holder maten, gaffelen tar biten opp til munnen med ryggen opp, legges ned igjen, og
+// figuren tygger før neste bit. Hendene styres med håndMål (tuppen av gaffelen/kniven dit, tingen langs en retning).
+const stilling = (mål, retning, forside) => ({ mål, retning: retning.normalize(), forside: forside.normalize() });
+const blandStilling = (a, b, u) => stilling(a.mål.clone().lerp(b.mål, u), a.retning.clone().lerp(b.retning, u), a.forside.clone().lerp(b.forside, u));
+function spis(tid) {
+  const tt = Math.max(0, tid - 2.4);                                           // sett deg ned først (hendene hviler imens)
+  const [fram, høyre] = retninger(), P = 6.5, u = tid < 2.4 ? 4.5 : tt % P, n = Math.floor(tt / P);
+  const ting = rigg.ting, tallerken = middag.position.clone().add(new THREE.Vector3(0, 0.022, 0));
+  const munn = rigg.munn?.clone() ?? hodet.getWorldPosition(new THREE.Vector3()).addScaledVector(fram, 0.1);
+  const bit = tallerken.clone().addScaledVector(høyre, -0.025 + 0.02 * Math.sin(n * 1.7)).addScaledVector(fram, -0.01 + 0.025 * Math.cos(n * 2.3));
+  // gaffelen: i maten (tindene ned og fram), ved munnen (tindene inn mot munnen, ryggen opp) og hvilende på tallerkenkanten
+  const iMaten = stilling(bit.clone().add(new THREE.Vector3(0, 0.008, 0)), fram.clone().multiplyScalar(0.8).addScaledVector(OPP, -0.48).addScaledVector(høyre, 0.25), fram.clone().negate().addScaledVector(OPP, -0.4));
+  const vedMunn = stilling(munn.clone().addScaledVector(fram, 0.004), fram.clone().multiplyScalar(-0.85).addScaledVector(høyre, 0.12).addScaledVector(OPP, 0.55), OPP.clone().negate().addScaledVector(fram, -0.5));
+  const hviler = stilling(tallerken.clone().addScaledVector(høyre, -0.1).add(new THREE.Vector3(0, 0.012, 0)), fram.clone().multiplyScalar(0.75).addScaledVector(høyre, 0.35).addScaledVector(OPP, -0.3), OPP.clone().negate());
+  let g;
+  if (u < 2.2) g = iMaten;                                                     // skjærer
+  else if (u < 3.0) g = blandStilling(iMaten, vedMunn, myk((u - 2.2) / 0.8));  // opp til munnen
+  else if (u < 3.5) g = vedMunn;
+  else if (u < 4.3) g = blandStilling(vedMunn, hviler, myk((u - 3.5) / 0.8));  // ned igjen
+  else g = blandStilling(hviler, iMaten, myk((u - 5.7) / 0.8));               // tygger, så ned i maten igjen
+  if (u < 2.2) g.mål.y += Math.max(0, Math.sin(u * 2.4)) * 0.004;            // trykker litt på maten
+  // kniven: sager like ved gaffelen, hviler ellers med tuppen på tallerkenkanten
+  const sag = stilling(bit.clone().addScaledVector(høyre, 0.032).add(new THREE.Vector3(0, 0.004, 0)), fram.clone().multiplyScalar(0.8).addScaledVector(OPP, -0.36).addScaledVector(høyre, -0.4), OPP.clone().negate());
+  sag.mål.addScaledVector(sag.retning, Math.sin(u * 7.5) * 0.013);
+  const kHvile = stilling(tallerken.clone().addScaledVector(høyre, 0.1).add(new THREE.Vector3(0, 0.012, 0)), fram.clone().multiplyScalar(0.6).addScaledVector(høyre, -0.35).addScaledVector(OPP, -0.3), OPP.clone().negate());
+  const k = u < 2.2 ? blandStilling(kHvile, sag, myk(u / 0.4)) : blandStilling(sag, kHvile, myk((u - 2.2) / 0.5));
+  if (ting.gaffel.parent && ting.kniv.parent) {
+    rigg.håndMål = {
+      Left: { ting: ting.gaffel, tupp: new THREE.Vector3(0, 0.09, 0.005), ...g },
+      Right: { ting: ting.kniv, tupp: new THREE.Vector3(0, 0.1, 0.018), ...k },
+    };
+  }
+  const matbit = ting.gaffel.getObjectByName('matbit');
+  if (matbit) matbit.visible = u > 2.1 && u < 3.25;                           // biten på gaffelen til den er i munnen
+  hodet.rotation.x = 0.25 - (u > 2.2 && u < 4 ? 0.15 : 0) + (u > 3.4 && u < 5.8 ? Math.max(0, Math.sin(tt * 9)) * 0.03 : 0);
+}
 const slappAv = tt => {                                                   // lener seg tilbake med et glass
   const [fram, høyre] = retninger();
   const p = fot(), w = drikk(tt, 'glass', p.clone().addScaledVector(høyre, 0.2).addScaledVector(fram, 0.2).setY(p.y + 0.72));
@@ -340,24 +380,8 @@ const HANDLINGER = {
     armer: tt => { HANDLINGER.netflix.armer(tt); } },
   middag: { navn: 'Spis middag', ikon: '🍽️', f: 0, gå: [2.55, 4.20], pos: [2.10, 4.62], retning: 0, holdning: 'sitt', sete: 0.49,
     lyd: 'lyder/middag.mp3', gjenta: true,
-    før: () => { middag.visible = gaffel.visible = true; }, etter: () => { middag.visible = gaffel.visible = false; },
-    armer: tt => {
-      // tar en bit fra tallerkenen, fører gaffelen til munnen, legger den ned igjen og tygger en stund
-      const [fram, høyre] = retninger(), u = tt % 5.2, n = Math.floor(tt / 5.2);
-      const mat = middag.position.clone().add(new THREE.Vector3(0, 0.035, 0))
-        .addScaledVector(høyre, 0.03 * Math.sin(n * 2.1)).addScaledVector(fram, 0.03 * Math.cos(n * 1.7) - 0.01);
-      const munn = rigg.munn?.clone() ?? hodet.getWorldPosition(new THREE.Vector3()).addScaledVector(fram, 0.1);
-      const ned = fram.clone().multiplyScalar(0.55).addScaledVector(OPP, -0.8).addScaledVector(høyre, -0.15).normalize();   // gaffelen ned i maten
-      const inn = fram.clone().multiplyScalar(-0.85).addScaledVector(OPP, 0.3).addScaledVector(høyre, -0.2).normalize();   // gaffelen inn i munnen
-      const løft = myk((u - 1.3) / 0.8) * (1 - myk((u - 2.6) / 0.8));
-      const stikk = u < 1.3 ? Math.max(0, Math.sin(u * 7)) * 0.015 : 0;
-      const tupp = mat.clone().add(new THREE.Vector3(0, u > 3.4 ? 0.05 : stikk, 0)).lerp(munn.clone().addScaledVector(fram, 0.01), løft);
-      const retning = ned.clone().lerp(inn, løft).normalize();
-      rekkMot(armV, tupp.clone().addScaledVector(retning, -0.13));
-      rekkMot(armH, middag.position.clone().addScaledVector(høyre, -0.24).addScaledVector(fram, -0.1).add(new THREE.Vector3(0, 0.04, 0)));
-      hodet.rotation.x = 0.3 - løft * 0.25 + (u > 3.4 ? Math.max(0, Math.sin(tt * 9)) * 0.03 : 0);   // ser ned, løfter hodet litt, tygger
-      rigg.håndTing = { o: rigg.ting.gaffel, type: 'skaft', tupp, retning, lengde: 0.105 };
-    } },
+    før: () => { middag.visible = gaffel.visible = kniv.visible = true; }, etter: () => { middag.visible = gaffel.visible = kniv.visible = false; },
+    armer: tt => spis(tt) },
   kaffe: { navn: 'Lag kaffe', ikon: '☕', f: 0, gå: [1.545, 8.55], pos: [1.545, 8.82], retning: 0, holdning: 'stå',
     lyd: 'lyder/kaffe.mp3', gjenta: false,
     før: () => { koppMaskin.visible = true; }, etter: () => { koppMaskin.visible = koppHånd.visible = damp.visible = false; },
@@ -502,7 +526,7 @@ function giHåndting(r) {
 }
 giHåndting(meg);
 meg.fot = tilstand.pos;                                                    // figurens plass på gulvet (se fot)
-const { gaffel, koppHånd, glass, tannbørste, stekespade } = meg.ting, holdtGitar = meg.gitar;
+const { gaffel, kniv, koppHånd, glass, tannbørste, stekespade } = meg.ting, holdtGitar = meg.gitar;
 let kontorstol = null, stativGitar = null, vaskemaskin = null, vaskeluke = null, vaskX = 0, vaskLukeX = 0;
 function finnTing() {
   scene.traverse(o => {
@@ -1171,7 +1195,7 @@ function håndterSpiller(hva, uid, d) {
   if (nyEtasje || nyHandling) oppdaterOnline();
 }
 // hva andre spillere holder i hånda under handlingene (kaffekoppen først når kaffen er ferdig)
-const TING_I_HÅNDA = { middag: ['gaffel'], ute: ['glass'], takterrasse: ['glass'], tenner: ['tannbørste'], steke: ['stekespade'], kaffe: ['koppHånd'] };
+const TING_I_HÅNDA = { middag: ['gaffel', 'kniv'], ute: ['glass'], takterrasse: ['glass'], tenner: ['tannbørste'], steke: ['stekespade'], kaffe: ['koppHånd'] };
 function tegnAndre(dt) {
   const nå = performance.now();
   for (const a of andre.values()) {
@@ -1392,4 +1416,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { GREP, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
