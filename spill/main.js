@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { F, scene, vis, oppdater, etiketter, sol, midt } from '../hus.js';
+import { F, M, scene, vis, oppdater, etiketter, sol, midt } from '../hus.js';
 import { kobleTil } from '../flerspiller.js';
 import { lagHimmel } from '../himmel.js';
 import { firebaseConfig } from '../firebase-config.js';
@@ -303,6 +304,67 @@ function spis(tid) {
   if (matbit) matbit.visible = u > 2.1 && u < 3.25;                           // biten på gaffelen til den er i munnen
   hodet.rotation.x = 0.25 - (u > 2.2 && u < 4 ? 0.15 : 0) + (u > 3.4 && u < 5.8 ? Math.max(0, Math.sin(tt * 9)) * 0.03 : 0);
 }
+// Tannpuss foran speilet: tannkrem fra tuben (venstre hånd) på børsten, så børster høyre hånd høyre side, venstre
+// side og fortennene med korte strøk, figuren bøyer seg over vasken og spytter, skyller munnen med vann fra
+// kranen, spytter igjen og retter seg opp. Venstre hånd støtter seg på servanten mens han pusser.
+const kranVann = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.1, 8, 1, true), new THREE.MeshStandardMaterial({ color: 0xcfe8ff, roughness: 0.05, transparent: true, opacity: 0.6 }));
+kranVann.position.set(1.48, F + 0.97, 7.025); kranVann.visible = false; scene.add(kranVann);
+const spytt = [0, 1, 2].map(() => { const d = new THREE.Mesh(new THREE.SphereGeometry(0.006, 8, 6), new THREE.MeshStandardMaterial({ color: 0xf2f6f8, roughness: 0.3 })); d.visible = false; scene.add(d); return d; });
+function pussTenner(tt) {
+  const [fram, høyre] = retninger(), ting = rigg.ting, børste = ting.tannbørste, tube = ting.tube;
+  const munn = (rigg.munn?.clone() ?? hodet.getWorldPosition(new THREE.Vector3()).addScaledVector(fram, 0.1)).add(new THREE.Vector3(0, 0.018, 0));   // leppene
+  const p = fot(), ned = OPP.clone().negate(), krem = børste.getObjectByName('tannkrem');
+  const kant = p.clone().addScaledVector(høyre, -0.2).addScaledVector(fram, 0.25).setY(p.y + 0.94);   // servantkanten til venstre
+  const BØRSTETUPP = new THREE.Vector3(0, 0.105, 0);
+  let b = null, t = null, v = null, bøy = 0;
+  // tannkrem: børsten vannrett foran brystet med bustene opp, tuben over med korken ned
+  const foranBryst = stilling(p.clone().addScaledVector(fram, 0.32).addScaledVector(høyre, -0.04).setY(p.y + 1.24), høyre.clone().negate(), OPP.clone());
+  const sider = {                                                        // tuppen av børsten inne i munnen, bustene mot tennene
+    høyre: stilling(munn.clone().addScaledVector(fram, -0.04).addScaledVector(høyre, 0.024).add(new THREE.Vector3(0, -0.006, 0)), fram.clone().negate().addScaledVector(høyre, -0.3).addScaledVector(OPP, 0.1), høyre.clone().negate()),
+    venstre: stilling(munn.clone().addScaledVector(fram, -0.04).addScaledVector(høyre, -0.024).add(new THREE.Vector3(0, -0.006, 0)), fram.clone().negate().addScaledVector(høyre, -0.75).addScaledVector(OPP, 0.12), høyre.clone()),
+    foran: stilling(munn.clone().addScaledVector(fram, -0.006).addScaledVector(høyre, -0.016), høyre.clone().negate().addScaledVector(fram, -0.25), fram.clone().negate()),
+  };
+  const strøk = (s, akse, a) => { s.mål.addScaledVector(akse, Math.sin(tt * 13) * a).add(new THREE.Vector3(0, Math.sin(tt * 6.5) * 0.002, 0)); return s; };
+  if (tt < 2.6) {                                                        // tannkrem på børsten
+    b = foranBryst; tube.visible = tt > 0.4;
+    // korken rett over bustene (bustene er ca. 1 cm innenfor tuppen), tuben på skrå mot venstre; trekkes langs børsten mens kremen kommer
+    const over = b.mål.clone().addScaledVector(b.retning, -0.012 - 0.012 * Math.min(1, Math.max(0, (tt - 1.5) / 0.8))).add(new THREE.Vector3(0, 0.022, 0));
+    t = stilling(over, ned.clone().addScaledVector(høyre, 0.45), fram.clone());
+    if (krem) { krem.visible = tt > 1.5; krem.scale.y = Math.min(1, Math.max(0.15, (tt - 1.5) / 0.8)); }
+  } else if (tt < 3.0) { b = blandStilling(foranBryst, sider.høyre, myk((tt - 2.6) / 0.4)); tube.visible = false; v = kant; }
+  else if (tt < 6.2) { b = strøk(sider.høyre, fram, 0.008); v = kant; }
+  else if (tt < 6.6) { b = blandStilling(sider.høyre, sider.venstre, myk((tt - 6.2) / 0.4)); v = kant; }
+  else if (tt < 9.4) { b = strøk(sider.venstre, fram, 0.008); v = kant; }
+  else if (tt < 9.8) { b = blandStilling(sider.venstre, sider.foran, myk((tt - 9.4) / 0.4)); v = kant; }
+  else if (tt < 11.4) { b = strøk(sider.foran, høyre, 0.01); v = kant; }
+  else if (tt < 12.0) { b = blandStilling(sider.foran, foranBryst, myk((tt - 11.4) / 0.6)); v = kant; }
+  else børste.visible = false;                                            // børsten legges fra seg
+  if (krem && tt > 3.6) krem.visible = false;
+  // spytte, skylle, spytte og rette seg opp
+  if (tt > 12.0) {
+    bøy = 0.8 * myk((tt - 12.0) / 0.7) * (1 - myk((tt - 15.6) / 0.8));
+    v = kant;
+    const vask = p.clone().addScaledVector(fram, 0.5).setY(p.y + 0.93);
+    kranVann.visible = tt > 13.4 && tt < 15.2;
+    if (tt > 13.4 && tt < 15.4) {                                          // hånda under kranen, så til munnen
+      const tilMunn = myk((tt - 14.2) / 0.5) * (1 - myk((tt - 14.9) / 0.4));
+      rekkMot(armV, kranVann.position.clone().add(new THREE.Vector3(0, -0.06, -0.03)).lerp(munn.clone().addScaledVector(fram, 0.05).add(new THREE.Vector3(0, -0.03, 0)), tilMunn));
+      rigg.håndform = { Right: 'beger' };
+    } else rekkMot(armV, kant.clone().addScaledVector(høyre, 0.4));
+    for (const [k, start] of [[0, 12.9], [1, 13.0], [2, 15.3]]) {           // spyttet faller ned i vasken
+      const u = (tt - start) / 0.45, d = spytt[k];
+      d.visible = lokal() && u > 0 && u < 1;
+      if (d.visible) d.position.copy(munn).lerp(vask, u * u).add(new THREE.Vector3(0, 0, (k - 1) * 0.006));
+    }
+  } else børste.visible = true;
+  rigg.bøy = bøy;
+  if (v) rekkMot(armH, v);
+  if (b && børste.parent) {
+    rigg.håndMål = { Right: { ting: børste, tupp: BØRSTETUPP, ...b } };
+    if (t && tube.visible && tube.parent) rigg.håndMål.Left = { ting: tube, tupp: new THREE.Vector3(0, 0.07, 0), ...t };
+  }
+  hodet.rotation.x = 0.12;
+}
 const slappAv = tt => {                                                   // lener seg tilbake med et glass
   const [fram, høyre] = retninger();
   const p = fot(), w = drikk(tt, 'glass', p.clone().addScaledVector(høyre, 0.2).addScaledVector(fram, 0.2).setY(p.y + 0.72));
@@ -422,18 +484,9 @@ const HANDLINGER = {
       if (lokal()) { oppdaterVann(tt); visDamp(new THREE.Vector3(0.55, F + 1.9, 5.04), tt); }
     } },
   tenner: { navn: 'Puss tennene', rom: 'badet', ikon: '🪥', f: 1, gå: [1.48, 6.25], pos: [1.48, 6.42], retning: 0, holdning: 'stå',
-    lyd: 'lyder/tannpuss.mp3', gjenta: false, varighet: 10,
-    før: () => { tannbørste.visible = true; }, etter: () => { tannbørste.visible = false; },
-    armer: tt => {
-      // høyre hånd ved munnviken (børsten rettes inn mot munnen i plasserTannbørste), venstre hånd på servanten;
-      // børster fram og tilbake og flytter seg sakte mellom venstre og høyre side av munnen
-      hodet.rotation.x = 0.18;
-      const h = figur.rotation.y, fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
-      const munn = munnPunkt(rigg), gnikk = Math.sin(tt * 11), side = Math.sin(tt * 0.5);
-      rekk(armV, munn.clone().addScaledVector(høyre, 0.12 + gnikk * 0.012).addScaledVector(fram, 0.07 + side * 0.03)
-        .add(new THREE.Vector3(0, -0.13 + Math.cos(tt * 11) * 0.005, 0)));
-      rekk(armH, figur.position.clone().addScaledVector(høyre, -0.26).addScaledVector(fram, 0.27).setY(G2 + 0.95));
-    } },
+    lyd: 'lyder/tannpuss.mp3', gjenta: false, varighet: 17,
+    før: () => { tannbørste.visible = true; }, etter: () => { tannbørste.visible = meg.ting.tube.visible = kranVann.visible = false; for (const d of spytt) d.visible = false; },
+    armer: tt => pussTenner(tt) },
   klær: { navn: 'Skift T-skjorte', rom: 'garderoben', ikon: '👕', f: 1, gå: [1.40, 3.50], pos: [1.40, 3.62], retning: 0, holdning: 'stå',
     lyd: 'lyder/garderobe.mp3', gjenta: false, varighet: 4,
     armer: tt => {
@@ -474,7 +527,7 @@ const HANDLINGER = {
 // kameravinkel under handlingen (med kamera bak figuren): fra siden, forfra eller på skrå bakfra
 const KAMERA_FOR = {
   do2: 'side', do3: 'side', piano: 'front', gitar: 'front', middag: 'front', ute: 'front', takterrasse: 'front',
-  vask2: 'side', vask3: 'side', tenner: 'side', kaffe: 'side', sov13: 'side', sov7: 'side', sov12: 'side',
+  vask2: 'side', vask3: 'side', tenner: 'speil', kaffe: 'side', sov13: 'side', sov7: 'side', sov12: 'side',
   dusj: 'side', utsikt: 'høyre', vaskemaskin: 'skrå', steke: 'høyre', netflix: 'skrå', netflix3: 'skrå', playstation: 'skrå',
 };
 for (const [id, k] of Object.entries(KAMERA_FOR)) if (HANDLINGER[id]) HANDLINGER[id].kamera = k;
@@ -984,6 +1037,20 @@ const boksFor = o => {
   return b;
 };
 
+// speilet over servanten på badet viser et ekte speilbilde (tegnes bare når figuren er på badet, og én gang per bilde)
+let speil = null, bildeNr = 0;
+function lagSpeil() {
+  speil = new Reflector(new THREE.PlaneGeometry(1.06, 0.73), { textureWidth: mobil ? 512 : 1024, textureHeight: mobil ? 360 : 720, color: 0xc4ccd0, clipBias: 0.003 });
+  speil.position.set(1.20, F + 1.475, 7.167); speil.rotation.y = π; speil.raycast = () => {}; speil.visible = false;
+  const tegn = speil.onBeforeRender;
+  let sist = -1;
+  speil.onBeforeRender = (...a) => { if (sist === bildeNr) return; sist = bildeNr; tegn.apply(speil, a); };
+  scene.add(speil);
+  // den gamle speilplata (blank metallflate) ligger like bak og ville vist seg i speilbildet: skjules mens speilet er på
+  scene.traverse(o => { if (o.isMesh && o.material === M.speil && Math.abs(boksFor(o).getCenter(new THREE.Vector3()).z - 7.175) < 0.02 && boksFor(o).min.y > F) speil.userData.plate = o; });
+}
+const oppdaterSpeil = () => { bildeNr++; if (speil?.userData.plate) speil.userData.plate.visible = !speil.visible; if (speil) speil.visible = tilstand.f === 1 && tilstand.visEtasje >= 1 && finnRom(1, tilstand.pos)?.[5] === 'Bad'; };
+
 // klokka og lyset: sola flyttes noen ganger i sekundet, lampene følger figuren hvert bilde
 let dagTid = 1;
 function dagTikk(dt) {
@@ -1076,7 +1143,7 @@ function forberedKamera() {
   }
 }
 const skjultTil = new Map();
-const KAMERAVINKEL = { høyre: { v: Math.PI / 2, d: 2.4, h: 0.55, side: -1 }, side: { v: Math.PI / 2, d: 2.4, h: 0.55 }, front: { v: 0.4, d: 2.3, h: 0.45 }, skrå: { v: Math.PI - 0.65, d: 2.5, h: 0.75 } };
+const KAMERAVINKEL = { speil: { v: Math.PI - 0.85, d: 1.15, h: 0.18, side: -1 }, høyre: { v: Math.PI / 2, d: 2.4, h: 0.55, side: -1 }, side: { v: Math.PI / 2, d: 2.4, h: 0.55 }, front: { v: 0.4, d: 2.3, h: 0.45 }, skrå: { v: Math.PI - 0.65, d: 2.5, h: 0.75 } };
 // hode, bryst og hofter i verden (3D-modellens knokler hvis den finnes, ellers den tegnede figuren)
 function kroppspunkter() {
   const av = meg.avatar?.rot, p = n => av?.getObjectByName(n)?.getWorldPosition(new THREE.Vector3());
@@ -1124,6 +1191,7 @@ requestAnimationFrame(() => setTimeout(() => {
   scene.traverse(o => { if (o.isMesh && o.material.transparent && o.material.opacity < 0.9 && !figurdeler.has(o) && o !== ring) glassFlater.push(o); });
   forberedKamera();
   himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
+  lagSpeil();
   dag = lagDag({ scene, sol, himmel, midt }); dag.oppdater();            // klokka: sola, himmelen og lyset ute
   lys = lagLys({ mobil });                                               // lamper og brytere
   leggTilBrytere();
@@ -1140,6 +1208,7 @@ requestAnimationFrame(() => setTimeout(() => {
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, klokke.getDelta());
     steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
+    oppdaterSpeil();
     himmel?.oppdater(dt, camera); dagTikk(dt); plasserLapper(); plasserIkoner(); følgYtelse(); if (sol.intensity > 0) skyggeTikk();
     if (ao.enabled) composer.render(); else renderer.render(scene, camera);   // uten skyggeeffekten: rett til skjermen, med kantutjevning
   });
@@ -1195,7 +1264,7 @@ function håndterSpiller(hva, uid, d) {
   if (nyEtasje || nyHandling) oppdaterOnline();
 }
 // hva andre spillere holder i hånda under handlingene (kaffekoppen først når kaffen er ferdig)
-const TING_I_HÅNDA = { middag: ['gaffel', 'kniv'], ute: ['glass'], takterrasse: ['glass'], tenner: ['tannbørste'], steke: ['stekespade'], kaffe: ['koppHånd'] };
+const TING_I_HÅNDA = { middag: ['gaffel', 'kniv'], ute: ['glass'], takterrasse: ['glass'], tenner: ['tannbørste', 'tube'], steke: ['stekespade'], kaffe: ['koppHånd'] };
 function tegnAndre(dt) {
   const nå = performance.now();
   for (const a of andre.values()) {
@@ -1416,4 +1485,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { GREP, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };

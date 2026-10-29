@@ -74,15 +74,21 @@ function plasserGitar(r) {
 }
 
 // ryggen bøyes fram (r.bøy radianer, fordelt på ryggvirvlene) og nakken litt ned, rundt figurens høyreakse
+// (uten animasjonsklipp stilles ikke ryggen tilbake av animasjonen, så forrige bildes bøy tas bort først)
 function bøyRygg(r) {
   const rot = r.avatar?.rot, v = r.bøy || 0;
-  if (!rot || Math.abs(v) < 1e-3) return;
+  if (!rot) return;
+  if (r.ryggFør && r.anim?.modus !== 'klipp') for (const [b, q0] of r.ryggFør) b.quaternion.copy(q0);
+  r.ryggFør = null;
+  if (Math.abs(v) < 1e-3) return;
   const [, høyre] = retninger(r), q = new THREE.Quaternion();
+  r.ryggFør = [];
   for (const [navn, andel] of [['Spine', 0.3], ['Spine1', 0.35], ['Spine2', 0.35], ['Neck', 0.25]]) {
     const b = rot.getObjectByName(navn);
     if (!b) continue;
+    r.ryggFør.push([b, b.quaternion.clone()]);
     const verden = b.getWorldQuaternion(new THREE.Quaternion());
-    q.setFromAxisAngle(høyre, v * andel).multiply(verden);                  // drei i verden om høyreaksen
+    q.setFromAxisAngle(høyre, -v * andel).multiply(verden);                 // drei i verden om høyreaksen (fram)
     b.quaternion.copy(b.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(q));
     b.updateMatrixWorld(true);
   }

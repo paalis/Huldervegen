@@ -21,8 +21,8 @@ export const GREP = {
   // knyttneve med tommelen langs skaftet (tannbørste): skaftet på tvers av håndflaten, hodet ut på tommelsiden
   neve: {
     fingre: [[1.0, 1.25, 0.85], [1.1, 1.35, 0.9], [1.2, 1.4, 0.9], [1.3, 1.35, 0.9]],
-    tommel: [[0.2, 0.25, 0.1], [0, 0, -0.1], [0, 0, -0.1]],
-    ting: { punkt: [0.0, 0.06, 0.03], langs: [1, 0.35, 0.1], forside: [0, 1, 0] },
+    tommel: [[0, 0.15, 0], [0, 0, 0], [0, 0, 0]],
+    ting: { punkt: [0.0, 0.078, 0.036], langs: [1, 0.3, 0.12], forside: [0, 0, -1] },
   },
   // rundt et beger (glass, kopp, tube)
   beger: {
