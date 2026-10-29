@@ -16,6 +16,9 @@ import { dører, lagDører, oppdaterDører } from './dorer.js';
 import { munnPunkt, etterAnimasjon } from './hender.js';
 import { slåSammen, skyggeTakt } from './ytelse.js';
 import { del, nårFerdig } from './laster.js';
+import { finnRom } from './rom.js';
+import { lagDag } from './dag.js';
+import { lagLys } from './lys.js';
 import { toneHvert, visAlt, toning } from './toning.js';
 import { lagHåndting, lagStratocaster, koppMaskin, middag, visDamp, damp, vann, oppdaterVann, panne, zzz } from './rekvisitter.js';
 
@@ -195,21 +198,10 @@ knapp('lave').onclick = () => settLave(!vis.lave);
 knapp('bak').onclick = () => settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
 
 // romnavn nederst på skjermen
-const ROM = [
-  [0, 0.2, 0.2, 5.07, 7.25, 'Stue og spisestue', '35 m²'], [0, 0.2, 7.25, 2.88, 9.65, 'Kjøkken', '8 m²'],
-  [0, 2.98, 7.35, 5.07, 9.65, 'Entré', '4,5 m²'], [0, 0, -4.7, 5.27, 0, 'Terrasse', '25 m²'],
-  [0, 2.8, 9.85, 5.27, 11.7, 'Inngang', '4 m²'], [0, -1, 9.85, 2.8, 15, 'Gårdsplass', ''],
-  [1, 0.2, 0.2, 2.85, 4.55, 'Soverom', '13 m²'], [1, 2.94, 0.2, 5.07, 3.2, 'Soverom', '7 m²'],
-  [1, 0.2, 4.64, 2.85, 7.18, 'Bad', '7,5 m²'], [1, 0.2, 7.3, 5.07, 9.65, 'Soverom', '12 m²'],
-  [1, 2.8, 9.85, 5.27, 11.7, 'Altan', '4 m²'], [1, 2.94, 3.2, 5.07, 7.3, 'Gang', '8,5 m²'],
-  [2, 0, 0, 5.27, 3.15, 'Takterrasse', '17 m²'], [2, 0.2, 3.35, 4.12, 6.9, 'Stue', '15,5 m²'],
-  [2, 0.2, 6.9, 2.9, 9.65, 'Soverom', '8 m²'], [2, 2.95, 7.36, 5.07, 9.65, 'Vaskerom', '4,5 m²'],
-  [2, 2.9, 6.6, 5.07, 7.36, 'Gang', ''],
-];
 let sistRom = '';
 function oppdaterRom() {
   const { f, pos } = tilstand;
-  const r = ROM.find(([rf, x1, z1, x2, z2]) => rf === f && pos.x >= x1 && pos.x <= x2 && pos.z >= z1 && pos.z <= z2);
+  const r = finnRom(f, pos);
   const tekst = r ? `${r[5]}<small>${r[6] || `${f + 1}. etasje`}</small>` : `${f + 1}. etasje`;
   if (tekst !== sistRom) { knapp('rom').innerHTML = tekst; sistRom = tekst; }
 }
@@ -634,7 +626,7 @@ function oppdaterKnapper() {
       else if (!opptatt(id)) planlegg(id);
     });
     knapp('ikoner').appendChild(el);
-    ikoner.set(id, { el, def: h, punkt: new THREE.Vector3(h.pos[0], base(h.f) + (IKONHØYDE[h.holdning] ?? 1.8), h.pos[1]), sist: '' });
+    ikoner.set(id, { el, def: h, punkt: h.ikonPunkt ?? new THREE.Vector3(h.pos[0], base(h.f) + (IKONHØYDE[h.holdning] ?? 1.8), h.pos[1]), sist: '' });
   }
   // trappene: ⬆ ved foten og ⬇ på toppen; trykk, så går figuren opp eller ned
   for (const tr of trapper) for (const opp of [true, false]) {
@@ -672,8 +664,8 @@ function plasserIkoner() {
       }
     }
     if (!vis) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }
-    const aktiv = t.handling?.id === id, påVei = t.planlagt === id, opp = !h.trapp && !aktiv && opptatt(id);
-    const tilst = `${aktiv}${påVei}${opp}`;
+    const aktiv = t.handling?.id === id, påVei = t.planlagt === id, opp = !h.trapp && !h.lys && !aktiv && opptatt(id);
+    const tilst = `${aktiv}${påVei}${opp}${h.tilstand?.() ?? ''}`;
     if (tilst !== ik.sist) {                                               // bare oppdater teksten når noe endrer seg
       ik.sist = tilst;
       el.classList.toggle('aktiv', aktiv || påVei); el.classList.toggle('opptatt', opp);
@@ -967,6 +959,43 @@ const boksFor = o => {
   return b;
 };
 
+// klokka og lyset: sola flyttes noen ganger i sekundet, lampene følger figuren hvert bilde
+let dagTid = 1;
+function dagTikk(dt) {
+  if ((dagTid += dt) > 0.25) { dagTid = 0; dag.oppdater(); knapp('klokke').textContent = dag.tekst(); }
+  lys.oppdater(dag.tilstand.dagslys, tilstand.visEtasje, tilstand.pos, vis.lave ? tilstand.visEtasje * F + 1.1 : Infinity);
+}
+knapp('klokke').onclick = () => { dag.nesteModus(); knapp('klokke').textContent = dag.tekst(); knapp('klokke').title = `Klokka: ${dag.modus.navn}. Trykk for å bytte.`; visBeskjed(`🕗 ${dag.modus.navn}`); };
+// lysbryterne er handlinger: figuren går bort til bryteren og trykker på den
+function leggTilBrytere() {
+  for (const b of lys.brytere) {
+    // stå på nærmeste gangbare rute foran bryteren, vendt mot den
+    const [ci, cj] = celle(...b.står);
+    let st = null;
+    for (let r = 0; r <= 12 && !st; r++) for (let dj = -r; dj <= r && !st; dj++) for (let di = -r; di <= r; di++)
+      if ((Math.abs(di) === r || Math.abs(dj) === r) && gangbar(b.f, ci + di, cj + dj)) { st = [b.står[0] + di * R, b.står[1] + dj * R]; break; }
+    if (!st) { console.warn('Ingen plass ved bryteren', b.rom); continue; }
+    b.står = st; b.retning = Math.atan2(b.punkt.x - st[0], b.punkt.z - st[1]);
+    const id = `lys-${b.rom}`, trykk = b.punkt.clone().add(new THREE.Vector3(Math.sin(b.retning) * -0.02, 0, Math.cos(b.retning) * -0.02));
+    HANDLINGER[id] = {
+      get navn() { return `${lys.erPå(b.rom) ? 'Slå av' : 'Slå på'} lyset`; }, rom: b.navn, ikon: '💡', lys: true,
+      f: b.f, gå: b.står, pos: b.står, retning: b.retning, holdning: 'stå', varighet: 0.9, gjenta: false,
+      ikonPunkt: b.punkt.clone().add(new THREE.Vector3(0, 0.4, 0)), tilstand: () => lys.erPå(b.rom),
+      armer: tt => {
+        const inn = Math.sin(Math.min(1, tt / 0.8) * π);                     // hånda fram til bryteren og tilbake
+        rekkMot(armV, fot().add(new THREE.Vector3(0, 1.0, 0)).lerp(trykk, inn));
+        if (lokal() && tt > 0.4 && !tilstand.handling.trykket) { tilstand.handling.trykket = true; lys.vipp(b.rom); }
+      },
+    };
+  }
+}
+// kort beskjed nederst på skjermen
+let beskjedTid = 0;
+function visBeskjed(tekst) {
+  const el = knapp('beskjed'); el.textContent = tekst; el.classList.add('vis');
+  clearTimeout(beskjedTid); beskjedTid = setTimeout(() => el.classList.remove('vis'), 2200);
+}
+
 // dører åpnes for figuren og for andre spillere i nærheten
 const dørerTikk = dt => oppdaterDører(dt, [{ f: tilstand.f, p: tilstand.pos }, ...[...andre.values()].map(a => ({ f: a.data.f, p: a.pos }))]);
 function forberedKamera() {
@@ -1002,7 +1031,7 @@ function velgSide(mål, r, v, avst, høyde) {
   }
   return best;
 }
-let himmel = null;
+let himmel = null, dag = null, lys = null;
 const høye = [];
 function visAltIgjen() { visAlt(); skjultTil.clear(); }
 const synlig = (o, ignorerEgen = false) => { for (let p = ignorerEgen ? o.parent : o; p; p = p.parent) if (!p.visible) return false; return true; };
@@ -1028,6 +1057,9 @@ requestAnimationFrame(() => setTimeout(() => {
   scene.traverse(o => { if (o.isMesh && o.material.transparent && o.material.opacity < 0.9 && !figurdeler.has(o) && o !== ring) glassFlater.push(o); });
   forberedKamera();
   himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
+  dag = lagDag({ scene, sol, himmel, midt }); dag.oppdater();            // klokka: sola, himmelen og lyset ute
+  lys = lagLys({ mobil });                                               // lamper og brytere
+  leggTilBrytere();
   for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
     const b = new THREE.Box3().setFromObject(o);
     const tynn = Math.min(b.max.x - b.min.x, b.max.z - b.min.z) < 0.06 && b.max.y - b.min.y > 0.3;   // bilder og annet på veggene
@@ -1040,7 +1072,7 @@ requestAnimationFrame(() => setTimeout(() => {
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, klokke.getDelta());
     steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
-    himmel?.oppdater(dt, camera); plasserLapper(); plasserIkoner(); følgYtelse(); skyggeTikk();
+    himmel?.oppdater(dt, camera); dagTikk(dt); plasserLapper(); plasserIkoner(); følgYtelse(); if (sol.intensity > 0) skyggeTikk();
     if (ao.enabled) composer.render(); else renderer.render(scene, camera);   // uten skyggeeffekten: rett til skjermen, med kantutjevning
   });
 }, 30));
@@ -1156,7 +1188,7 @@ function flerTikk(dt) {
 // liste over hvem som er i huset, øverst til høyre
 function oppdaterOnline() {
   const el = knapp('online');
-  el.hidden = !iHuset;
+  el.hidden = !iHuset; document.body.classList.toggle('innlogget', iHuset);
   if (!iHuset) return;
   const etg = f => `${f + 1}. etg`;
   const rad = (navn, farge, d) => `<span><i style="background:${farge}"></i>${navn.replace(/[<&]/g, '')} · ${etg(d.f)}${d.h && HANDLINGER[d.h] ? ' · ' + HANDLINGER[d.h].ikon : ''}</span>`;
@@ -1316,4 +1348,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { dag: () => dag, lys: () => lys, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
