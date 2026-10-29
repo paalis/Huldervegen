@@ -18,6 +18,7 @@ const LAMPER = [
   { rom: 'sov13', f: 1, p: [1.5, H - 0.05, 2.4], type: 'tak' },
   { rom: 'sov7', f: 1, p: [4.0, 2.05, 1.70], type: 'kule' },
   { rom: 'bad', f: 1, p: [1.4, H - 0.05, 5.9], type: 'tak' },
+  { rom: 'bad', f: 1, p: [1.18, 1.925, 7.13], type: 'lysrør' },
   { rom: 'sov12', f: 1, p: [2.6, H - 0.05, 8.5], type: 'tak' },
   { rom: 'gang2', f: 1, p: [3.9, H - 0.05, 4.4], type: 'tak' },
   { rom: 'stue3', f: 2, p: [2.2, H - 0.05, 5.1], type: 'tak' },
@@ -48,6 +49,11 @@ export function lagLys({ mobil }) {
   const rom = new Map();                                                 // rom → { på, manuell, lamper: [] }
   const glødMat = new THREE.MeshStandardMaterial({ color: 0xfff6e8, roughness: 0.5, emissive: VARM, emissiveIntensity: 0 });
   const kuleMat = new THREE.MeshStandardMaterial({ color: 0xf3efe6, roughness: 0.9, emissive: VARM, emissiveIntensity: 0, side: THREE.DoubleSide });
+  const glødSprite = new THREE.SpriteMaterial({ map: (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,236,200,0.9)'); gr.addColorStop(0.25, 'rgba(255,220,170,0.35)'); gr.addColorStop(1, 'rgba(255,210,150,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.6 });
   LAMPER.forEach(l => {
     const [x, y, z] = l.p, gulv = l.f * F, p = new THREE.Vector3(x, gulv + y, z);
     let lys = p.clone();
@@ -61,6 +67,10 @@ export function lagLys({ mobil }) {
     } else if (l.type === 'vegg') {                                        // utelampe på husveggen
       const m = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.08), glødMat.clone()); m.position.copy(p); mål.add(m); l.mesh = m;
       lys = p.clone().add(new THREE.Vector3(0, -0.1, z < 1 ? -0.4 : 0.4));
+    } else if (l.type === 'lysrør') {                                      // lysrøret over speilet på badet: får eget lysende materiale
+      scene.traverse(o => { if (!l.mesh && o.isMesh && o.material === M.stål && new THREE.Box3().setFromObject(o).distanceToPoint(p) < 0.02) l.mesh = o; });
+      if (l.mesh) { l.mesh.material = glødMat.clone(); l.mesh.material.color.set(0xeef2f4); }
+      lys = p.clone().add(new THREE.Vector3(0, -0.15, -0.35));
     } else if (l.type === 'pendel') {                                      // glasskulene over spisebordet
       lys = p.clone().add(new THREE.Vector3(0, -0.15, 0));
       M.kugle.emissive?.set(VARM); l.mesh = { material: M.kugle };
@@ -68,8 +78,13 @@ export function lagLys({ mobil }) {
       lys = p.clone().add(new THREE.Vector3(0, 0, 0.3));
       l.mesh = { material: M.lampe };
     }
+    if (l.type !== 'pendel') {                                             // myk glød rundt lampa når den er tent
+      l.glød = new THREE.Sprite(glødSprite); l.glød.position.copy(l.type === 'tak' ? p.clone().add(new THREE.Vector3(0, -0.05, 0)) : p);
+      const st = l.type === 'lysrør' ? 0.7 : l.type === 'kule' ? 0.9 : 0.6; l.glød.scale.set(st, st * (l.type === 'lysrør' ? 0.25 : 1), 1);
+      l.glød.raycast = () => {}; l.glød.visible = false; mål.add(l.glød);
+    }
     if (!rom.has(l.rom)) rom.set(l.rom, { på: false, manuell: null, lamper: [] });
-    const r = { ...l, lys, styrke: l.ute ? 7 : l.type === 'pendel' ? 10 : 14 };
+    const r = { ...l, lys, styrke: l.ute ? 7 : l.type === 'pendel' ? 9 : l.type === 'lysrør' ? 3.5 : l.f === 1 && l.rom === 'bad' ? 7 : 11 };   // små rom trenger mindre
     rom.get(l.rom).lamper.push(r);
   });
   // bryterne: en liten hvit plate på veggen
@@ -93,7 +108,8 @@ export function lagLys({ mobil }) {
     if (!r) return;
     r.på = på;
     for (const l of r.lamper) {
-      if (l.mesh) l.mesh.material.emissiveIntensity = på ? (l.type === 'kule' ? 1.2 : l.type === 'pendel' ? 0.6 : 2.2) : l.type === 'finnes' ? 0.25 : 0;
+      if (l.mesh) l.mesh.material.emissiveIntensity = på ? (l.type === 'kule' ? 1.6 : l.type === 'pendel' ? 1.1 : l.type === 'lysrør' ? 1.6 : 3.5) : l.type === 'finnes' ? 0.25 : 0;
+      if (l.glød) l.glød.visible = på;
     }
     for (const b of brytere) if (b.rom === id) b.vippe.rotation.x = på ? -0.25 : 0.25;
   }
@@ -105,7 +121,12 @@ export function lagLys({ mobil }) {
     vipp(id) { const r = rom.get(id); if (!r) return; r.manuell = !r.på; settRom(id, !r.på); },
     // hvert bilde: dagslys 0–1, etasjen som vises, hvor figuren er og høyden der «lave vegger» kutter
     oppdater(dagslys, synligEtasje, figur, kutt = Infinity) {
-      for (const l of LAMPER) if (l.mesh?.isMesh) l.mesh.visible = l.mesh.position.y < kutt;   // ikke svevende lamper over lave vegger
+      for (const l of LAMPER) {                                            // ikke svevende lamper over lave vegger
+        const over = l.f * F + l.p[1] > kutt;
+        if (l.mesh?.isMesh && l.type !== 'lysrør') l.mesh.visible = !over;
+        if (l.glød) l.glød.visible = !over && !!rom.get(l.rom)?.på;
+      }
+      glødSprite.opacity = 0.35 + 0.45 * (1 - dagslys);                     // gløden synes best om kvelden
       const nå = dagslys < 0.35 ? true : dagslys > 0.55 ? false : kveld;   // litt slingringsmonn rundt skumringen
       if (nå !== kveld && nå !== null) {                                   // kveld eller morgen: alt slås på eller av
         kveld = nå;
