@@ -14,7 +14,11 @@ import { lagFigur, FERDIGE, settUtseende, figurdeler, figurHendelser } from './f
 import { KLIPP_HANDLING, lagAnimasjoner, animer } from './animasjon.js';
 import { dører, lagDører, oppdaterDører } from './dorer.js';
 import { munnPunkt, etterAnimasjon } from './hender.js';
+import { slåSammen, skyggeTakt } from './ytelse.js';
 import { lagHåndting, lagStratocaster, koppMaskin, middag, visDamp, damp, vann, oppdaterVann, panne, zzz } from './rekvisitter.js';
+
+// husets egne deler (før spillet legger til figurer og rekvisitter): disse kan slås sammen for ytelse
+const husDeler = new Set(); scene.traverse(o => { if (o.isMesh) husDeler.add(o); });
 
 // ---------- Renderer, kamera, kontroller ----------
 const mobil = matchMedia('(pointer: coarse)').matches;
@@ -52,6 +56,7 @@ ao.render = (...a) => {
 composer.addPass(ao);
 composer.addPass(new OutputPass());
 if (mobil) { ao.enabled = false; sol.shadow.mapSize.set(1024, 1024); }       // lettere på mobil
+const skyggeTikk = skyggeTakt(renderer, mobil);
 const settStørrelse = () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -1008,9 +1013,14 @@ requestAnimationFrame(() => setTimeout(() => {
   camera.position.set(tilstand.pos.x + 5.5, 8.5, tilstand.pos.z - 6.5);
   controls.target.set(tilstand.pos.x, 0.9, tilstand.pos.z);
   controls.update();
+  lagDører();
+  finnTing();
+  const holdesAlene = new Set();                                         // grupper spillet flytter eller skjuler hver for seg
+  for (const g of [kontorstol, stativGitar]) g?.traverse(o => holdesAlene.add(o));
+  const ytelse = slåSammen(scene, husDeler, o => figurdeler.has(o) || holdesAlene.has(o));
+  console.info('Slått sammen', ytelse.før, 'deler til', ytelse.etter);
   scene.traverse(o => { if (o.isMesh && !o.material.transparent && !figurdeler.has(o) && o !== ring) hindre.push(o); });
   scene.traverse(o => { if (o.isMesh && o.material.transparent && o.material.opacity < 0.9 && !figurdeler.has(o) && o !== ring) glassFlater.push(o); });
-  lagDører();
   forberedKamera();
   himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
   for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
@@ -1019,13 +1029,12 @@ requestAnimationFrame(() => setTimeout(() => {
     if ((o.material.clippingPlanes || tynn || b.max.y - b.min.y > 1.3) && b.max.y - b.min.y < 3.5) høye.push({ o, b, grense: tynn ? 0.35 : 0.06 });   // også bjelker over dører
   }
   settKamera(kamera.modus);
-  finnTing();
   oppdaterKnapper();
   knapp('laster').remove();
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, klokke.getDelta());
     steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
-    himmel?.oppdater(dt, camera); plasserLapper(); plasserIkoner(); følgYtelse();
+    himmel?.oppdater(dt, camera); plasserLapper(); plasserIkoner(); følgYtelse(); skyggeTikk();
     if (ao.enabled) composer.render(); else renderer.render(scene, camera);   // uten skyggeeffekten: rett til skjermen, med kantutjevning
   });
 }, 30));
