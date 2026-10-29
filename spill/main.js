@@ -321,7 +321,7 @@ function pussTenner(tt) {
   const foranBryst = stilling(p.clone().addScaledVector(fram, 0.32).addScaledVector(høyre, -0.04).setY(p.y + 1.24), høyre.clone().negate(), OPP.clone());
   const sider = {                                                        // tuppen av børsten inne i munnen, bustene mot tennene
     høyre: stilling(munn.clone().addScaledVector(fram, -0.04).addScaledVector(høyre, 0.024).add(new THREE.Vector3(0, -0.006, 0)), fram.clone().negate().addScaledVector(høyre, -0.3).addScaledVector(OPP, 0.1), høyre.clone().negate()),
-    venstre: stilling(munn.clone().addScaledVector(fram, -0.04).addScaledVector(høyre, -0.024).add(new THREE.Vector3(0, -0.006, 0)), fram.clone().negate().addScaledVector(høyre, -0.75).addScaledVector(OPP, 0.12), høyre.clone()),
+    venstre: stilling(munn.clone().addScaledVector(fram, -0.04).addScaledVector(høyre, -0.024).add(new THREE.Vector3(0, 0.006, 0)), fram.clone().negate().addScaledVector(høyre, -0.75).addScaledVector(OPP, 0.3), høyre.clone()),   // skaftet på skrå opp fra høyre side av haka
     foran: stilling(munn.clone().addScaledVector(fram, -0.006).addScaledVector(høyre, -0.016), høyre.clone().negate().addScaledVector(fram, -0.25), fram.clone().negate()),
   };
   const strøk = (s, akse, a) => { s.mål.addScaledVector(akse, Math.sin(tt * 13) * a).add(new THREE.Vector3(0, Math.sin(tt * 6.5) * 0.002, 0)); return s; };
