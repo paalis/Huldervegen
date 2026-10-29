@@ -19,6 +19,7 @@ import { del, nårFerdig } from './laster.js';
 import { finnRom } from './rom.js';
 import { lagDag } from './dag.js';
 import { lagLys } from './lys.js';
+import { lagMusikk } from './musikk.js';
 import { toneHvert, visAlt, toning } from './toning.js';
 import { lagHåndting, lagStratocaster, koppMaskin, middag, visDamp, damp, vann, oppdaterVann, panne, zzz } from './rekvisitter.js';
 
@@ -963,17 +964,59 @@ const boksFor = o => {
 let dagTid = 1;
 function dagTikk(dt) {
   if ((dagTid += dt) > 0.25) { dagTid = 0; dag.oppdater(); knapp('klokke').textContent = dag.tekst(); }
+  musikk.oppdater(camera, tilstand.visEtasje);
   lys.oppdater(dag.tilstand.dagslys, tilstand.visEtasje, tilstand.pos, vis.lave ? tilstand.visEtasje * F + 1.1 : Infinity);
 }
 knapp('klokke').onclick = () => { dag.nesteModus(); knapp('klokke').textContent = dag.tekst(); knapp('klokke').title = `Klokka: ${dag.modus.navn}. Trykk for å bytte.`; visBeskjed(`🕗 ${dag.modus.navn}`); };
+// nærmeste gangbare plass (innenfor ca. 60 cm) der figuren kan stå
+function plassVed(f, x, z) {
+  const [ci, cj] = celle(x, z);
+  for (let r = 0; r <= 12; r++) for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++)
+    if ((Math.abs(di) === r || Math.abs(dj) === r) && gangbar(f, ci + di, cj + dj)) return [x + di * R, z + dj * R];
+  return null;
+}
+// musikkanleggene: lydplanke under TV-en i stua (1. etasje) og høyttalerne på kontoret; figuren går bort og bytter musikk
+const ANLEGG = [
+  { id: 'stue', navn: 'stua', i: 'i stua', f: 0, punkt: new THREE.Vector3(4.99, 0.88, 1.90), står: [4.45, 1.90], langsZ: true },
+  { id: 'kontor', navn: 'kontoret', i: 'på kontoret', f: 2, punkt: new THREE.Vector3(2.67, base(2) + 0.92, 9.30), står: [2.2, 9.1] },
+].map(a => ({ ...a, stasjon: 0 }));
+let musikk = null;
+function lagAnlegg() {
+  const svart = new THREE.MeshStandardMaterial({ color: 0x1b1b1d, roughness: 0.5 });
+  for (const a of ANLEGG) {
+    if (a.langsZ) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.07, 0.8), svart); m.position.copy(a.punkt); m.castShadow = true; scene.add(m); }   // lydplanke på veggen under TV-en
+    a.led = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), new THREE.MeshStandardMaterial({ color: 0x113322, emissive: 0x36ff8a, emissiveIntensity: 0 }));
+    a.led.position.copy(a.punkt).add(a.langsZ ? new THREE.Vector3(-0.046, 0, 0.3) : new THREE.Vector3(-0.05, 0.12, 0)); scene.add(a.led);
+    const st = plassVed(a.f, ...a.står);
+    if (!st) continue;
+    const retning = Math.atan2(a.punkt.x - st[0], a.punkt.z - st[1]);
+    HANDLINGER[`musikk-${a.id}`] = {
+      get navn() { return a.stasjon ? `Bytt musikk (nå: ${musikk.stasjon(a).navn})` : 'Skru på musikk'; }, rom: a.navn, ikon: '🎵', lys: true,
+      f: a.f, gå: st, pos: st, retning, holdning: 'stå', varighet: 0.9, gjenta: false,
+      ikonPunkt: a.punkt.clone().add(new THREE.Vector3(0, 0.55, 0)), tilstand: () => a.stasjon,
+      armer: tt => {
+        const inn = Math.sin(Math.min(1, tt / 0.8) * π);
+        rekkMot(armV, fot().add(new THREE.Vector3(0, 1.0, 0)).lerp(a.punkt, inn));
+        if (lokal() && tt > 0.4 && !tilstand.handling.trykket) { tilstand.handling.trykket = true; byttMusikk(a); }
+      },
+    };
+  }
+  musikk = lagMusikk({ anlegg: ANLEGG });
+}
+async function byttMusikk(a) {
+  const st = await musikk.neste(a);
+  visBeskjed(st.id === 'av' ? `🎵 Musikken ${a.i} er av` : `🎵 ${st.navn} ${a.i}`);
+  knapp('musikk').classList.toggle('på', ANLEGG.some(x => x.stasjon));
+}
+// musikknappen nede til høyre: bytter på anlegget nærmest figuren (helst i samme etasje)
+knapp('musikk').onclick = () => {
+  const a = [...ANLEGG].sort((x, y) => (Math.abs(x.f - tilstand.f) * 20 + x.punkt.distanceTo(tilstand.pos)) - (Math.abs(y.f - tilstand.f) * 20 + y.punkt.distanceTo(tilstand.pos)))[0];
+  byttMusikk(a);
+};
 // lysbryterne er handlinger: figuren går bort til bryteren og trykker på den
 function leggTilBrytere() {
   for (const b of lys.brytere) {
-    // stå på nærmeste gangbare rute foran bryteren, vendt mot den
-    const [ci, cj] = celle(...b.står);
-    let st = null;
-    for (let r = 0; r <= 12 && !st; r++) for (let dj = -r; dj <= r && !st; dj++) for (let di = -r; di <= r; di++)
-      if ((Math.abs(di) === r || Math.abs(dj) === r) && gangbar(b.f, ci + di, cj + dj)) { st = [b.står[0] + di * R, b.står[1] + dj * R]; break; }
+    const st = plassVed(b.f, ...b.står);                                   // stå foran bryteren, vendt mot den
     if (!st) { console.warn('Ingen plass ved bryteren', b.rom); continue; }
     b.står = st; b.retning = Math.atan2(b.punkt.x - st[0], b.punkt.z - st[1]);
     const id = `lys-${b.rom}`, trykk = b.punkt.clone().add(new THREE.Vector3(Math.sin(b.retning) * -0.02, 0, Math.cos(b.retning) * -0.02));
@@ -1060,6 +1103,7 @@ requestAnimationFrame(() => setTimeout(() => {
   dag = lagDag({ scene, sol, himmel, midt }); dag.oppdater();            // klokka: sola, himmelen og lyset ute
   lys = lagLys({ mobil });                                               // lamper og brytere
   leggTilBrytere();
+  lagAnlegg();
   for (const o of hindre) {                                               // vegger, dører og høye skap (faste bokser)
     const b = new THREE.Box3().setFromObject(o);
     const tynn = Math.min(b.max.x - b.min.x, b.max.z - b.min.z) < 0.06 && b.max.y - b.min.y > 0.3;   // bilder og annet på veggene
@@ -1348,4 +1392,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { dag: () => dag, lys: () => lys, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
