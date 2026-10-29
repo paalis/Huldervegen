@@ -11,11 +11,16 @@ import { lagHimmel } from '../himmel.js';
 import { firebaseConfig } from '../firebase-config.js';
 import { R, base, gulv, sperret, celle, byggKart, gangbar, høydeVed, trapper, åpneTrappeender, finnVei } from './gangkart.js';
 import { lagFigur, FERDIGE, settUtseende, figurdeler, figurHendelser } from './figur.js';
-import { KLIPP_HANDLING, lagAnimasjoner, animer } from './animasjon.js';
+import { KLIPP_HANDLING, lagAnimasjoner, animer, lastAnimasjoner } from './animasjon.js';
 import { dører, lagDører, oppdaterDører } from './dorer.js';
 import { munnPunkt, etterAnimasjon } from './hender.js';
 import { slåSammen, skyggeTakt } from './ytelse.js';
+import { del, nårFerdig } from './laster.js';
 import { lagHåndting, lagStratocaster, koppMaskin, middag, visDamp, damp, vann, oppdaterVann, panne, zzz } from './rekvisitter.js';
+
+// lasteskjermen: huset bygges mens figuren og bevegelsene lastes ned (begge startes med en gang)
+const husFerdig = del('Bygger huset …', 1);
+lastAnimasjoner();
 
 // husets egne deler (før spillet legger til figurer og rekvisitter): disse kan slås sammen for ytelse
 const husDeler = new Set(); scene.traverse(o => { if (o.isMesh) husDeler.add(o); });
@@ -1030,7 +1035,8 @@ requestAnimationFrame(() => setTimeout(() => {
   }
   settKamera(kamera.modus);
   oppdaterKnapper();
-  knapp('laster').remove();
+  husFerdig(1);
+  nårFerdig(() => { const l = knapp('laster'); if (!l) return; l.classList.add('borte'); setTimeout(() => l.remove(), 450); });
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, klokke.getDelta());
     steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();

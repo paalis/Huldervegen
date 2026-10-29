@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { hent } from './laster.js';
 
 // alle deler av figurene (også 3D-modellene og det de holder): hoppes over av gangkartet og kamerastrålene
 const figurdeler = new Set();
@@ -157,7 +158,9 @@ function settUtseende(r, u) {
 // i hofter, knær, skuldre, albuer og hode til de tilsvarende knoklene i modellen.
 const modellCache = new Map();
 const lastModell = sti => {
-  if (!modellCache.has(sti)) modellCache.set(sti, new GLTFLoader().loadAsync(sti));
+  if (!modellCache.has(sti)) {
+    modellCache.set(sti, hent(sti, 'Laster figuren …', 3).then(data => new GLTFLoader().parseAsync(data, sti.replace(/[^/]*$/, ''))));
+  }
   return modellCache.get(sti);
 };
 function proxySynlig(r, på) {

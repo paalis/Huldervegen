@@ -1,0 +1,12 @@
+{
+  "headers": [
+    {
+      "source": "/(figurer|lyder|bilder|video|musikk)/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=2592000" }]
+    },
+    {
+      "source": "/(.*)\\.(js|html)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+    }
+  ]
+}

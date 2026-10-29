@@ -2,13 +2,14 @@
 // til modellens skjelett hvert bilde, med myke overganger mellom klipp og figurens egne bevegelser.
 import * as THREE from 'three';
 import { følgSkjelett, X_AKSE, Y_AKSE } from './figur.js';
+import { hent } from './laster.js';
 
 // ---------- Animasjoner fra Mixamo (figurer/animasjoner.json, laget av FBX-filene i figurer/animasjoner/) ----------
 // Med 3D-modell spilles ekte animasjoner der de finnes (stå, gå, løpe, sette seg, sitte, reise seg, ligge,
 // piano, gitar, taste, se utover). Handlinger uten egen animasjon bruker figurens egne bevegelser som før;
 // sittende handlinger med egne armbevegelser (spise, fjernkontroll, glass) får armene lagt oppå.
 let animData = null;
-const lastAnimasjoner = () => animData ??= fetch('figurer/animasjoner.json').then(r => r.ok ? r.json() : null).catch(() => null);
+const lastAnimasjoner = () => animData ??= hent('figurer/animasjoner.json', 'Laster bevegelsene …', 1).then(b => JSON.parse(new TextDecoder().decode(b))).catch(() => null);
 const FRAMBØY = { Spine: 3, Spine1: 3, Spine2: 3, Neck: -5 };              // grader fram for hvert ledd (se lagAnimasjoner)
 const KLIPP_HANDLING = { piano: 'piano', gitar: 'gitar', playstation: 'taster', utsikt: 'utsikt' };
 const ENGANG = ['setter_seg', 'reiser_seg', 'ligger'];
@@ -152,4 +153,4 @@ function animer(r, valg, dt) {
   blandBen(r, dt);
 }
 
-export { KLIPP_HANDLING, lagAnimasjoner, animer };
+export { KLIPP_HANDLING, lagAnimasjoner, animer, lastAnimasjoner };
