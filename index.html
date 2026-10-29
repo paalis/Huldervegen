@@ -79,6 +79,9 @@
       <button id="tak">Tak</button>
       <button id="etiketter" class="på">Etiketter</button>
     </div>
+    <div class="rad" style="margin-top:6px">
+      <button id="lastNed" title="Lag og last ned 3D-modellen (.glb) – kan åpnes i SketchUp, Blender o.l.">⬇ Last ned 3D-modell</button>
+    </div>
     <p>Dra for å rotere, høyreklikk/to fingre for å flytte, scroll for zoom.<br>
        Mål fra planskisse (ca.), ikke oppmålt.</p>
   </div>
@@ -162,6 +165,14 @@
     for (const id of ['lave', 'tak', 'etiketter']) {
       knapp(id).onclick = e => { vis[id] = e.currentTarget.classList.toggle('på'); oppdater(); };
     }
+
+    knapp('lastNed').onclick = async e => {
+      const k = e.currentTarget, tekst = k.textContent;
+      k.disabled = true; k.textContent = 'Lager modellen …';
+      try { await (await import('./eksport.js')).lastNedModell(); }
+      catch (feil) { console.error(feil); alert('Klarte ikke å lage 3D-modellen.'); }
+      finally { k.disabled = false; k.textContent = tekst; }
+    };
 
     // Videogjennomgang i en modal dialog: fokus holdes i dialogen, Esc lukker,
     // og nettleseren gir fokus tilbake til knappen etterpå.

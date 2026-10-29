@@ -644,6 +644,9 @@ boks(0.75, UT, -0.95, 2.35, UT + 0.42, -0.25, M.rotting);
 boks(0.75, UT + 0.42, -0.40, 2.35, UT + 0.82, -0.25, M.rotting);
 boks(0.10, UT, -2.25, 0.80, UT + 0.42, -0.95, M.rotting);
 boks(0.10, UT + 0.42, -2.25, 0.25, UT + 0.82, -0.95, M.rotting);
+boks(0.10, UT, -0.95, 0.75, UT + 0.42, -0.25, M.rotting);            // hjørnet mellom de to sofadelene
+boks(0.10, UT + 0.42, -0.40, 0.75, UT + 0.82, -0.25, M.rotting);
+boks(0.10, UT + 0.42, -0.95, 0.25, UT + 0.82, -0.40, M.rotting);
 for (const [lx, lz] of [[0.95, -1.95], [2.10, -1.95], [0.95, -1.10], [2.10, -1.10]]) boks(lx, UT, lz, lx + 0.05, UT + 0.55, lz + 0.05, M.rotting);
 boks(0.95, UT + 0.55, -1.95, 2.15, UT + 0.58, -1.05, M.svartGlass);
 for (const [z1, z2] of [[-1.45, -0.80], [-2.75, -2.10]]) {
@@ -655,6 +658,7 @@ boks(4.55, UT, -2.00, 5.00, UT + 0.32, -1.55, M.rotting);
 // lyse seteputer på rottingmøblene
 rund(0.78, UT + 0.40, -0.92, 2.32, UT + 0.52, -0.42, M.lysGrå, 0.05);
 rund(0.27, UT + 0.40, -2.22, 0.78, UT + 0.52, -0.98, M.lysGrå, 0.05);
+rund(0.27, UT + 0.40, -0.92, 0.76, UT + 0.52, -0.42, M.lysGrå, 0.05);   // hjørneputa
 for (const [z1, z2] of [[-1.45, -0.80], [-2.75, -2.10]]) rund(4.47, UT + 0.38, z1 + 0.13, 4.93, UT + 0.50, z2 - 0.13, M.lysGrå, 0.05);
 boks(0.90, UT, -4.62, 2.20, UT + 0.58, -4.02, M.svart);
 for (const [lx, lz] of [[2.80, -0.85], [3.20, -0.85], [2.80, -0.50], [3.20, -0.50]]) boks(lx, UT, lz, lx + 0.03, UT + 0.60, lz + 0.03, M.svart);

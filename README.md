@@ -2,17 +2,27 @@
 
 Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 
-- `index.html` – 3D-modellen med knapper for etasjer, visninger og video
+- `index.html` – 3D-modellen med knapper for etasjer, visninger og video, og «⬇ Last ned 3D-modell»
+  (`eksport.js` lager en .glb av huset i nettleseren, til SketchUp, Blender o.l.)
 - `spill.html` – gå rundt i huset med en figur (klikk for å gå, piltaster/WASD, trapper mellom etasjene)
   og handlinger: piano, gitar, PlayStation, Netflix (1. og 3. etasje), vaskemaskin, gå på do, vaske hendene, steke mat, sove,
   spise middag, lage kaffe, slappe av ute og på takterrassen, gå inn og ut, dusje, pusse tennene,
   skifte T-skjorte og se utover fra altanen
+  - Dagsrytme (klokka nede til høyre: rask dag på 24 minutter, ekte tid eller alltid dag), lys i alle rom med
+    brytere ved dørene (slås på av seg selv om kvelden), og musikkanlegg i stua og på kontoret (🎵) med lo-fi,
+    jazz eller egen musikk (se `musikk/README.md`)
+  - Koden ligger i `spill/`: `main.js` (oppsett, handlinger, kamera og flerspiller), `gangkart.js` (gangbare
+    ruter, trapper og veifinning), `figur.js` (figurer og 3D-modell), `animasjon.js` (Mixamo-animasjoner),
+    `hender.js` (ting i hånda og arm-IK), `rekvisitter.js`, `dorer.js`, `rom.js`, `dag.js`, `lys.js`,
+    `musikk.js`, `toning.js` (kamerakuttet toner ting ut), `ytelse.js` (slår sammen faste deler) og `laster.js`
 - `flerspiller.js`, `firebase-config.js`, `database.rules.json` – flerspiller: logg inn og gå rundt sammen med andre,
   med egen figur (se `FLERSPILLER.md` for oppsett av Firebase)
 - `figurer/` – 3D-modeller av figurer (GLB med Mixamo-skjelett, f.eks. fra Avaturn) som kan velges i spillet
   - `figurer/animasjoner/` – Mixamo-animasjoner (FBX). De er samlet og komprimert i `figurer/animasjoner.json`,
     som spillet bruker; legges det til nye FBX-filer, må JSON-fila lages på nytt
 - `lyder/` – lydfiler til handlingene i spillet (se `lyder/README.md` for filnavnene)
+- `musikk/` – egen musikk til musikkanleggene i spillet (valgfritt)
+- `vercel.json` – mellomlagring av figurer, lyder og bilder i nettleseren
 - `hus.js` – selve huset (geometri, materialer, lys og romnavn), delt mellom `index.html` og `spill.html`
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
 - `video/` – videoer laget med `/brag-slim` fra selve 3D-modellen, åpnes med knappen «Se video» øverst til høyre:

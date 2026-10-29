@@ -34,7 +34,7 @@ export function lagHimmel(scene, sol, midt) {
   kuppel.renderOrder = -10;
   gruppe.add(kuppel);
 
-  // sola: varm kjerne med glød, der sollyset kommer fra
+  // sola: varm kjerne med glød, der sollyset kommer fra (retningen flyttes av dagsrytmen, se settDag)
   const solRetning = new THREE.Vector3().subVectors(sol.position, sol.target.position).normalize();
   const solskive = tavle(lerret(256, 256, (g, b) => {
     const gr = g.createRadialGradient(b / 2, b / 2, 0, b / 2, b / 2, b / 2);
@@ -54,14 +54,37 @@ export function lagHimmel(scene, sol, midt) {
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
     }
   });
-  const skyer = [];
+  const skyer = [], skyMat = [];
   for (let i = 0; i < 16; i++) {
     const v = (i / 16) * Math.PI * 2 + Math.random() * 0.3, r = 55 + Math.random() * 70, s = 26 + Math.random() * 30;
     const sky = tavle(skyTekstur, s, s * 0.5, 0.75 + Math.random() * 0.2);
     sky.position.set(midt.x + Math.cos(v) * r, 32 + Math.random() * 30, midt.z + Math.sin(v) * r);
     sky.renderOrder = -8;
-    skyer.push(sky); gruppe.add(sky);
+    skyer.push(sky); skyMat.push(sky.material); gruppe.add(sky);
   }
+
+  // stjerner og måne om natta (usynlige om dagen)
+  const stjerner = new THREE.Points((() => {
+    const g = new THREE.BufferGeometry(), p = [];
+    for (let i = 0; i < 700; i++) {
+      const v = Math.random() * Math.PI * 2, h = Math.asin(0.05 + Math.random() * 0.95);
+      p.push(Math.cos(v) * Math.cos(h) * 160, Math.sin(h) * 160, Math.sin(v) * Math.cos(h) * 160);
+    }
+    g.setAttribute('position', new THREE.Float32BufferAttribute(p, 3)); return g;
+  })(), new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: false, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+  stjerner.renderOrder = -9; stjerner.frustumCulled = false; gruppe.add(stjerner);
+  const måne = tavle(lerret(128, 128, (g, b) => {
+    const gr = g.createRadialGradient(b / 2, b / 2, 0, b / 2, b / 2, b / 2);
+    gr.addColorStop(0, 'rgba(250,250,240,1)'); gr.addColorStop(0.32, 'rgba(235,238,240,1)'); gr.addColorStop(0.38, 'rgba(200,215,235,0.25)'); gr.addColorStop(1, 'rgba(200,215,235,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, b, b);
+  }), 22, 22, 0);
+  måne.renderOrder = -9; gruppe.add(måne);
+  // fargene på himmelen: dag, solnedgang og natt (topp, horisont, bunn)
+  const PALETT = {
+    dag: ['#3f86d8', '#d4e8f6', '#a9b99c'], gylden: ['#4d6fb8', '#f4b77a', '#8a8a74'], natt: ['#060b1d', '#1c2a4a', '#10140f'],
+  };
+  const farge = (navn, i) => new THREE.Color(PALETT[navn][i]);
+  let dagslys = 1;
 
   // flyet med banner
   const fly = new THREE.Group();
@@ -104,10 +127,24 @@ export function lagHimmel(scene, sol, midt) {
 
   return {
     gruppe, flyGruppe,
+    // dagsrytmen: lys = 0 (natt) … 1 (dag), gylden = 0 … 1 (soloppgang/solnedgang), retning = mot sola
+    settDag(lys, gylden, retning) {
+      dagslys = lys;
+      if (retning) solRetning.copy(retning).normalize();
+      const u = kuppel.material.uniforms;
+      ['topp', 'horisont', 'bunn'].forEach((n, i) => u[n].value.copy(farge('natt', i)).lerp(farge('dag', i), lys).lerp(farge('gylden', i), gylden * 0.85));
+      solskive.material.opacity = Math.min(1, Math.max(0, (solRetning.y + 0.05) * 8));
+      for (const m of skyMat) m.color.setRGB(0.25 + 0.75 * lys, 0.27 + 0.73 * lys - 0.15 * gylden, 0.35 + 0.65 * lys - 0.3 * gylden);
+      stjerner.material.opacity = Math.max(0, 1 - lys * 1.6);
+      måne.material.opacity = Math.max(0, 1 - lys * 1.4);
+    },
     oppdater(dt, kamera) {
       kuppel.position.copy(kamera.position);
       solskive.position.copy(kamera.position).addScaledVector(solRetning, 150);
       solskive.quaternion.copy(kamera.quaternion);
+      stjerner.position.copy(kamera.position);
+      måne.position.copy(kamera.position).addScaledVector(new THREE.Vector3(-solRetning.x, Math.abs(solRetning.y) * 0.6 + 0.35, -solRetning.z).normalize(), 150);
+      måne.quaternion.copy(kamera.quaternion);
       for (const sky of skyer) {
         sky.position.x += dt * 0.6;                                            // svak vind
         if (sky.position.x > midt.x + 130) sky.position.x -= 260;
@@ -116,7 +153,7 @@ export function lagHimmel(scene, sol, midt) {
       // fly
       tid += dt;
       const fase = tid % PAUSE;
-      flyGruppe.visible = fase < OMLØP;
+      flyGruppe.visible = fase < OMLØP && dagslys > 0.5;                       // flyet flyr bare om dagen
       if (!flyGruppe.visible) return;
       const v = (fase / OMLØP) * Math.PI * 2 + Math.PI;                        // starter bak huset
       const fp = punkt(v), fr = retning(v);

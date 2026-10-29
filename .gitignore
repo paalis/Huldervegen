@@ -3,3 +3,6 @@ kilder/
 
 # Video fra /brag-slim (stor, genereres lokalt)
 brag-output*/
+
+# 3D-modellen lages i nettleseren (⬇ Last ned 3D-modell i index.html), ikke i repoet
+eksport/
