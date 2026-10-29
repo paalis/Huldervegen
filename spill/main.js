@@ -10,9 +10,10 @@ import { kobleTil } from '../flerspiller.js';
 import { lagHimmel } from '../himmel.js';
 import { firebaseConfig } from '../firebase-config.js';
 import { R, base, gulv, sperret, celle, byggKart, gangbar, høydeVed, trapper, åpneTrappeender, finnVei } from './gangkart.js';
-import { lagFigur, FERDIGE, settUtseende, figurdeler, figurHendelser, X_AKSE } from './figur.js';
+import { lagFigur, FERDIGE, settUtseende, figurdeler, figurHendelser } from './figur.js';
 import { KLIPP_HANDLING, lagAnimasjoner, animer } from './animasjon.js';
 import { dører, lagDører, oppdaterDører } from './dorer.js';
+import { munnPunkt, etterAnimasjon } from './hender.js';
 import { lagHåndting, lagStratocaster, koppMaskin, middag, visDamp, damp, vann, oppdaterVann, panne, zzz } from './rekvisitter.js';
 
 // ---------- Renderer, kamera, kontroller ----------
@@ -80,12 +81,12 @@ const lagretUtseende = (() => { try { return JSON.parse(localStorage.getItem('hu
 const STANDARD_FIGUR = FERDIGE['Pablo Andrés (3D)'];
 const meg = lagFigur('modell' in lagretUtseende ? lagretUtseende : STANDARD_FIGUR);
 // figur, ben, armer og hode peker på figuren som posers nå (meg, eller en annen spiller via medRigg)
-let { figur, benV, benH, armV, armH, hodet } = meg;
+let { figur, benV, benH, armV, armH, hodet } = meg, rigg = meg;
 const jakke = meg.jakke;
 function medRigg(r, fn) {
-  const før = [figur, benV, benH, armV, armH, hodet];
-  ({ figur, benV, benH, armV, armH, hodet } = r);
-  try { fn(); } finally { [figur, benV, benH, armV, armH, hodet] = før; }
+  const før = [figur, benV, benH, armV, armH, hodet, rigg];
+  ({ figur, benV, benH, armV, armH, hodet } = r); rigg = r;
+  try { fn(); } finally { [figur, benV, benH, armV, armH, hodet, rigg] = før; }
 }
 const lokal = () => figur === meg.figur;
 const harJakke = () => jakke[0].visible;
@@ -235,11 +236,11 @@ function rekk(a, mål) {
 // Målene gis i figurens faktiske stilling (slik den står etter animer); mens handlingen poserer, kan styreskjelettet
 // stå et annet sted (når figuren sitter, senkes det), så målene regnes om dit først.
 function iRigg(p) {
-  if (!lokal() || !meg.ekteInv) return p.clone();
+  if (!rigg.ekteInv) return p.clone();
   figur.updateMatrixWorld(true);
-  return p.clone().applyMatrix4(meg.ekteInv).applyMatrix4(figur.matrixWorld);
+  return p.clone().applyMatrix4(rigg.ekteInv).applyMatrix4(figur.matrixWorld);
 }
-const fot = () => (lokal() ? tilstand.pos : figur.position).clone();      // figurens plass på gulvet
+const fot = () => (rigg.fot ?? figur.position).clone();                   // figurens plass på gulvet
 function rekkMot(a, mål) {
   a.mål = mål.clone(); a.brukt = true;                                     // 3D-modellen: se rettHender
   rekk(a, iRigg(mål));
@@ -247,20 +248,20 @@ function rekkMot(a, mål) {
 const myk = u => { u = Math.min(1, Math.max(0, u)); return u * u * (3 - 2 * u); };
 const retninger = () => { const h = figur.rotation.y; return [new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), new THREE.Vector3(-Math.cos(h), 0, Math.sin(h))]; };
 const OPP = new THREE.Vector3(0, 1, 0);
-// drikker av glass eller kopp: holder det i fanget eller foran brystet, løfter det til munnen innimellom og vipper det
+// drikker av glass eller kopp (ting: 'glass' eller 'koppHånd'): holder det i fanget eller foran brystet, løfter det til munnen innimellom og vipper det
 function drikk(tt, ting, hvile, periode = 9) {
   const [fram, høyre] = retninger(), u = tt % periode;
   const w = myk((u - (periode - 3.5)) / 0.8) * (1 - myk((u - (periode - 1.1)) / 0.8));   // 0 = hviler, 1 = ved munnen
-  const munn = lokal() && meg.munn ? meg.munn.clone() : hodet.getWorldPosition(new THREE.Vector3()).addScaledVector(fram, 0.1);
+  const munn = rigg.munn?.clone() ?? hodet.getWorldPosition(new THREE.Vector3()).addScaledVector(fram, 0.1);
   const vedMunn = munn.clone().addScaledVector(fram, 0.11).addScaledVector(høyre, 0.04).addScaledVector(OPP, -0.09);
   rekkMot(armV, hvile.clone().lerp(vedMunn, w));
   hodet.rotation.x = -0.12 * w;
-  if (lokal()) håndTing = { o: ting, type: 'beger', w, vipp: 1.0 * w * (0.85 + 0.15 * Math.sin(tt * 2)), munn };
+  rigg.håndTing = { o: rigg.ting[ting], type: 'beger', w, vipp: 1.0 * w * (0.85 + 0.15 * Math.sin(tt * 2)), munn };
   return w;
 }
 const slappAv = tt => {                                                   // lener seg tilbake med et glass
   const [fram, høyre] = retninger();
-  const p = fot(), w = drikk(tt, glass, p.clone().addScaledVector(høyre, 0.2).addScaledVector(fram, 0.2).setY(p.y + 0.72));
+  const p = fot(), w = drikk(tt, 'glass', p.clone().addScaledVector(høyre, 0.2).addScaledVector(fram, 0.2).setY(p.y + 0.72));
   rekkMot(armH, p.clone().addScaledVector(høyre, -0.24).addScaledVector(fram, 0.12).setY(p.y + 0.6));
   figur.rotation.x = -0.12;
   hodet.rotation.y = Math.sin(tt * 0.3) * 0.35 * (1 - w);
@@ -341,7 +342,7 @@ const HANDLINGER = {
       const [fram, høyre] = retninger(), u = tt % 5.2, n = Math.floor(tt / 5.2);
       const mat = middag.position.clone().add(new THREE.Vector3(0, 0.035, 0))
         .addScaledVector(høyre, 0.03 * Math.sin(n * 2.1)).addScaledVector(fram, 0.03 * Math.cos(n * 1.7) - 0.01);
-      const munn = lokal() && meg.munn ? meg.munn.clone() : hodet.getWorldPosition(new THREE.Vector3()).addScaledVector(fram, 0.1);
+      const munn = rigg.munn?.clone() ?? hodet.getWorldPosition(new THREE.Vector3()).addScaledVector(fram, 0.1);
       const ned = fram.clone().multiplyScalar(0.55).addScaledVector(OPP, -0.8).addScaledVector(høyre, -0.15).normalize();   // gaffelen ned i maten
       const inn = fram.clone().multiplyScalar(-0.85).addScaledVector(OPP, 0.3).addScaledVector(høyre, -0.2).normalize();   // gaffelen inn i munnen
       const løft = myk((u - 1.3) / 0.8) * (1 - myk((u - 2.6) / 0.8));
@@ -351,7 +352,7 @@ const HANDLINGER = {
       rekkMot(armV, tupp.clone().addScaledVector(retning, -0.13));
       rekkMot(armH, middag.position.clone().addScaledVector(høyre, -0.24).addScaledVector(fram, -0.1).add(new THREE.Vector3(0, 0.04, 0)));
       hodet.rotation.x = 0.3 - løft * 0.25 + (u > 3.4 ? Math.max(0, Math.sin(tt * 9)) * 0.03 : 0);   // ser ned, løfter hodet litt, tygger
-      if (lokal()) håndTing = { o: gaffel, type: 'skaft', tupp, retning, lengde: 0.105 };
+      rigg.håndTing = { o: rigg.ting.gaffel, type: 'skaft', tupp, retning, lengde: 0.105 };
     } },
   kaffe: { navn: 'Lag kaffe', ikon: '☕', f: 0, gå: [1.545, 8.55], pos: [1.545, 8.82], retning: 0, holdning: 'stå',
     lyd: 'lyder/kaffe.mp3', gjenta: false,
@@ -367,7 +368,7 @@ const HANDLINGER = {
       } else {                                                              // drikker
         if (lokal() && koppMaskin.visible) { koppMaskin.visible = false; koppHånd.visible = true; }
         const [fram, høyre] = retninger();
-        const p = fot(); drikk(tt - 6 + 4, koppHånd, p.clone().addScaledVector(høyre, 0.15).addScaledVector(fram, 0.2).setY(p.y + 1.1), 7);
+        const p = fot(); drikk(tt - 6 + 4, 'koppHånd', p.clone().addScaledVector(høyre, 0.15).addScaledVector(fram, 0.2).setY(p.y + 1.1), 7);
         if (lokal()) visDamp(koppHånd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 0.08, 0)), tt);
       }
     } },
@@ -400,7 +401,7 @@ const HANDLINGER = {
       // børster fram og tilbake og flytter seg sakte mellom venstre og høyre side av munnen
       hodet.rotation.x = 0.18;
       const h = figur.rotation.y, fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
-      const munn = munnPunkt(), gnikk = Math.sin(tt * 11), side = Math.sin(tt * 0.5);
+      const munn = munnPunkt(rigg), gnikk = Math.sin(tt * 11), side = Math.sin(tt * 0.5);
       rekk(armV, munn.clone().addScaledVector(høyre, 0.12 + gnikk * 0.012).addScaledVector(fram, 0.07 + side * 0.03)
         .add(new THREE.Vector3(0, -0.13 + Math.cos(tt * 11) * 0.005, 0)));
       rekk(armH, figur.position.clone().addScaledVector(høyre, -0.26).addScaledVector(fram, 0.27).setY(G2 + 0.95));
@@ -490,35 +491,14 @@ tvBilde3.position.set(2.30, G3 + 0.81, 6.605); tvBilde3.rotation.y = π; tvBilde
 function giHåndting(r) {
   r.håndJust = new THREE.Group(); r.armV.hånd.add(r.håndJust);
   r.ting = lagHåndting();
-  for (const o of Object.values(r.ting)) r.håndJust.add(o);
+  for (const [navn, o] of Object.entries(r.ting)) {
+    r.håndJust.add(o); o.userData.ting = navn; o.userData.opprinnelig = [o.position.clone(), o.quaternion.clone()];
+  }
   r.gitar = lagStratocaster(); r.gitar.visible = false; scene.add(r.gitar);
 }
 giHåndting(meg);
+meg.fot = tilstand.pos;                                                    // figurens plass på gulvet (se fot)
 const { gaffel, koppHånd, glass, tannbørste, stekespade } = meg.ting, holdtGitar = meg.gitar;
-// plasser gitaren: med 3D-modell mellom hendene (høyre hånd slår an over pickupene, halsen peker mot venstre
-// hånd), ellers foran den tegnede figuren med halsen skrått opp mot venstre
-function plasserGitar() {
-  if (!holdtGitar.visible) return;
-  const rot = meg.avatar?.rot, R = rot?.getObjectByName('RightHandMiddle1'), L = rot?.getObjectByName('LeftHandMiddle1');
-  meg.figur.updateMatrixWorld(true);
-  if (R && L) {
-    const pr = R.getWorldPosition(new THREE.Vector3()), pl = L.getWorldPosition(new THREE.Vector3());
-    const x = pl.clone().sub(pr).normalize(), fram = new THREE.Vector3(Math.sin(meg.figur.rotation.y), 0, Math.cos(meg.figur.rotation.y));
-    const z = fram.addScaledVector(x, -fram.dot(x)).normalize(), y = new THREE.Vector3().crossVectors(z, x);
-    holdtGitar.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
-    holdtGitar.position.copy(pr).addScaledVector(z, -0.085).addScaledVector(y, -0.02);    // strengene under fingrene, kroppen inntil magen
-    // men aldri inni kroppen: baksiden (4,5 cm bak strengene) skal ligge foran magen, ca. 13 cm foran ryggraden
-    const rygg = rot.getObjectByName('Spine');
-    if (rygg) {
-      const d = holdtGitar.position.clone().sub(rygg.getWorldPosition(new THREE.Vector3())).dot(z);
-      if (d < 0.19) holdtGitar.position.addScaledVector(z, 0.19 - d);
-    }
-  } else {
-    const m = new THREE.Matrix4().compose(new THREE.Vector3(0.02, 1.0, 0.2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.42)), new THREE.Vector3(1, 1, 1));
-    m.premultiply(meg.figur.matrixWorld).decompose(holdtGitar.position, holdtGitar.quaternion, holdtGitar.scale);
-  }
-}
-
 let kontorstol = null, stativGitar = null, vaskemaskin = null, vaskeluke = null, vaskX = 0, vaskLukeX = 0;
 function finnTing() {
   scene.traverse(o => {
@@ -731,142 +711,8 @@ function animerMeg(dt) {
   else valg = velgKlipp(t.handling?.id, t.beveger, fart, t.løper);
   valg.y = t.reiser ? t.reiser.y : t.pos.y;
   animer(meg, valg, dt);
-  oppdaterGrep();
-  plasserGitar();
-  plasserTannbørste();
-  rettHender();
-  plasserHåndting();
-  meg.figur.updateMatrixWorld(true); meg.ekteInv = meg.figur.matrixWorld.clone().invert();   // se iRigg
-  meg.munn = munnPunkt();                                                  // munnen i figurens faktiske stilling
+  etterAnimasjon(meg);
 }
-// armene på 3D-modellen legges direkte mot målene fra rekkMot (to-ledds IK på modellens egne armbein, så
-// håndleddet treffer selv om styreskjelettet har andre armlengder og skuldre); albuen peker ned og litt ut
-function rettHender() {
-  const rot = meg.avatar?.rot;
-  if (!rot) return;
-  const h = meg.figur.rotation.y, fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
-  for (const [a, side, ut] of [[meg.armV, 'Right', 1], [meg.armH, 'Left', -1]]) {
-    if (!a.brukt || !a.mål) { a.brukt = false; continue; }
-    a.brukt = false;
-    const skulder = rot.getObjectByName(side + 'Arm'), albue = rot.getObjectByName(side + 'ForeArm'), hånd = rot.getObjectByName(side + 'Hand');
-    if (!skulder || !albue || !hånd) continue;
-    rot.updateMatrixWorld(true);
-    const S = skulder.getWorldPosition(new THREE.Vector3()), E = albue.getWorldPosition(new THREE.Vector3()), W = hånd.getWorldPosition(new THREE.Vector3());
-    const la = E.distanceTo(S), lb = W.distanceTo(E), mot = a.mål.clone().sub(S), d = Math.min(mot.length(), la + lb - 0.002);
-    const dir = mot.normalize(), pol = OPP.clone().negate().addScaledVector(høyre, 0.45 * ut).addScaledVector(fram, -0.25);
-    const vin = new THREE.Vector3().copy(pol).addScaledVector(dir, -pol.dot(dir)).normalize();
-    const alfa = Math.acos(Math.min(1, Math.max(-1, (la * la + d * d - lb * lb) / (2 * la * d))));
-    const nyE = S.clone().addScaledVector(dir, la * Math.cos(alfa)).addScaledVector(vin, la * Math.sin(alfa)), nyW = S.clone().addScaledVector(dir, d);
-    const drei = (ben, fra, til) => {                                      // drei benet i verden så fra-retningen blir til-retningen
-      const q = new THREE.Quaternion().setFromUnitVectors(fra.normalize(), til.normalize());
-      const wq = ben.getWorldQuaternion(new THREE.Quaternion()).premultiply(q);
-      ben.quaternion.copy(ben.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(wq));
-      ben.updateMatrixWorld(true);
-    };
-    drei(skulder, E.clone().sub(S), nyE.clone().sub(S));
-    const E2 = albue.getWorldPosition(new THREE.Vector3()), W2 = hånd.getWorldPosition(new THREE.Vector3());
-    drei(albue, W2.sub(E2), nyW.sub(E2));
-  }
-}
-// gaffel, glass og kopp: dreies og flyttes litt i hånda så de treffer maten og munnen (satt av handlingen hvert bilde)
-let håndTing = null;
-function plasserHåndting() {
-  const k = håndTing; håndTing = null;
-  if (!k || !k.o.visible || !k.o.parent || !meg.avatar) return;
-  const o = k.o, grep = o.userData.grep ??= new Map();
-  if (!grep.has(o.parent)) grep.set(o.parent, [o.position.clone(), o.quaternion.clone()]);
-  const [lp, lq] = grep.get(o.parent);
-  o.position.copy(lp); o.quaternion.copy(lq); o.parent.updateMatrixWorld(true);
-  const p = o.getWorldPosition(new THREE.Vector3()), forelderQ = o.parent.getWorldQuaternion(new THREE.Quaternion());
-  const h = meg.figur.rotation.y, fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
-  let verden, mål;
-  if (k.type === 'skaft') {                                                // tennene peker langs retningen, tuppen i maten eller munnen
-    const y = k.retning.clone(), z = OPP.clone().addScaledVector(y, -OPP.dot(y)).normalize(), x = new THREE.Vector3().crossVectors(y, z);
-    verden = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
-    mål = k.tupp.clone().addScaledVector(y, -k.lengde);
-  } else {                                                                 // står rett i hånda, vippes mot munnen med kanten ved leppene
-    const vipp = new THREE.Quaternion().setFromAxisAngle(høyre, k.vipp);   // toppen vippes mot ansiktet
-    verden = vipp.clone().multiply(new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(høyre.clone().negate(), OPP, fram)));
-    const opp = OPP.clone().applyQuaternion(vipp), mot = fram.clone().negate().applyQuaternion(vipp);
-    const def = TING.find(([t]) => t === o)[1];
-    const vedMunn = k.munn.clone().addScaledVector(opp, -def.h).addScaledVector(mot, -def.r).addScaledVector(fram, 0.01);
-    mål = p.clone().lerp(vedMunn, k.w);
-  }
-  o.quaternion.copy(forelderQ.clone().invert().multiply(verden));
-  const flytt = mål.sub(p); if (flytt.length() > 0.08 && k.type === 'skaft') flytt.setLength(0.08);   // gaffelen blir i neven
-  o.position.copy(o.parent.worldToLocal(p.add(flytt)));
-}
-// munnen: litt foran og under hodebenet (eller styreskjelettets hode uten 3D-modell)
-function munnPunkt() {
-  const hd = meg.avatar?.rot.getObjectByName('Head');
-  if (hd) return hd.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -0.01, 0.105).applyQuaternion(hd.getWorldQuaternion(new THREE.Quaternion())));
-  const h = meg.figur.rotation.y;
-  return meg.hodet.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(Math.sin(h) * 0.1, -0.03, Math.cos(h) * 0.1));
-}
-// tannbørsten i hånda dreies så bustene ligger i munnen, med bustene inn mot tennene
-function plasserTannbørste() {
-  if (!tannbørste.visible || !tannbørste.parent) return;
-  const grep = tannbørste.userData.grep ??= new Map();                     // grepet i hånda (per hånd), utgangspunkt hver gang
-  if (!grep.has(tannbørste.parent)) grep.set(tannbørste.parent, tannbørste.position.clone());
-  tannbørste.position.copy(grep.get(tannbørste.parent)); tannbørste.parent.updateMatrixWorld(true);
-  const munn = munnPunkt(), p = tannbørste.getWorldPosition(new THREE.Vector3()), h = meg.figur.rotation.y;
-  const y = munn.clone().sub(p).normalize(), fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h));
-  const z = fram.negate().addScaledVector(y, fram.dot(y) * -1).normalize(), x = new THREE.Vector3().crossVectors(y, z);
-  const verden = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
-  tannbørste.quaternion.copy(tannbørste.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(verden));
-  // bustene (17 cm ut langs skaftet fra grepet) skal være i munnen: skyv børsten langs skaftet om hånda er litt unna
-  const avvik = munn.distanceTo(p) - 0.165;
-  if (Math.abs(avvik) > 0.002) {
-    const ny = p.addScaledVector(y, avvik);
-    tannbørste.position.copy(tannbørste.parent.worldToLocal(ny));
-  }
-}
-
-// Ting i hånda: med 3D-modell festes gaffel, glass, kopp og tannbørste i modellens høyre hånd (armV er
-// figurens høyre arm), og fingrene krummes rundt dem. Fingrene bøyer seg om sin lokale x-akse (målt fra
-// Mixamo-klippene), og håndflaten vender mot +z i håndens rom.
-const TING = [[gaffel, { type: 'skaft', ut: 0.035, krum: [1.05, 1.25, 0.9] }], [stekespade, { type: 'skaft', ut: 0.02, krum: [1.1, 1.3, 0.95] }], [tannbørste, { type: 'skaft', ut: 0.03, krum: [1.05, 1.25, 0.9] }],
-  [glass, { type: 'beger', r: 0.035, h: 0.12, krum: [0.55, 0.75, 0.55] }], [koppHånd, { type: 'beger', r: 0.04, h: 0.09, krum: [0.6, 0.8, 0.6] }]];
-for (const [o] of TING) o.userData.opprinnelig = [o.position.clone(), o.quaternion.clone()];
-const FINGRE = ['Index', 'Middle', 'Ring', 'Pinky'];
-let grepHånd = null, grepBen = null, grepPå = false;
-function oppdaterGrep() {
-  const hånd = meg.avatar?.rot.getObjectByName('RightHand') ?? null;
-  if (hånd !== grepHånd) {                                                 // ny modell (eller ingen): flytt tingene
-    grepHånd = hånd; grepBen = null; grepPå = false;
-    for (const [o, def] of TING) {
-      if (!hånd) { meg.håndJust.add(o); o.position.copy(o.userData.opprinnelig[0]); o.quaternion.copy(o.userData.opprinnelig[1]); continue; }
-      const ledd = n => hånd.getObjectByName('RightHand' + n)?.position;
-      const i1 = ledd('Index1'), p1 = ledd('Pinky1'), m1 = ledd('Middle1');
-      if (!i1 || !p1 || !m1) continue;
-      const y = i1.clone().sub(p1).normalize();                            // fra lillefinger mot pekefinger: gjennom grepet
-      const langs = m1.clone().normalize(), flate = new THREE.Vector3(0, 0, 1);
-      const z = flate.addScaledVector(y, -flate.dot(y)).normalize(), x = new THREE.Vector3().crossVectors(y, z);
-      const midt = m1.clone().multiplyScalar(0.6).addScaledVector(langs, 0.01);
-      const pos = def.type === 'skaft'
-        ? midt.clone().addScaledVector(z, 0.022).addScaledVector(y, def.ut)  // skaftet gjennom neven, tennene ut på pekefingersiden
-        : midt.clone().addScaledVector(z, def.r + 0.012).addScaledVector(y, -def.h * 0.45);
-      hånd.add(o); o.position.copy(pos);
-      o.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
-      o.scale.setScalar(1 / (meg.avatar.rot.scale.x || 1));                 // modellen er skalert; tingene skal ha ekte størrelse
-    }
-  }
-  if (!hånd || !meg.anim) return;
-  grepBen ??= FINGRE.flatMap(f => [1, 2, 3].map(n => {
-    const b = hånd.getObjectByName(`RightHand${f}${n}`), hv = meg.anim.hvile.find(([bb]) => bb === b);
-    return b && hv ? [b, hv[1], n - 1] : null;
-  }).filter(Boolean));
-  const holdt = TING.find(([o]) => o.visible);
-  if (holdt) {
-    const krum = holdt[1].krum, q = new THREE.Quaternion();
-    for (const [b, hvile, i] of grepBen) b.quaternion.copy(hvile).multiply(q.setFromAxisAngle(X_AKSE, krum[i]));
-    grepPå = true;
-  } else if (grepPå) {
-    for (const [b, hvile] of grepBen) b.quaternion.copy(hvile);
-    grepPå = false;
-  }
-}
-
 // myke overganger: stillingen tas vare på når figuren setter seg, reiser seg eller bytter handling,
 // og den nye stillingen glir inn over den gamle i løpet av et halvt sekund
 const LEDD = () => [meg.benV.hofte, meg.benV.kne, meg.benH.hofte, meg.benH.kne, meg.armV.skulder, meg.armV.albue, meg.armH.skulder, meg.armH.albue, meg.hodet];
@@ -1215,13 +1061,14 @@ function håndterSpiller(hva, uid, d) {
   if (uid === bruker?.uid) return;
   let a = andre.get(uid);
   if (hva === 'borte' || !d) {
-    if (a) { scene.remove(a.rigg.figur); a.lapp.el.remove(); andre.delete(uid); oppdaterKnapper(); oppdaterOnline(); }
+    if (a) { scene.remove(a.rigg.figur, a.rigg.gitar); a.lapp.el.remove(); andre.delete(uid); oppdaterKnapper(); oppdaterOnline(); }
     return;
   }
   if (!a) {
-    const r = lagFigur(d.utseende || {}); scene.add(r.figur); r.figur.traverse(o => figurdeler.add(o));
+    const r = lagFigur(d.utseende || {}); giHåndting(r); scene.add(r.figur); r.figur.traverse(o => figurdeler.add(o));
     const lapp = navnelapp();
     a = { rigg: r, lapp, data: {}, pos: new THREE.Vector3(d.x, d.y, d.z), r: d.r || 0, uj: '', navn: '' };
+    r.fot = a.pos;                                                         // (se fot)
     andre.set(uid, a);
   }
   const uj = JSON.stringify(d.utseende || {});
@@ -1232,6 +1079,8 @@ function håndterSpiller(hva, uid, d) {
   if (nyHandling) oppdaterKnapper();
   if (nyEtasje || nyHandling) oppdaterOnline();
 }
+// hva andre spillere holder i hånda under handlingene (kaffekoppen først når kaffen er ferdig)
+const TING_I_HÅNDA = { middag: ['gaffel'], ute: ['glass'], takterrasse: ['glass'], tenner: ['tannbørste'], steke: ['stekespade'], kaffe: ['koppHånd'] };
 function tegnAndre(dt) {
   const nå = performance.now();
   for (const a of andre.values()) {
@@ -1247,9 +1096,13 @@ function tegnAndre(dt) {
     let dr = (d.r || 0) - a.r; dr = Math.atan2(Math.sin(dr), Math.cos(dr)); a.r += dr * Math.min(1, dt * 10);
     f.position.copy(a.pos); f.rotation.y = a.r;
     for (const j of r.jakke) j.visible = !!d.j;
+    const h = d.h && HANDLINGER[d.h], tt = (d.ht || 0) + (nå - a.mottatt) / 1000;
+    // tingene i hånda og gitaren, som for egen figur (der handlingens før/etter viser dem)
+    const iHånda = TING_I_HÅNDA[d.h] ?? [];
+    for (const [navn, o] of Object.entries(r.ting)) o.visible = iHånda.includes(navn) && !(navn === 'koppHånd' && tt < 6);
+    r.gitar.visible = d.h === 'gitar';
     medRigg(r, () => {
-      const h = d.h && HANDLINGER[d.h];
-      if (h) { f.position.set(d.x, d.y, d.z); f.rotation.y = d.r; posere(h, (d.ht || 0) + (nå - a.mottatt) / 1000, d.y); }
+      if (h) { f.position.set(d.x, d.y, d.z); f.rotation.y = d.r; posere(h, tt, d.y); }
       else {
         const går = !!d.b || fart > 0.3;
         r.gange = går ? r.gange + dt * 7.5 * Math.min(2, Math.max(0.6, fart / 1.4)) : r.gange * 0.85;
@@ -1258,7 +1111,9 @@ function tegnAndre(dt) {
     });
     const valg = velgKlipp(d.h, !!d.b || fart > 0.3, fart, fart > 2.6);
     valg.y = d.h ? d.y : a.pos.y;
+    valg.ferdig = tt > 2;                                                  // kom inn midt i handlingen: sitt eller ligg med en gang
     animer(r, valg, dt);
+    etterAnimasjon(r);
     r.hodet.getWorldPosition(a.lapp.position); a.lapp.position.y += 0.2;
   }
 }
@@ -1446,4 +1301,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { dører, oppdaterDører: dørerTikk, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };

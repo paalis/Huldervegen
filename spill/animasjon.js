@@ -118,7 +118,8 @@ function blandBen(r, dt) {
     p.copy(b.position); b.position.lerpVectors(sp, p, k);
   });
 }
-// valg = { klipp, tempo, y (gulvet), h (handlingen, for sete- og liggehøyde), armer (legg egne armbevegelser oppå) }
+// valg = { klipp, tempo, y (gulvet), h (handlingen, for sete- og liggehøyde), armer (legg egne armbevegelser oppå),
+//         ferdig (et engangsklipp som sette seg starter ved slutten) }
 function animer(r, valg, dt) {
   const A = r.anim;
   if (!A || !valg.klipp || !A.handlinger[valg.klipp]) {
@@ -130,7 +131,8 @@ function animer(r, valg, dt) {
   const a = A.handlinger[valg.klipp];
   if (A.aktiv !== a) {
     a.reset(); a.setEffectiveWeight(1); a.play();
-    if (A.aktiv) a.crossFadeFrom(A.aktiv, 0.3, false);
+    if (valg.ferdig && a.loop === THREE.LoopOnce) { a.time = a.getClip().duration; A.aktiv?.stop(); }   // hopp til slutten (sitter allerede)
+    else if (A.aktiv) a.crossFadeFrom(A.aktiv, 0.3, false);
     A.aktiv = a;
   }
   a.timeScale = valg.tempo ?? 1;
