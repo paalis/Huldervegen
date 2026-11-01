@@ -56,6 +56,12 @@
     }
     .hikon:hover { background: #4b3324; }
     .hikon.aktiv { background: #c0392b; }
+    .hikon.kø { background: #4b3324; outline: 2px solid #f2c14e; }
+    .hikon.kø::after {
+      content: attr(data-kø); position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; border-radius: 50%;
+      background: #f2c14e; color: #2a1d14; font: 700 11px/17px system-ui, sans-serif; text-align: center;
+    }
+    .hikon.kø .navn { opacity: 1; }
     .hikon.opptatt { background: rgba(120,120,120,.75); cursor: default; filter: grayscale(1); }
     .hikon .navn {
       position: absolute; top: 46px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none;

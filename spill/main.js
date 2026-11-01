@@ -119,7 +119,7 @@ const ring = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.22, 40), new THREE.Me
 ring.rotation.x = -Math.PI / 2; scene.add(ring);
 
 // ---------- Tilstand og bevegelse ----------
-const tilstand = { f: 0, pos: new THREE.Vector3(3.5, 0, 6.8), retning: Math.PI, vei: [], fart: 2.0, gange: 0, visEtasje: 0, handling: null, planlagt: null };
+const tilstand = { f: 0, pos: new THREE.Vector3(3.5, 0, 6.8), retning: Math.PI, vei: [], fart: 2.0, gange: 0, visEtasje: 0, handling: null, planlagt: null, kø: [], inn: null };
 const knapp = id => document.getElementById(id);
 function visEtasje(f) {
   tilstand.visEtasje = f;
@@ -130,7 +130,8 @@ function visEtasje(f) {
 }
 function gåTil(f, x, z, beholdPlan = false) {
   stoppHandling();
-  if (!beholdPlan) tilstand.planlagt = null;
+  tilstand.inn = null;
+  if (!beholdPlan) { tilstand.planlagt = null; tilstand.kø = []; }
   // nærmeste gangbare rute rundt klikket
   let [ci, cj] = celle(x, z), best = null;
   for (let r = 0; r <= 20 && !best; r++)
@@ -685,7 +686,7 @@ function poseHandling(dt) {
     vaskTid = h.maskinGår;
     l.addEventListener('loadedmetadata', () => { if (Number.isFinite(l.duration)) vaskTid = l.duration; });
   }
-  if (h.varighet && tt > h.varighet) { stoppHandling(); h.ferdig?.(); }
+  if (h.varighet && tt > h.varighet) { stoppHandling(); h.ferdig?.(); if (t.kø.length) planlegg(t.kø.shift()); }
 }
 // ikoner der handlingene skjer: et rundt ikon over hver plass i etasjen som vises. Trykk for å gå dit og
 // gjøre handlingen; mens den pågår blir ikonet en stoppknapp. Opptatte plasser (flerspiller) er grå.
@@ -699,8 +700,12 @@ function oppdaterKnapper() {
     el.addEventListener('click', e => {
       e.stopPropagation();
       const t = tilstand;
+      const nå = t.handling && HANDLINGER[t.handling.id];
       if (t.handling?.id === id) stoppHandling();
       else if (t.planlagt === id) { t.planlagt = null; t.vei = []; }
+      else if (t.kø.includes(id)) { t.kø = t.kø.filter(k => k !== id); visBeskjed(`Fjernet fra køen: ${h.navn}`); }
+      // mens figuren gjør noe som tar slutt av seg selv (kaffe, dusj, tannpuss …), settes det neste i kø
+      else if ((nå?.varighet || t.inn || e.shiftKey) && t.kø.length < 4 && !opptatt(id)) { t.kø.push(id); visBeskjed(`Neste: ${h.navn}`); }
       else if (!opptatt(id)) planlegg(id);
     });
     knapp('ikoner').appendChild(el);
@@ -732,7 +737,7 @@ function plasserIkoner() {
     let vis = h.f === t.visEtasje && (!h.vis || h.vis()) && knapp('fler').hidden;
     if (vis) { ikonP.copy(ik.punkt).project(camera); vis = ikonP.z < 1 && Math.abs(ikonP.x) < 1.05 && Math.abs(ikonP.y) < 1.05; }
     // med kamera bak figuren: bare ikoner i nærheten som ikke står bak en vegg (sjekkes noen ganger i sekundet)
-    if (vis && kamera.modus === 'bak' && !(t.handling?.id === id || t.planlagt === id)) {
+    if (vis && kamera.modus === 'bak' && !(t.handling?.id === id || t.planlagt === id || t.kø.includes(id))) {
       const nærme = Math.hypot(t.pos.x - ik.punkt.x, t.pos.z - ik.punkt.z) < 4.5;
       if (!nærme) vis = false;
       else {
@@ -742,13 +747,16 @@ function plasserIkoner() {
       }
     }
     if (!vis) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }
-    const aktiv = t.handling?.id === id, påVei = t.planlagt === id, opp = !h.trapp && !h.lys && !aktiv && opptatt(id);
-    const tilst = `${aktiv}${påVei}${opp}${h.tilstand?.() ?? ''}`;
+    const aktiv = t.handling?.id === id, påVei = t.planlagt === id || t.inn?.id === id, opp = !h.trapp && !h.lys && !aktiv && opptatt(id);
+    const iKø = t.kø.indexOf(id) + 1;
+    const tilst = `${aktiv}${påVei}${opp}${h.tilstand?.() ?? ''}${iKø}`;
     if (tilst !== ik.sist) {                                               // bare oppdater teksten når noe endrer seg
       ik.sist = tilst;
       el.classList.toggle('aktiv', aktiv || påVei); el.classList.toggle('opptatt', opp);
       el.querySelector('.tegn').textContent = aktiv || påVei ? '⏹' : h.ikon;
-      el.querySelector('.navn').textContent = aktiv ? `Stopp: ${h.navn}` : påVei ? `På vei: ${h.navn}` : `${h.navn}${h.rom ? ` (${h.rom})` : ''}${opp ? ' – opptatt' : ''}`;
+      el.classList.toggle('kø', !!iKø); el.dataset.kø = iKø || '';
+      el.querySelector('.navn').textContent = aktiv ? `Stopp: ${h.navn}` : påVei ? `På vei: ${h.navn}` : iKø ? `I kø (${iKø}): ${h.navn} – trykk for å fjerne`
+        : `${h.navn}${h.rom ? ` (${h.rom})` : ''}${opp ? ' – opptatt' : ''}`;
       el.setAttribute('aria-label', el.querySelector('.navn').textContent);
     }
     const avstand = camera.position.distanceTo(ik.punkt), nær = Math.hypot(t.pos.x - ik.punkt.x, t.pos.z - ik.punkt.z);
@@ -805,7 +813,7 @@ function levende(dt) {
   const t = tilstand, p = t.pos, h = meg.figur.rotation.y;
   const fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
   const øyne = p.clone().add(new THREE.Vector3(0, 1.65 * meg.figur.scale.y, 0));
-  const ledig = !t.handling && !t.beveger && !t.reiser && !t.planlagt && !overgang;
+  const ledig = !t.handling && !t.beveger && !t.reiser && !t.planlagt && !t.inn && !overgang;
   if (!ledig) { stille.tid = 0; stille.gjør = null; stille.neste = 4 + Math.random() * 3; }
   // mens den går: se mot et punkt ca. 1,5 m fram langs veien
   if (t.beveger && t.vei.length) {
@@ -901,7 +909,7 @@ function steg(dt) {
   t.løper = løper > 1 && (t.beveger || false);
   if ((fx || fz) && !iTrapp) {
     if (t.handling) stoppHandling();
-    t.planlagt = null;
+    t.planlagt = null; t.inn = null; t.kø = [];
     t.vei = [];
     let v;
     if (kamera.modus === 'bak') {                                          // som i GTA: ← → snur, ↑ ↓ går
@@ -974,8 +982,33 @@ function steg(dt) {
   t.gange = beveger ? t.gange + dt * 7.5 * (t.fart / 1.4) * (løper > 1 ? 1.3 : 1) * Math.max(0.55, t.vei.length ? t.tempo : 1) : t.gange * 0.85;
   gangPose(t.gange, beveger, t.pos.y);
   t.beveger = beveger;
-  // fremme ved en planlagt handling: start den
-  if (t.planlagt && !t.vei.length) { const id = t.planlagt; t.planlagt = null; startHandling(id); }
+  // fremme ved en planlagt handling: snu seg og ta steget inn på plassen (stolen, sofaen, foran vasken), så start den.
+  // Skal figuren sitte eller ligge, snur den seg først og går så baklengs inn; ellers snur og går den samtidig.
+  if (t.planlagt && !t.vei.length && !t.inn) {
+    const h = HANDLINGER[t.planlagt], mål = new THREE.Vector3(h.pos[0], t.pos.y, h.pos[1]);
+    // går bare de siste skrittene når veien dit er fri (de siste 45 cm er selve stolen/sofaen og regnes ikke);
+    // står noe i veien (bordet foran sofaen), snur figuren seg på stedet
+    let avst = Math.hypot(mål.x - t.pos.x, mål.z - t.pos.z);
+    for (let k = 1; k * R * 0.5 < avst - 0.45; k++) {
+      const u = k * R * 0.5 / avst;
+      if (!gangbar(t.f, ...celle(t.pos.x + (mål.x - t.pos.x) * u, t.pos.z + (mål.z - t.pos.z) * u))) { mål.copy(t.pos); avst = 0; break; }
+    }
+    let dr = h.retning - figur.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr));
+    t.inn = { id: t.planlagt, fra: t.pos.clone(), mål, r0: figur.rotation.y, dr, tid: 0,
+      varighet: Math.min(1.3, 0.25 + avst / 0.9 + Math.abs(dr) / 4), først: h.holdning !== 'stå' };
+    t.planlagt = null;
+  }
+  if (t.inn) {
+    const n = t.inn; n.tid += dt;
+    const u = Math.min(1, n.tid / n.varighet);
+    const snu = n.først ? myk(u / 0.55) : myk(u), gå = n.først ? myk((u - 0.35) / 0.65) : myk(u);
+    t.pos.lerpVectors(n.fra, n.mål, gå); t.pos.y = n.fra.y;
+    if (u >= 1) { const h = HANDLINGER[n.id]; t.pos.set(h.pos[0], t.pos.y, h.pos[1]); }
+    t.retning = figur.rotation.y = n.r0 + n.dr * snu;
+    figur.position.copy(t.pos);
+    t.beveger = n.fra.distanceTo(n.mål) > 0.08 && u < 0.95;
+    if (u >= 1) { const id = n.id; t.inn = null; startHandling(id); }
+  }
   if (t.handling) poseHandling(dt);
   blandOvergang(dt);
   oppdaterVask(dt);
