@@ -1242,6 +1242,83 @@ function visBeskjed(tekst) {
   clearTimeout(beskjedTid); beskjedTid = setTimeout(() => el.classList.remove('vis'), 2200);
 }
 
+// Ting i huset som svarer på det figuren gjør: stolen ved middagsbordet trekkes ut og skyves inn, speildøra på
+// garderoben åpnes når figuren skifter skjorte (med klær inne i skapet), og dyna legges over figuren som sover.
+const respons = { stol: null, stolUt: 0, skapdør: null, skapVinkel: 0, innside: null, dyne: null };
+function lagRespons() {
+  scene.traverse(o => {
+    if (o.isGroup && Math.abs(o.position.x - 2.10) < 0.02 && Math.abs(o.position.z - 4.60) < 0.02 && Math.abs(o.position.y) < 0.02) respons.stol ??= o;
+    if (o.isMesh && o.material === M.speil && Math.abs(boksFor(o).getCenter(new THREE.Vector3()).x - 1.40) < 0.03 && Math.abs(boksFor(o).max.z - 3.97) < 0.01) respons.skapdør ??= o;
+  });
+  if (respons.stol) respons.stol.userData.z0 = respons.stol.position.z;
+  if (respons.skapdør) {                                                   // hengsel på venstre side sett forfra, innside med klær
+    const d = respons.skapdør, hengsel = new THREE.Object3D(); hengsel.position.set(1.19, 0, 3.967);
+    d.parent.add(hengsel); hengsel.updateMatrixWorld(true); hengsel.attach(d); respons.skapdør = hengsel;
+    const inne = new THREE.Group(); inne.visible = false;
+    const mørk = new THREE.Mesh(new THREE.BoxGeometry(0.42, 2.2, 0.01), new THREE.MeshStandardMaterial({ color: 0x3a342e, roughness: 0.9 }));
+    mørk.position.set(1.40, F + 1.15, 3.972); inne.add(mørk);
+    const stang = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.4, 8), M.stål); stang.rotation.z = π / 2; stang.position.set(1.40, F + 1.85, 3.965); inne.add(stang);
+    [0x8a1e2d, 0x2c5d8f, 0xe8e4da, 0x3f6b3a].forEach((c, i) => {
+      const skjorte = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.5, 0.03), new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
+      skjorte.position.set(1.25 + i * 0.095, F + 1.58, 3.95); skjorte.rotation.y = 1.3; inne.add(skjorte);
+    });
+    scene.add(inne); respons.innside = inne;
+  }
+  // dyna: en myk, avlang pute som legges over kroppen fra føttene til brystet
+  respons.dyne = new THREE.Mesh(new THREE.PlaneGeometry(1, 1, 14, 18), M.sengetøy.clone());
+  respons.dyne.material.side = THREE.DoubleSide; respons.dyne.material.clippingPlanes = null;
+  respons.dyne.castShadow = true; respons.dyne.visible = false; respons.dyne.raycast = () => {}; scene.add(respons.dyne);
+  figurdeler.add(respons.dyne);
+}
+function responsTikk(dt) {
+  const t = tilstand, hd = t.handling, id = hd?.id ?? t.inn?.id ?? (t.reiser && Object.keys(HANDLINGER).find(k => HANDLINGER[k] === t.reiser.h));
+  // stolen: ut mens figuren går inn og setter seg / reiser seg, inn når den sitter
+  if (respons.stol) {
+    const ut = id === 'middag' && (t.inn || t.reiser || (hd && hd.tid < 1.4)) ? 0.3 : 0;
+    respons.stolUt += (ut - respons.stolUt) * Math.min(1, dt * 4);
+    respons.stol.position.z = respons.stol.userData.z0 - respons.stolUt;
+  }
+  // speildøra: åpnes, står åpen mens figuren finner skjorta, lukkes
+  if (respons.skapdør) {
+    const åpen = hd?.id === 'klær' && hd.tid > 0.3 && hd.tid < 3.4 ? -2.0 : 0;
+    respons.skapVinkel += (åpen - respons.skapVinkel) * Math.min(1, dt * 5);
+    respons.skapdør.rotation.y = respons.skapVinkel;
+    respons.innside.visible = respons.skapVinkel < -0.05;
+  }
+  // dyna over figuren som ligger (når den har lagt seg)
+  const d = respons.dyne;
+  if (d) {
+    const ligger = hd && HANDLINGER[hd.id]?.holdning === 'ligg' && hd.tid > (meg.anim?.handlinger.ligger?.getClip().duration ?? 2) * 0.85 && meg.avatar;
+    d.visible = !!ligger;
+    if (ligger) {
+      const rot = meg.avatar.rot, p = n => rot.getObjectByName(n).getWorldPosition(new THREE.Vector3());
+      // en myk flate over kroppen fra føttene til brystet: hvert punkt løftes over den høyeste kroppsdelen i
+      // nærheten (knær, hofter, bryst) og henger ned mot madrassen ut mot kantene
+      const navn = ['LeftFoot', 'RightFoot', 'LeftLeg', 'RightLeg', 'LeftUpLeg', 'RightUpLeg', 'Hips', 'Spine', 'Spine1', 'Spine2', 'LeftHand', 'RightHand'];
+      const kropp = navn.map(p), hofter = kropp[6], bryst = kropp[9];
+      const langs = bryst.clone().sub(hofter).setY(0).normalize(), tvers = new THREE.Vector3(-langs.z, 0, langs.x);
+      const a = q => q.clone().sub(hofter).dot(langs), b = q => q.clone().sub(hofter).dot(tvers);   // i forhold til hoftene
+      const a1 = Math.min(...kropp.slice(0, 4).map(a)) - 0.15, a2 = a(bryst) + 0.1, bm = (b(hofter) + b(bryst)) / 2;
+      const madrass = hofter.y - 0.12, pos = d.geometry.attributes.position;
+      const rutenett = d.userData.uv ??= Array.from({ length: pos.count }, (_, i) => [pos.getY(i) + 0.5, pos.getX(i)]);   // det opprinnelige planet
+      for (let i = 0; i < pos.count; i++) {
+        const [u, v] = rutenett[i];                                          // u langs (0 = føttene), v tvers (−0,5 … 0,5)
+        const al = a1 + (a2 - a1) * u, bl = bm + v * 1.15;
+        let h = madrass;
+        for (const q of kropp.slice(0, 10)) {                                 // høyden på kroppen under dette punktet, med mykt fall
+          const dd = Math.hypot(a(q) - al, b(q) - bl), r = 0.5, k = Math.max(0, 1 - dd / r);
+          if (dd < r) h = Math.max(h, madrass + (q.y + 0.06 - madrass) * k * k * (3 - 2 * k));   // mykt fall, så dyna draperes
+        }
+        const kant = Math.min(1, (0.5 - Math.abs(v)) / 0.08);                 // kantene ned på madrassen
+        const p0 = hofter.clone().addScaledVector(langs, al).addScaledVector(tvers, bl).setY(madrass + (h - madrass) * kant + 0.01);
+        pos.setXYZ(i, p0.x, p0.y, p0.z);
+      }
+      pos.needsUpdate = true; d.geometry.computeVertexNormals(); d.geometry.computeBoundingSphere();
+      d.position.set(0, 0, 0); d.rotation.set(0, 0, 0); d.scale.set(1, 1, 1);
+    }
+  }
+}
+
 // dører åpnes for figuren og for andre spillere i nærheten
 const dørerTikk = dt => oppdaterDører(dt, [{ f: tilstand.f, p: tilstand.pos }, ...[...andre.values()].map(a => ({ f: a.data.f, p: a.pos }))]);
 function forberedKamera() {
@@ -1304,6 +1381,7 @@ requestAnimationFrame(() => setTimeout(() => {
   forberedKamera();
   himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
   lagSpeil();
+  lagRespons();
   dag = lagDag({ scene, sol, himmel, midt }); dag.oppdater();            // klokka: sola, himmelen og lyset ute
   lys = lagLys({ mobil });                                               // lamper og brytere
   leggTilBrytere();
@@ -1319,7 +1397,7 @@ requestAnimationFrame(() => setTimeout(() => {
   nårFerdig(() => { const l = knapp('laster'); if (!l) return; l.classList.add('borte'); setTimeout(() => l.remove(), 450); });
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, klokke.getDelta());
-    steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
+    steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); responsTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
     oppdaterSpeil();
     himmel?.oppdater(dt, camera); dagTikk(dt); plasserLapper(); plasserIkoner(); følgYtelse(); if (sol.intensity > 0) skyggeTikk();
     if (ao.enabled) composer.render(); else renderer.render(scene, camera);   // uten skyggeeffekten: rett til skjermen, med kantutjevning
@@ -1599,4 +1677,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { trinnHøyde, stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { responsTikk, respons, trinnHøyde, stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
