@@ -155,10 +155,35 @@ function gåTil(f, x, z, beholdPlan = false) {
 // klikk/trykk på gulvet (skilles fra dra-for-å-snu ved hvor langt pekeren flyttet seg)
 const peker = new THREE.Vector2(), stråle = new THREE.Raycaster();
 let ned = null;
-renderer.domElement.addEventListener('pointerdown', e => { ned = [e.clientX, e.clientY]; draSist = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerdown', e => {
+  ned = [e.clientX, e.clientY]; draSist = [e.clientX, e.clientY];
+  // berøring: holder man fingeren i ro et halvt sekund, går figuren mot fingeren så lenge den holdes
+  if (e.pointerType === 'touch') { clearTimeout(hold.vent); hold.x = e.clientX; hold.y = e.clientY; hold.vent = setTimeout(() => { hold.på = true; vibrer(15); }, 450); }
+});
+// trykk og hold (mobil): mål på gulvet under fingeren, oppdatert noen ganger i sekundet
+const hold = { på: false, vent: 0, x: 0, y: 0, sist: 0 };
+const vibrer = ms => { try { navigator.vibrate?.(ms); } catch { /* ikke støttet */ } };
+function punktPåGulv(cx, cy) {
+  peker.set(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  stråle.setFromCamera(peker, camera);
+  const y0 = base(tilstand.visEtasje), t = (y0 - stråle.ray.origin.y) / stråle.ray.direction.y;
+  return t > 0 ? [stråle.ray.origin.x + stråle.ray.direction.x * t, stråle.ray.origin.z + stråle.ray.direction.z * t] : null;
+}
+function holdTikk() {
+  if (!hold.på || performance.now() - hold.sist < 250) return;
+  hold.sist = performance.now();
+  const p = punktPåGulv(hold.x, hold.y);
+  if (p) gåTil(tilstand.visEtasje, ...p);
+}
+addEventListener('pointerup', () => { clearTimeout(hold.vent); if (hold.på) { hold.på = false; ned = null; } });
+addEventListener('pointercancel', () => { clearTimeout(hold.vent); hold.på = false; });
 // dra med musa (eller fingeren) for å snu kameraet rundt figuren når kameraet er bak den
 let draSist = null;
 renderer.domElement.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch') {
+    if (hold.på) { hold.x = e.clientX; hold.y = e.clientY; return; }        // fingeren styrer figuren, ikke kameraet
+    if (Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 8) clearTimeout(hold.vent);
+  }
   if (!ned || !draSist || kamera.modus !== 'bak' || !(e.buttons & 1 || e.pointerType === 'touch')) return;
   const dx = e.clientX - draSist[0], dy = e.clientY - draSist[1];
   draSist = [e.clientX, e.clientY];
@@ -624,6 +649,7 @@ function startHandling(id) {
   if (!h.medJakke) settJakke(false);                                       // jakka henges av når figuren gjør noe inne
   h.før?.();
   if (h.lydVed === undefined) spillLyd(h);
+  vibrer(25);
   oppdaterKnapper();
 }
 function stoppHandling() {
@@ -1397,7 +1423,7 @@ requestAnimationFrame(() => setTimeout(() => {
   nårFerdig(() => { const l = knapp('laster'); if (!l) return; l.classList.add('borte'); setTimeout(() => l.remove(), 450); });
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, klokke.getDelta());
-    steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); responsTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
+    holdTikk(); steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); responsTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
     oppdaterSpeil();
     himmel?.oppdater(dt, camera); dagTikk(dt); plasserLapper(); plasserIkoner(); følgYtelse(); if (sol.intensity > 0) skyggeTikk();
     if (ao.enabled) composer.render(); else renderer.render(scene, camera);   // uten skyggeeffekten: rett til skjermen, med kantutjevning
