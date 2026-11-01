@@ -56,6 +56,12 @@
     }
     .hikon:hover { background: #4b3324; }
     .hikon.aktiv { background: #c0392b; }
+    .hikon.kø { background: #4b3324; outline: 2px solid #f2c14e; }
+    .hikon.kø::after {
+      content: attr(data-kø); position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; border-radius: 50%;
+      background: #f2c14e; color: #2a1d14; font: 700 11px/17px system-ui, sans-serif; text-align: center;
+    }
+    .hikon.kø .navn { opacity: 1; }
     .hikon.opptatt { background: rgba(120,120,120,.75); cursor: default; filter: grayscale(1); }
     .hikon .navn {
       position: absolute; top: 46px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none;
@@ -160,7 +166,8 @@
        Piltaster/WASD: med kamera bak figuren går ↑ fram, ↓ bak og ← → snur. Shift: løp. C bytter kamera.<br>
        Dra med musa for å se rundt figuren.<br>
        Ovenfra: dra for å snu kameraet. Scroll/knip for zoom. På mobil: styrespaken nede til venstre.<br>
-       Handlinger: trykk på ikonene i rommet, eller E når figuren står i nærheten.</p>
+       Handlinger: trykk på ikonene i rommet, eller E når figuren står i nærheten. Trykk på flere mens figuren
+       gjør noe (eller Shift+klikk), så gjøres de etter tur. På mobil: hold fingeren på gulvet for å gå mot den.</p>
   </div>
   <div id="rom"></div>
   <div id="status"><button id="klokke" title="Klokka. Trykk for å bytte mellom rask dag, ekte tid og alltid dag.">☀️ 13:00</button><button id="musikk" title="Musikk">🎵</button></div>
