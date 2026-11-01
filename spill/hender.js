@@ -173,9 +173,51 @@ function blikk(r, dt) {
   }
 }
 
+// Føttene på bakken (trapp): r.bakke(x, z, y) gir høyden på trinnet under et punkt (eller null). Hver fot løftes eller
+// senkes så den står på trinnet med samme høyde over det som i animasjonen, hoftene senkes om en fot ikke rekker
+// ned, og beina bøyes med to-ledds IK (kneet fram).
+function føtter(r) {
+  const rot = r.avatar?.rot, bakke = r.bakke; r.bakke = null;
+  if (!rot || !bakke || r.anim?.modus !== 'klipp') { r.hofteSenk = 0; return; }   // bare med animasjon (den setter hoftene hvert bilde)
+  const [fram] = retninger(r), y0 = r.figur.position.y, ben = [];
+  rot.updateMatrixWorld(true);
+  for (const side of ['Left', 'Right']) {
+    const lår = rot.getObjectByName(side + 'UpLeg'), legg = rot.getObjectByName(side + 'Leg'), fot = rot.getObjectByName(side + 'Foot');
+    if (!lår || !legg || !fot) return;
+    const p = fot.getWorldPosition(new THREE.Vector3()), g = bakke(p.x, p.z, p.y);
+    if (g === null) continue;
+    ben.push({ lår, legg, fot, mål: p.clone().setY(g + (p.y - y0)) });
+  }
+  if (!ben.length) return;
+  // hoftene ned om den laveste foten ikke rekker (beina er strake): mykt fra bilde til bilde
+  const senk = Math.max(0, Math.min(0.18, ...ben.map(b => b.fot.getWorldPosition(new THREE.Vector3()).y - b.mål.y)));
+  r.hofteSenk = (r.hofteSenk || 0) + (senk - (r.hofteSenk || 0)) * 0.35;
+  const hips = rot.getObjectByName('Hips');
+  hips.position.y -= r.hofteSenk / rot.scale.y / (r.figur.scale.y || 1); rot.updateMatrixWorld(true);
+  for (const { lår, legg, fot, mål } of ben) {
+    const S = lår.getWorldPosition(new THREE.Vector3()), E = legg.getWorldPosition(new THREE.Vector3()), W = fot.getWorldPosition(new THREE.Vector3());
+    const la = E.distanceTo(S), lb = W.distanceTo(E), mot = mål.clone().sub(S), d = Math.min(mot.length(), la + lb - 0.003);
+    const dir = mot.normalize(), vin = fram.clone().addScaledVector(dir, -fram.dot(dir)).normalize();
+    const alfa = Math.acos(Math.min(1, Math.max(-1, (la * la + d * d - lb * lb) / (2 * la * d))));
+    const nyE = S.clone().addScaledVector(dir, la * Math.cos(alfa)).addScaledVector(vin, la * Math.sin(alfa)), nyW = S.clone().addScaledVector(dir, d);
+    const fotQ = fot.getWorldQuaternion(new THREE.Quaternion());
+    const drei = (b, fra, til) => {
+      const q = new THREE.Quaternion().setFromUnitVectors(fra.normalize(), til.normalize());
+      b.quaternion.copy(b.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(b.getWorldQuaternion(new THREE.Quaternion()).premultiply(q)));
+      b.updateMatrixWorld(true);
+    };
+    drei(lår, E.clone().sub(S), nyE.clone().sub(S));
+    const Ek = legg.getWorldPosition(new THREE.Vector3());
+    drei(legg, fot.getWorldPosition(new THREE.Vector3()).sub(Ek), nyW.clone().sub(Ek));
+    fot.quaternion.copy(fot.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(fotQ));   // foten holder vinkelen fra animasjonen
+    fot.updateMatrixWorld(true);
+  }
+}
+
 // alt dette, i riktig rekkefølge, etter at figurens animasjon er regnet ut for bildet. Til slutt huskes figurens
 // faktiske stilling og munn, som handlingene bruker neste bilde (se spillets iRigg).
 function etterAnimasjon(r, dt = 1 / 60) {
+  føtter(r);
   bøyRygg(r);
   blikk(r, dt);
   oppdaterGrep(r);

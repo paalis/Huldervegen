@@ -795,13 +795,33 @@ function animerMeg(dt) {
   const t = tilstand;
   const fart = dt > 0 ? Math.hypot(t.pos.x - sistPos.x, t.pos.z - sistPos.z) / dt : 0;
   sistPos.copy(t.pos);
+  // snur figuren seg på stedet, tar den små skritt (gangen sakte) i stedet for å skli rundt
+  let dr = meg.figur.rotation.y - (sistPos.r ?? meg.figur.rotation.y); dr = Math.atan2(Math.sin(dr), Math.cos(dr)); sistPos.r = meg.figur.rotation.y;
+  sistPos.snu = Math.max(0, (sistPos.snu || 0) - dt) + (dt > 0 && Math.abs(dr) / dt > 1.2 ? dt * 2 : 0);
+  const snur = !t.beveger && !t.handling && sistPos.snu > 0.05;
   let valg;
   if (t.reiser) valg = { klipp: 'reiser_seg', h: t.reiser.h, tempo: 1.4 };
-  else valg = velgKlipp(t.handling?.id, t.beveger, fart, t.løper);
+  else valg = velgKlipp(t.handling?.id, t.beveger || snur, snur ? 0.8 : fart, t.løper);
   valg.y = t.reiser ? t.reiser.y : t.pos.y;
   animer(meg, valg, dt);
   levende(dt);
+  if (t.vei[0]?.trapp || nærTrapp()) meg.bakke = trinnHøyde;
   etterAnimasjon(meg, dt);
+}
+// trinnene i trappene (for føttene): de flate delene innenfor trappeløpene, funnet én gang etter at huset er satt sammen
+let trinn = null;
+const trinnStråle = new THREE.Raycaster(), NED = new THREE.Vector3(0, -1, 0);
+function finnTrinn() {
+  const omr = trapper.map(t => new THREE.Box3().setFromPoints(t.bane).expandByScalar(0.45));
+  trinn = [];
+  for (const o of hindre) { const b = boksFor(o); if (omr.some(a => a.intersectsBox(b))) trinn.push(o); }
+}
+const nærTrapp = () => { const p = tilstand.pos; return trapper.some(t => [t.bane[0], t.bane.at(-1)].some(e => Math.hypot(e.x - p.x, e.z - p.z) < 0.6)); };
+function trinnHøyde(x, z, y) {
+  if (!trinn) finnTrinn();
+  trinnStråle.set(new THREE.Vector3(x, y + 0.45, z), NED); trinnStråle.far = 0.9;
+  const t = trinnStråle.intersectObjects(trinn, false).find(h => h.face && h.face.normal.clone().transformDirection(h.object.matrixWorld).y > 0.7);
+  return t ? t.point.y : null;
 }
 // Liv når figuren står stille: den ser seg rundt, ser på klokka, gjesper og strekker seg innimellom, og ser på
 // andre spillere i nærheten. Mens den går, ser den litt i forkant mot dit veien svinger.
@@ -1579,4 +1599,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { trinnHøyde, stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
