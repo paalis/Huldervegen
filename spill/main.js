@@ -1113,7 +1113,7 @@ function følg(dt, hopp = false) {
   }
   for (const o of kandidater) {
     const b = boksFor(o);
-    if (o.material.clippingPlanes && b.clone().expandByScalar(0.06).containsPoint(camera.position)) skjul(o);   // kameraet står inni veggen
+    if ((o.material.clippingPlanes || !o.userData.sammenslått) && b.clone().expandByScalar(0.06).containsPoint(camera.position)) skjul(o);   // kameraet står inni en vegg, et skap e.l.
     else if (!vinkel && b.min.y > t.pos.y + 2.0 && b.min.y < camera.position.y) skjul(o);   // trinn og bjelker over hodet, mellom kameraet og figuren
   }
   // tone bort det som er i veien, og tilbake det som ikke lenger er det
