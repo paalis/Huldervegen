@@ -792,7 +792,66 @@ function animerMeg(dt) {
   else valg = velgKlipp(t.handling?.id, t.beveger, fart, t.løper);
   valg.y = t.reiser ? t.reiser.y : t.pos.y;
   animer(meg, valg, dt);
-  etterAnimasjon(meg);
+  levende(dt);
+  etterAnimasjon(meg, dt);
+}
+// Liv når figuren står stille: den ser seg rundt, ser på klokka, gjesper og strekker seg innimellom, og ser på
+// andre spillere i nærheten. Mens den går, ser den litt i forkant mot dit veien svinger.
+const STILLE = {
+  se: { tid: 2.6 }, klokke: { tid: 2.6 }, gjesp: { tid: 3.2, etter: 25 }, strekk: { tid: 2.8, etter: 40 },
+};
+const stille = { tid: 0, neste: 5, gjør: null, start: 0, side: 1 };
+function levende(dt) {
+  const t = tilstand, p = t.pos, h = meg.figur.rotation.y;
+  const fram = new THREE.Vector3(Math.sin(h), 0, Math.cos(h)), høyre = new THREE.Vector3(-Math.cos(h), 0, Math.sin(h));
+  const øyne = p.clone().add(new THREE.Vector3(0, 1.65 * meg.figur.scale.y, 0));
+  const ledig = !t.handling && !t.beveger && !t.reiser && !t.planlagt && !overgang;
+  if (!ledig) { stille.tid = 0; stille.gjør = null; stille.neste = 4 + Math.random() * 3; }
+  // mens den går: se mot et punkt ca. 1,5 m fram langs veien
+  if (t.beveger && t.vei.length) {
+    let igjen = 1.5, fra = p.clone();
+    for (const v of t.vei) {
+      if (v.f !== t.f) break;
+      const l = fra.distanceTo(v.p);
+      if (l >= igjen) { fra.lerp(v.p, igjen / l); igjen = 0; break; }
+      igjen -= l; fra = v.p.clone();
+    }
+    meg.blikkMål = fra.setY(øyne.y - 0.25);
+    return;
+  }
+  if (!ledig) return;
+  stille.tid += dt;
+  // andre spillere i nærheten (samme etasje): se på den nærmeste
+  let nærmest = null, best = 3.5;
+  for (const a of andre.values()) if (a.data.f === t.f && a.rigg.figur.visible) {
+    const d = a.pos.distanceTo(p); if (d < best) { best = d; nærmest = a; }
+  }
+  if (nærmest && !stille.gjør) { meg.blikkMål = nærmest.rigg.hodet.getWorldPosition(new THREE.Vector3()); return; }
+  // en liten ting innimellom
+  if (!stille.gjør && stille.tid > stille.neste) {
+    const valg = Object.entries(STILLE).filter(([, d]) => !d.etter || stille.tid > d.etter);
+    const vekter = valg.map(([id]) => ({ se: 5, klokke: 2, gjesp: 1.5, strekk: 1.2 }[id]));
+    let r = Math.random() * vekter.reduce((a, b) => a + b, 0), i = 0;
+    while ((r -= vekter[i]) > 0) i++;
+    stille.gjør = valg[i][0]; stille.start = stille.tid; stille.side = Math.random() < 0.5 ? 1 : -1;
+  }
+  if (!stille.gjør) return;
+  const u = stille.tid - stille.start, d = STILLE[stille.gjør].tid;
+  if (u > d) { stille.gjør = null; stille.neste = stille.tid + 6 + Math.random() * 6; return; }
+  const w = myk(u / 0.6) * (1 - myk((u - d + 0.6) / 0.6));
+  const sett = (a, mål) => { a.mål = mål; a.brukt = true; a.vekt = w; };
+  if (stille.gjør === 'se') meg.blikkMål = øyne.clone().addScaledVector(fram, 1.4).addScaledVector(høyre, 1.8 * stille.side * w).add(new THREE.Vector3(0, -0.2, 0));
+  else if (stille.gjør === 'klokke') {                                   // venstre håndledd opp foran brystet
+    const ur = p.clone().addScaledVector(fram, 0.3).addScaledVector(høyre, -0.02).setY(p.y + 1.34 * meg.figur.scale.y);
+    sett(meg.armH, ur); meg.blikkMål = ur.clone().lerp(øyne.clone().addScaledVector(fram, 2), 1 - w);
+  } else if (stille.gjør === 'gjesp') {                                  // hånda for munnen, hodet litt bakover
+    const munn = meg.munn?.clone() ?? øyne.clone().add(new THREE.Vector3(0, -0.1, 0));
+    sett(meg.armV, munn.addScaledVector(fram, 0.05).addScaledVector(høyre, 0.02).add(new THREE.Vector3(0, -0.04, 0)));
+    meg.blikkMål = øyne.clone().addScaledVector(fram, 1).add(new THREE.Vector3(0, 0.5 * w, 0));
+  } else if (stille.gjør === 'strekk') {                                 // begge armene over hodet
+    for (const [a, sd] of [[meg.armV, 1], [meg.armH, -1]]) sett(a, p.clone().addScaledVector(høyre, 0.22 * sd).addScaledVector(fram, 0.05).setY(p.y + 2.1 * meg.figur.scale.y));
+    meg.blikkMål = øyne.clone().addScaledVector(fram, 1).add(new THREE.Vector3(0, 0.6 * w, 0));
+  }
 }
 // myke overganger: stillingen tas vare på når figuren setter seg, reiser seg eller bytter handling,
 // og den nye stillingen glir inn over den gamle i løpet av et halvt sekund
@@ -1297,7 +1356,9 @@ function tegnAndre(dt) {
     valg.y = d.h ? d.y : a.pos.y;
     valg.ferdig = tt > 2;                                                  // kom inn midt i handlingen: sitt eller ligg med en gang
     animer(r, valg, dt);
-    etterAnimasjon(r);
+    // de andre ser på meg når de står i nærheten uten å gjøre noe
+    if (!d.h && fart < 0.3 && d.f === tilstand.f && a.pos.distanceTo(tilstand.pos) < 3.5) r.blikkMål = meg.hodet.getWorldPosition(new THREE.Vector3());
+    etterAnimasjon(r, dt);
     r.hodet.getWorldPosition(a.lapp.position); a.lapp.position.y += 0.2;
   }
 }
@@ -1485,4 +1546,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };

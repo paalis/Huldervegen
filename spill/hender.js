@@ -113,6 +113,8 @@ function rettHender(r) {
     if (hm && hm.ting.parent === hånd) { const s = håndFor(hånd, hm.ting, hm.tupp, hm.mål, hm.retning, hm.forside); mål = s.plass; håndRot = s.rot; }
     if (!mål) continue;
     const S = skulder.getWorldPosition(new THREE.Vector3()), E = albue.getWorldPosition(new THREE.Vector3()), W = hånd.getWorldPosition(new THREE.Vector3());
+    const vekt = a.vekt ?? 1; a.vekt = 1;                                   // < 1: blandes med animasjonens hånd (glir inn og ut)
+    if (vekt < 1) { mål = W.clone().lerp(mål, Math.max(0, vekt)); håndRot = null; }
     const la = E.distanceTo(S), lb = W.distanceTo(E), mot = mål.clone().sub(S), d = Math.min(mot.length(), la + lb - 0.002);
     // albuen: ned og litt ut; når hånda er oppe ved ansiktet (over skulderen), mer ned og fram enn ut
     const høy = Math.min(1, Math.max(0, (mål.y - S.y + 0.15) / 0.25));
@@ -141,10 +143,41 @@ function rettHender(r) {
   }
 }
 
+// Blikket: hode og nakke dreies mot r.blikkMål (et punkt i verden, eller null = rett fram), mykt og innenfor
+// det en nakke klarer (ca. 65° til siden, 25° opp og 30° ned). Bak figuren ser den ikke.
+function blikk(r, dt) {
+  const rot = r.avatar?.rot, hd = rot?.getObjectByName('Head'), nakke = rot?.getObjectByName('Neck');
+  const b = r.blikk ??= { yaw: 0, pitch: 0 };
+  let yaw = 0, pitch = 0;
+  const [fram, høyre] = retninger(r);
+  if (r.blikkMål && hd) {
+    const d = r.blikkMål.clone().sub(hd.getWorldPosition(new THREE.Vector3()));
+    const f = d.dot(fram), v = -d.dot(høyre), flat = Math.hypot(f, v);
+    yaw = Math.atan2(v, f);
+    if (Math.abs(yaw) > 1.9) yaw = 0;                                     // bak: snu heller kroppen
+    yaw = Math.max(-1.15, Math.min(1.15, yaw));
+    pitch = Math.max(-0.5, Math.min(0.42, Math.atan2(d.y, flat)));
+  }
+  const k = Math.min(1, dt * 4);
+  b.yaw += (yaw - b.yaw) * k; b.pitch += (pitch - b.pitch) * k;
+  r.blikkMål = null;
+  if (!hd || !nakke || (Math.abs(b.yaw) < 1e-3 && Math.abs(b.pitch) < 1e-3)) return;
+  const q = new THREE.Quaternion(), qp = new THREE.Quaternion();
+  for (const [ben, andel] of [[nakke, 0.4], [hd, 0.6]]) {
+    q.setFromAxisAngle(OPP, b.yaw * andel);
+    const side = høyre.clone().applyQuaternion(q);
+    qp.setFromAxisAngle(side, b.pitch * andel);
+    const verden = qp.multiply(q).multiply(ben.getWorldQuaternion(new THREE.Quaternion()));
+    ben.quaternion.copy(ben.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(verden));
+    ben.updateMatrixWorld(true);
+  }
+}
+
 // alt dette, i riktig rekkefølge, etter at figurens animasjon er regnet ut for bildet. Til slutt huskes figurens
 // faktiske stilling og munn, som handlingene bruker neste bilde (se spillets iRigg).
-function etterAnimasjon(r) {
+function etterAnimasjon(r, dt = 1 / 60) {
   bøyRygg(r);
+  blikk(r, dt);
   oppdaterGrep(r);
   plasserGitar(r);
   rettHender(r);
