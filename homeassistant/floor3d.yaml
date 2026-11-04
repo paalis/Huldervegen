@@ -1,0 +1,141 @@
+# Eksempel på floor3d-card for Huldervegen. Bytt entitetene (light.…, sensor.…) med dine egne fra Home Assistant.
+# Fjern linjene for lamper du ikke har. Se README.md i samme mappe.
+type: custom:floor3d-card
+name: Huldervegen
+path: /local/huldervegen/
+objfile: huldervegen-ha.glb
+header: 'no'
+backgroundColor: '#1f2124'
+globalLightPower: 0.35
+shadow: 'no'
+extralightmode: 'no'
+click: 'yes'
+lock_camera: 'no'
+entities:
+  # Stue, taklampe
+  - entity: light.stue
+    type3d: light
+    object_id: lys_stue1
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Stue, pendel over spisebordet
+  - entity: light.spisebord
+    type3d: light
+    object_id: lys_stue1_2
+    light:
+      lumens: 800
+      vertical_alignment: middle
+  # Kjøkken
+  - entity: light.kjokken
+    type3d: light
+    object_id: lys_kjokken
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Entré
+  - entity: light.entre
+    type3d: light
+    object_id: lys_entre
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Terrasse, vegglampe
+  - entity: light.terrasse
+    type3d: light
+    object_id: lys_terrasse
+    light:
+      lumens: 800
+      vertical_alignment: middle
+  # Inngang, lampa ved døra
+  - entity: light.inngang
+    type3d: light
+    object_id: lys_inngang
+    light:
+      lumens: 800
+      vertical_alignment: middle
+  # Soverom 13 m²
+  - entity: light.soverom_13
+    type3d: light
+    object_id: lys_sov13
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Soverom 7 m², papirlampe
+  - entity: light.soverom_7
+    type3d: light
+    object_id: lys_sov7
+    light:
+      lumens: 800
+      vertical_alignment: middle
+  # Bad, taklampe
+  - entity: light.bad
+    type3d: light
+    object_id: lys_bad
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Bad, lysrør over speilet
+  - entity: light.bad_speil
+    type3d: light
+    object_id: lys_bad_2
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Soverom 12 m²
+  - entity: light.soverom_12
+    type3d: light
+    object_id: lys_sov12
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Gang 2. etasje
+  - entity: light.gang_2_etasje
+    type3d: light
+    object_id: lys_gang2
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Stue 3. etasje
+  - entity: light.stue_3_etasje
+    type3d: light
+    object_id: lys_stue3
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Soverom/kontor 3. etasje
+  - entity: light.kontor
+    type3d: light
+    object_id: lys_kontor
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Vaskerom
+  - entity: light.vaskerom
+    type3d: light
+    object_id: lys_vaskerom
+    light:
+      lumens: 800
+      vertical_alignment: bottom
+  # Takterrasse, vegglampe
+  - entity: light.takterrasse
+    type3d: light
+    object_id: lys_takterrasse
+    light:
+      lumens: 800
+      vertical_alignment: middle
+  # Rom: en svak boks over gulvet med verdien som etikett midt i rommet (f.eks. temperatur)
+  - entity: sensor.stue_temperatur
+    type3d: room
+    object_id: room_stue1
+    room:
+      elevation: 250
+      transparency: 70
+      label: 'yes'
+  - entity: sensor.bad_temperatur
+    type3d: room
+    object_id: room_bad
+    room:
+      elevation: 250
+      transparency: 70
+      label: 'yes'

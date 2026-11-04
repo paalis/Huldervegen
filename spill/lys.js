@@ -8,7 +8,7 @@ import { F, H, M, scene, etg2, etg3 } from '../hus.js';
 const etasje = f => [scene, etg2, etg3][f];
 // lamper: rom, etasje, plassering (x, høyde over gulvet, z) og type (tak = taklampe, kule = rund papirlampe,
 // pendel = lampa over spisebordet, vegg = utelampe på veggen)
-const LAMPER = [
+export const LAMPER = [
   { rom: 'stue1', f: 0, p: [3.6, H - 0.05, 2.4], type: 'tak' },
   { rom: 'stue1', f: 0, p: [1.55, 1.75, 5.35], type: 'pendel' },
   { rom: 'kjøkken', f: 0, p: [1.5, H - 0.05, 8.4], type: 'tak' },
