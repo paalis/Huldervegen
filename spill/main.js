@@ -155,35 +155,17 @@ function gåTil(f, x, z, beholdPlan = false) {
 // klikk/trykk på gulvet (skilles fra dra-for-å-snu ved hvor langt pekeren flyttet seg)
 const peker = new THREE.Vector2(), stråle = new THREE.Raycaster();
 let ned = null;
-renderer.domElement.addEventListener('pointerdown', e => {
-  ned = [e.clientX, e.clientY]; draSist = [e.clientX, e.clientY];
-  // berøring: holder man fingeren i ro et halvt sekund, går figuren mot fingeren så lenge den holdes
-  if (e.pointerType === 'touch') { clearTimeout(hold.vent); hold.x = e.clientX; hold.y = e.clientY; hold.vent = setTimeout(() => { hold.på = true; vibrer(15); }, 450); }
-});
-// trykk og hold (mobil): mål på gulvet under fingeren, oppdatert noen ganger i sekundet
-const hold = { på: false, vent: 0, x: 0, y: 0, sist: 0 };
+// Mobil: venstre halvdel av skjermen er styrespak (den dukker opp der tommelen trykker), høyre halvdel er for å
+// trykke på gulvet (gå dit) og dra (se rundt). Da konkurrerer ikke styringene om de samme fingrene.
 const vibrer = ms => { try { navigator.vibrate?.(ms); } catch { /* ikke støttet */ } };
-function punktPåGulv(cx, cy) {
-  peker.set(cx / innerWidth * 2 - 1, -(cy / innerHeight) * 2 + 1);
-  stråle.setFromCamera(peker, camera);
-  const y0 = base(tilstand.visEtasje), t = (y0 - stråle.ray.origin.y) / stråle.ray.direction.y;
-  return t > 0 ? [stråle.ray.origin.x + stråle.ray.direction.x * t, stråle.ray.origin.z + stråle.ray.direction.z * t] : null;
-}
-function holdTikk() {
-  if (!hold.på || performance.now() - hold.sist < 250) return;
-  hold.sist = performance.now();
-  const p = punktPåGulv(hold.x, hold.y);
-  if (p) gåTil(tilstand.visEtasje, ...p);
-}
-addEventListener('pointerup', () => { clearTimeout(hold.vent); if (hold.på) { hold.på = false; ned = null; } });
-addEventListener('pointercancel', () => { clearTimeout(hold.vent); hold.på = false; });
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch' && e.clientX < innerWidth * 0.45 && stikkeId === null) { startStikke(e); ned = null; return; }
+  ned = [e.clientX, e.clientY]; draSist = [e.clientX, e.clientY];
+});
 // dra med musa (eller fingeren) for å snu kameraet rundt figuren når kameraet er bak den
 let draSist = null;
 renderer.domElement.addEventListener('pointermove', e => {
-  if (e.pointerType === 'touch') {
-    if (hold.på) { hold.x = e.clientX; hold.y = e.clientY; return; }        // fingeren styrer figuren, ikke kameraet
-    if (Math.hypot(e.clientX - hold.x, e.clientY - hold.y) > 8) clearTimeout(hold.vent);
-  }
+  if (e.pointerId === stikkeId) { flyttStikke(e); return; }
   if (!ned || !draSist || kamera.modus !== 'bak' || !(e.buttons & 1 || e.pointerType === 'touch')) return;
   const dx = e.clientX - draSist[0], dy = e.clientY - draSist[1];
   draSist = [e.clientX, e.clientY];
@@ -218,15 +200,18 @@ addEventListener('keydown', e => {
   if (k === 'e' && !e.repeat) nærmesteHandling();
   if (k.startsWith('arrow') || k === ' ') e.preventDefault();               // ikke rull siden
   if (k === 'c' && !e.repeat) settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
+  if ((k === '?' || k === 'h') && !e.repeat) visHjelp(true);
+  if (k === 'escape') { visHjelp(false); knapp('fler').hidden = true; }
   taster.add(k);
 });
 addEventListener('keyup', e => taster.delete(e.key.toLowerCase()));
 
 // knapper
 for (const n of [1, 2, 3]) knapp(`etg${n}`).onclick = () => visEtasje(n - 1);
-const settLave = på => { vis.lave = på; knapp('lave').classList.toggle('på', på); oppdater(); };
+const settLave = på => { vis.lave = på; knapp('lave').classList.toggle('på', på); knapp('lave').setAttribute('aria-pressed', på); oppdater(); };
 knapp('lave').onclick = () => settLave(!vis.lave);
-knapp('bak').onclick = () => settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
+knapp('bak').onclick = () => settKamera('bak');
+knapp('ovenfraKnapp').onclick = () => settKamera('ovenfra');
 
 // romnavn nederst på skjermen
 let sistRom = '';
@@ -721,7 +706,7 @@ const IKONHØYDE = { sitt: 1.45, ligg: 1.05, stå: 2.0 };
 function oppdaterKnapper() {
   for (const [id, h] of Object.entries(HANDLINGER)) {
     if (ikoner.has(id)) continue;
-    const el = document.createElement('button'); el.className = 'hikon';
+    const el = document.createElement('button'); el.className = h.lys ? 'hikon liten' : 'hikon';
     el.innerHTML = '<span class="tegn"></span><span class="navn"></span>';
     el.addEventListener('click', e => {
       e.stopPropagation();
@@ -774,21 +759,25 @@ function plasserIkoner() {
     }
     if (!vis) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }
     const aktiv = t.handling?.id === id, påVei = t.planlagt === id || t.inn?.id === id, opp = !h.trapp && !h.lys && !aktiv && opptatt(id);
-    const iKø = t.kø.indexOf(id) + 1;
-    const tilst = `${aktiv}${påVei}${opp}${h.tilstand?.() ?? ''}${iKø}`;
+    const iKø = t.kø.indexOf(id) + 1, opptattNå = t.handling && !aktiv && !h.trapp && !h.lys;
+    const nå = t.handling && HANDLINGER[t.handling.id], blirKø = opptattNå && !!(nå?.varighet);
+    const tilst = `${aktiv}${påVei}${opp}${h.tilstand?.() ?? ''}${iKø}${opptattNå ? (blirKø ? 'k' : 'b') : ''}`;
     if (tilst !== ik.sist) {                                               // bare oppdater teksten når noe endrer seg
       ik.sist = tilst;
       el.classList.toggle('aktiv', aktiv || påVei); el.classList.toggle('opptatt', opp);
       el.querySelector('.tegn').textContent = aktiv || påVei ? '⏹' : h.ikon;
       el.classList.toggle('kø', !!iKø); el.dataset.kø = iKø || '';
-      el.querySelector('.navn').textContent = aktiv ? `Stopp: ${h.navn}` : påVei ? `På vei: ${h.navn}` : iKø ? `I kø (${iKø}): ${h.navn} – trykk for å fjerne`
-        : `${h.navn}${h.rom ? ` (${h.rom})` : ''}${opp ? ' – opptatt' : ''}`;
+      // navnet sier hva et trykk gjør nå: stoppe, sette i kø (når figuren gjør noe som tar slutt) eller bytte
+      el.querySelector('.navn').innerHTML = (aktiv ? `<em>Stopp:</em> ${h.navn}` : påVei ? `<em>På vei:</em> ${h.navn}` : iKø ? `<em>I kø (${iKø}):</em> ${h.navn} – trykk for å fjerne`
+        : opp ? `${h.navn} – opptatt` : opptattNå ? `<em>${blirKø ? '＋ Neste:' : 'Bytt til:'}</em> ${h.navn}` : `${h.navn}${h.rom ? ` <em>· ${h.rom}</em>` : ''}`);
+      el.classList.toggle('på', !!h.lys && !!h.tilstand?.());
       el.setAttribute('aria-label', el.querySelector('.navn').textContent);
     }
     const avstand = camera.position.distanceTo(ik.punkt), nær = Math.hypot(t.pos.x - ik.punkt.x, t.pos.z - ik.punkt.z);
     const skala = Math.min(1.15, Math.max(0.82, 6 / avstand));
     el.style.display = '';
     el.style.opacity = aktiv || påVei ? 1 : nær < 4 ? 1 : 0.8;
+    if (mobil) el.classList.toggle('nær', nær < 1.8 && !h.lys);              // på mobil (ingen hover): navnet vises når figuren står ved
     el.style.transform = `translate(${(ikonP.x + 1) / 2 * innerWidth - 21}px, ${(1 - ikonP.y) / 2 * innerHeight - 21}px) scale(${skala.toFixed(2)})`;
   }
 }
@@ -1065,12 +1054,13 @@ function steg(dt) {
 
 // Kameraet: 'ovenfra' svever over figuren (dra for å snu), 'bak' henger bak og over figuren som
 // i GTA og trekker seg inn foran vegger og møbler som ville skjult den.
-const kamera = { dreiing: 0, helning: 0, sistDra: 0, modus: mobil ? 'ovenfra' : 'bak', avstand: 3.2, blikk: new THREE.Vector3() };
+const kamera = { dreiing: 0, helning: 0, sistDra: 0, modus: 'bak', avstand: 3.2, blikk: new THREE.Vector3() };   // samme start på PC og mobil: figuren i bildet
 const fokus = new THREE.Vector3(), ønsket = new THREE.Vector3(), hode = new THREE.Vector3();
 const hindre = [], glassFlater = [];
 function settKamera(modus) {
   kamera.modus = modus;
-  knapp('bak').classList.toggle('på', modus === 'bak');
+  knapp('bak').classList.toggle('på', modus === 'bak'); knapp('ovenfraKnapp').classList.toggle('på', modus === 'ovenfra');
+  knapp('hurtig-kamera').innerHTML = modus === 'bak' ? '🎥<small>Bak</small>' : '🗺️<small>Over</small>';
   controls.enabled = modus === 'ovenfra';
   if (modus === 'ovenfra') {
     visAltIgjen();
@@ -1420,12 +1410,16 @@ requestAnimationFrame(() => setTimeout(() => {
   settKamera(kamera.modus);
   oppdaterKnapper();
   husFerdig(1);
-  nårFerdig(() => { const l = knapp('laster'); if (!l) return; l.classList.add('borte'); setTimeout(() => l.remove(), 450); });
+  nårFerdig(() => {
+    const l = knapp('laster'); if (!l) return; l.classList.add('borte'); setTimeout(() => l.remove(), 450);
+    let sett = false; try { sett = !!localStorage.getItem('huldervegen-intro'); } catch { /* */ }
+    if (!sett && !new URLSearchParams(location.search).has('hd')) setTimeout(startIntro, 900);   // (?hd = testing/opptak: ingen omvisning)
+  });
   renderer.setAnimationLoop(() => {
     const dt = Math.min(0.05, klokke.getDelta());
-    holdTikk(); steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); responsTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
+    steg(dt); animerMeg(dt); tegnAndre(dt); dørerTikk(dt); responsTikk(dt); flerTikk(dt); følg(dt); if (kamera.modus !== 'bak') controls.update();
     oppdaterSpeil();
-    himmel?.oppdater(dt, camera); dagTikk(dt); plasserLapper(); plasserIkoner(); følgYtelse(); if (sol.intensity > 0) skyggeTikk();
+    himmel?.oppdater(rolig ? 0 : dt, camera); dagTikk(dt); tegnForhånd(dt); plasserLapper(); plasserIkoner(); følgYtelse(); if (sol.intensity > 0) skyggeTikk();
     if (ao.enabled) composer.render(); else renderer.render(scene, camera);   // uten skyggeeffekten: rett til skjermen, med kantutjevning
   });
 }, 30));
@@ -1451,7 +1445,7 @@ function byttUtseende(u) {
 // navnelapp over hodet: en HTML-lapp som følger hodet på skjermen (skarp, og uten skyggeeffekten)
 function navnelapp() {
   const el = document.createElement('div'); el.className = 'navnelapp';
-  el.innerHTML = '<i></i><span></span>'; document.body.appendChild(el);
+  el.innerHTML = '<i></i><span></span>'; knapp('ikoner').appendChild(el);                 // i ikonlaget, som klipper det som er utenfor skjermen
   return {
     el, synlig: false, position: new THREE.Vector3(),
     skriv(t, f) { el.querySelector('span').textContent = t; el.querySelector('i').style.background = f; },
@@ -1563,18 +1557,23 @@ async function gåInnIHuset() {
 
 // skjemaet for innlogging og egen figur
 const SKJEMA = ['hud', 'hår', 'skjorte', 'bukse', 'sko', 'frisyre', 'skjegg', 'høyde', 'kropp', 'modell'];
-for (const [navn, u] of Object.entries(FERDIGE)) {                       // knapper for de ferdige figurene
-  const b = document.createElement('button'); b.textContent = navn;
+for (const [navn, u] of Object.entries(FERDIGE)) {                       // kort for de ferdige figurene
+  const b = document.createElement('button'), prikk = document.createElement('span');
+  prikk.className = 'prikk'; prikk.style.background = `linear-gradient(${u.hår} 0 32%, ${u.hud} 32% 58%, ${u.skjorte} 58%)`;
+  b.append(prikk, navn.replace(' (3D)', '')); b.dataset.navn = navn;
+  if (u.modell) { const m = document.createElement('small'); m.textContent = '3D'; m.style.cssText = 'margin-left:auto;font-size:11px;color:var(--tekst-2)'; b.append(m); }
   b.onclick = () => {
     byttUtseende(u);
-    knapp('u-navn').value = navn; knapp('u-navn').dispatchEvent(new Event('change'));
+    knapp('u-navn').value = navn.replace(' (3D)', ''); knapp('u-navn').dispatchEvent(new Event('change'));
   };
   knapp('ferdige').appendChild(b);
 }
+function merkFerdig() { for (const b of knapp('ferdige').children) { const u = FERDIGE[b.dataset.navn]; b.classList.toggle('på', SKJEMA.every(k => String(u[k] ?? '') === String(meg.utseende[k] ?? ''))); } }
 function fyllSkjema() {
   const u = meg.utseende;
   for (const k of SKJEMA) knapp('u-' + k).value = k === 'høyde' ? Math.round(u.høyde * 100) : (u[k] ?? '');
   knapp('u-høyde-tekst').textContent = `${Math.round(u.høyde * 100)} cm`;
+  merkFerdig();
 }
 const lesSkjema = () => Object.fromEntries(SKJEMA.map(k => [k, k === 'høyde' ? knapp('u-høyde').value / 100 : knapp('u-' + k).value]));
 for (const k of SKJEMA) knapp('u-' + k).addEventListener('input', () => byttUtseende(lesSkjema()));
@@ -1625,7 +1624,7 @@ knapp('loggut').onclick = () => prøv(() => fler.loggUt());
 async function startFlerspiller() {
   if (!firebaseConfig) return;                                           // ikke satt opp: spill alene
   try { fler = await kobleTil(firebaseConfig); }
-  catch (e) { knapp('fler-av').innerHTML = '<p>Kunne ikke koble til Firebase. Sjekk nettet og firebase-config.js.</p>'; return; }
+  catch (e) { console.warn('Flerspiller:', e); knapp('fler-av').innerHTML = '<p class="stille">Får ikke kontakt med de andre akkurat nå. Prøv igjen litt senere – du kan likevel lage din egen figur.</p>'; return; }
   knapp('fler-av').hidden = true;
   knapp('flerknapp').textContent = '👥 Logg inn og spill med andre';
   fler.påBruker(async u => {
@@ -1648,28 +1647,112 @@ async function startFlerspiller() {
 }
 startFlerspiller();
 
+// ---------- Forhåndsvisning av figuren i figurvelgeren ----------
+// En liten egen visning (eget lerret) der en kopi av figuren står og snur seg sakte; byttes når utseendet endres.
+let forhånd = null;
+function tegnForhånd(dt) {
+  const el = knapp('forhånd');
+  if (knapp('fler').hidden || !el.clientWidth) return;
+  if (!forhånd) {
+    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.outputColorSpace = THREE.SRGBColorSpace; r.toneMapping = THREE.ACESFilmicToneMapping;
+    r.domElement.style.cssText = 'width:100%;height:100%;display:block;position:relative;z-index:1';
+    el.appendChild(r.domElement);
+    const sc = new THREE.Scene(), lys = new THREE.DirectionalLight(0xfff3e0, 2.2);
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x8a7a6a, 1.8)); lys.position.set(2, 4, 3); sc.add(lys);
+    forhånd = { r, sc, kam: new THREE.PerspectiveCamera(26, 1, 0.1, 20), rigg: null, uj: '' };
+  }
+  const f = forhånd, w = el.clientWidth, h = el.clientHeight;
+  if (f.r.domElement.width !== Math.round(w * f.r.getPixelRatio())) { f.r.setSize(w, h, false); f.kam.aspect = w / h; f.kam.updateProjectionMatrix(); }
+  const uj = JSON.stringify(meg.utseende);
+  if (uj !== f.uj) {
+    f.uj = uj;
+    if (f.rigg) f.sc.remove(f.rigg.figur);
+    f.rigg = lagFigur(meg.utseende); f.rigg.figur.rotation.y = 0.5; f.sc.add(f.rigg.figur);
+  }
+  f.rigg.figur.rotation.y += dt * (rolig ? 0 : 0.6);
+  animer(f.rigg, { klipp: 'stå', y: 0 }, dt);
+  const høyde = 1.82 * f.rigg.figur.scale.y;
+  f.kam.position.set(0, høyde * 0.58, 5.6); f.kam.lookAt(0, høyde * 0.5, 0);
+  f.r.render(f.sc, f.kam);
+}
+
+// ---------- Hjelp, mindre bevegelse og omvisning første gang ----------
+function visHjelp(på) { knapp('hjelp').hidden = !på; if (på) knapp('hjelpLukk').focus({ focusVisible: false }); }
+knapp('hjelpknapp').onclick = () => visHjelp(true);
+knapp('hjelpLukk').onclick = () => visHjelp(false);
+knapp('hjelp').addEventListener('pointerdown', e => { if (e.target === knapp('hjelp')) visHjelp(false); });
+knapp('introIgjen').onclick = () => { visHjelp(false); startIntro(); };
+// mindre bevegelse: ingen fly eller drivende skyer, ingen pulserende ikoner (og nettleserens valg følges)
+let rolig = (() => { try { const v = localStorage.getItem('huldervegen-rolig'); return v === null ? matchMedia('(prefers-reduced-motion: reduce)').matches : v === '1'; } catch { return false; } })();
+const settRolig = på => {
+  rolig = på; document.body.classList.toggle('rolig', på);
+  knapp('rolig').classList.toggle('på', på); knapp('rolig').setAttribute('aria-pressed', på);
+  if (himmel) himmel.flyGruppe.visible = false;
+  try { localStorage.setItem('huldervegen-rolig', på ? '1' : '0'); } catch { /* privat modus */ }
+};
+knapp('rolig').onclick = () => settRolig(!rolig);
+settRolig(rolig);
+// omvisning: noen korte bobler som peker på det viktigste, første gang man kommer inn (husket i nettleseren)
+const INTRO = [
+  { tittel: 'Velkommen inn!', tekst: 'Dette er deg. Klikk eller trykk på gulvet for å gå dit – også i en annen etasje.', mål: () => skjermpunkt(meg.hodet.getWorldPosition(new THREE.Vector3())), r: 70 },
+  { tittel: 'Gjør noe', tekst: 'De runde ikonene i rommene er ting du kan gjøre: lage kaffe, spille piano, se Netflix … Trykk på ett, så går du dit.', mål: () => { for (const i of ikoner.values()) { if (i.el.style.display === 'none' || i.def.trapp || i.def.lys) continue; const r = i.el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2; if (x > 40 && x < innerWidth - 40 && y > 100 && y < innerHeight - 100) return [x, y]; } return null; }, r: 34 },
+  { tittel: mobil ? 'Gå med tommelen' : 'Gå med tastaturet', tekst: mobil ? 'Dra med tommelen på venstre halvdel av skjermen for å gå. Dra på høyre halvdel for å se deg rundt.' : 'Piltastene eller WASD går og snur, Shift løper. Dra med musa for å se rundt figuren.', mål: () => mobil ? [70, innerHeight - 74] : null, r: 60 },
+  { tittel: 'Døgnet går', tekst: 'Klokka viser tiden i huset. Om kvelden tennes lysene. Trykk på den for å velge rask dag, ekte tid eller alltid dag. 🎵 setter på musikk.', mål: () => { const r = knapp('klokke').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, r: 40 },
+  { tittel: 'Spill med andre', tekst: 'Under ☰ kan du lage din egen figur og logge inn for å gå rundt sammen med de andre. ? viser hjelpen igjen.', mål: () => { const r = knapp('hjelpknapp').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }, r: 30 },
+];
+const skjermpunkt = p => { const v = p.clone().project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
+let introSteg = -1;
+function startIntro() { introSteg = 0; knapp('intro').hidden = false; visIntro(); }
+function sluttIntro() { introSteg = -1; knapp('intro').hidden = true; try { localStorage.setItem('huldervegen-intro', '1'); } catch { /* */ } }
+function visIntro() {
+  const st = INTRO[introSteg], el = knapp('intro'), boble = el.querySelector('.boble'), ring = el.querySelector('.ring');
+  boble.querySelector('h2').textContent = st.tittel; boble.querySelector('p').textContent = st.tekst;
+  boble.querySelector('.prikker').innerHTML = INTRO.map((_, i) => `<i class="${i === introSteg ? 'på' : ''}"></i>`).join('');
+  boble.querySelector('[data-neste]').textContent = introSteg === INTRO.length - 1 ? 'Kom i gang' : 'Neste';
+  const m = st.mål(), b = boble.getBoundingClientRect(), w = b.width || 320, h = b.height || 170;
+  if (m) {
+    Object.assign(ring.style, { display: '', left: `${m[0] - st.r}px`, top: `${m[1] - st.r}px`, width: `${st.r * 2}px`, height: `${st.r * 2}px` });
+    // boblen ved siden av ringen, innenfor skjermen
+    let x = m[0] + st.r + 16, y = m[1] - h / 2;
+    if (x + w > innerWidth - 12) x = m[0] - st.r - 16 - w;
+    if (x < 12) { x = Math.max(12, Math.min(innerWidth - w - 12, m[0] - w / 2)); y = m[1] + st.r + 14; if (y + h > innerHeight - 12) y = m[1] - st.r - 14 - h; }
+    boble.style.left = `${Math.max(12, Math.min(innerWidth - w - 12, x))}px`; boble.style.top = `${Math.max(12, Math.min(innerHeight - h - 12, y))}px`;
+  } else {
+    ring.style.display = 'none';
+    boble.style.left = `${(innerWidth - w) / 2}px`; boble.style.top = `${(innerHeight - h) / 2}px`;
+  }
+}
+knapp('intro').querySelector('[data-neste]').onclick = () => { if (++introSteg >= INTRO.length) sluttIntro(); else visIntro(); };
+knapp('intro').querySelector('[data-hopp]').onclick = sluttIntro;
+addEventListener('resize', () => { if (introSteg >= 0) visIntro(); });
+
 // ---------- Mobil: meny, hurtigknapper, styrespak og automatisk kvalitet ----------
 const panel = knapp('panel');
 panel.classList.add('lukket');                                          // menyen er lagt sammen fra start (☰ åpner den)
-knapp('meny').onclick = () => panel.classList.toggle('lukket');
+knapp('meny').onclick = () => { const åpen = panel.classList.toggle('lukket') === false; knapp('meny').setAttribute('aria-expanded', åpen); };
 for (const b of document.querySelectorAll('#hurtig [data-etg]')) b.onclick = () => visEtasje(+b.dataset.etg - 1);
 knapp('hurtig-kamera').onclick = () => settKamera(kamera.modus === 'bak' ? 'ovenfra' : 'bak');
-// styrespak: dra knotten; utslaget gir retning og fart (i forhold til kameraet)
+// styrespak: sentrum der tommelen trykket; utslaget gir retning og fart (i forhold til kameraet)
 const stikke = { x: 0, y: 0 }, stikkeEl = knapp('stikke'), knott = stikkeEl.querySelector('i');
-let stikkeId = null;
+let stikkeId = null, stikkeMidt = [0, 0];
+function startStikke(e) {
+  stikkeId = e.pointerId; stikkeMidt = [e.clientX, e.clientY];
+  renderer.domElement.setPointerCapture?.(e.pointerId);
+  stikkeEl.style.left = `${e.clientX}px`; stikkeEl.style.top = `${e.clientY}px`; stikkeEl.classList.add('vis');
+  document.body.classList.add('styrt'); knott.style.transform = '';
+}
 const flyttStikke = e => {
-  const r = stikkeEl.getBoundingClientRect(), R = r.width / 2;
-  let x = (e.clientX - r.left - R) / R, y = (e.clientY - r.top - R) / R;
+  const R = 60;
+  let x = (e.clientX - stikkeMidt[0]) / R, y = (e.clientY - stikkeMidt[1]) / R;
   const l = Math.hypot(x, y);
   if (l > 1) { x /= l; y /= l; }
   const død = l < 0.15;                                                    // litt dødsone i midten
   stikke.x = død ? 0 : x; stikke.y = død ? 0 : y;
   knott.style.transform = `translate(${x * R * 0.55}px, ${y * R * 0.55}px)`;
 };
-stikkeEl.addEventListener('pointerdown', e => { stikkeId = e.pointerId; stikkeEl.setPointerCapture(e.pointerId); flyttStikke(e); e.preventDefault(); });
-stikkeEl.addEventListener('pointermove', e => { if (e.pointerId === stikkeId) flyttStikke(e); });
-const slippStikke = e => { if (e.pointerId !== stikkeId) return; stikkeId = null; stikke.x = stikke.y = 0; knott.style.transform = ''; };
-stikkeEl.addEventListener('pointerup', slippStikke); stikkeEl.addEventListener('pointercancel', slippStikke);
+const slippStikke = e => { if (e.pointerId !== stikkeId) return; stikkeId = null; stikke.x = stikke.y = 0; knott.style.transform = ''; stikkeEl.classList.remove('vis'); };
+addEventListener('pointerup', slippStikke); addEventListener('pointercancel', slippStikke);
 // automatisk kvalitet: går det jevnt under ca. 28 bilder i sekundet (to målinger på rad), skrus først
 // skyggeeffekten av, så oppløsningen ned til 1 og til slutt skyggekvaliteten. Oppløsningen går aldri under 1
 // (det ga et kornete bilde), og den skrus opp igjen når det går lett. Pauser (bakgrunnsfane, innlasting)
@@ -1703,4 +1786,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { responsTikk, respons, trinnHøyde, stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { tegnForhånd, startIntro, visHjelp, responsTikk, respons, trinnHøyde, stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };

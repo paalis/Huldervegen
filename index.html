@@ -4,54 +4,64 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Huldervegen</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="stil.css">
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #e9eef2; font-family: system-ui, sans-serif; }
-    #panel {
-      position: absolute; top: 12px; left: 12px; z-index: 2;
-      background: rgba(255,255,255,.92); border-radius: 10px; padding: 10px 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15); max-width: calc(100vw - 160px);
-    }
-    #panel h1 { font-size: 15px; margin: 0 0 8px; }
-    #panel .rad { display: flex; flex-wrap: wrap; gap: 6px; }
-    #panel button {
-      font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px;
-      border: 1px solid #b9b2a8; background: #fff; cursor: pointer;
-    }
-    #panel button.på { background: #4b3324; color: #fff; border-color: #4b3324; }
-    #panel p { font-size: 11px; color: #666; margin: 8px 0 0; }
+    .panel { width: 300px; }
     .etikett {
-      font-size: 12px; line-height: 1.2; text-align: center; color: #222;
-      background: rgba(255,255,255,.85); padding: 2px 6px; border-radius: 4px;
-      pointer-events: none; white-space: nowrap;
+      font-size: 12px; line-height: 1.2; text-align: center; color: var(--tekst);
+      background: var(--flate); padding: 3px 7px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.12);
+      pointer-events: none; white-space: nowrap; transition: opacity .2s;
     }
-    .etikett small { color: #666; }
-    #videoknapp {
-      position: absolute; top: 12px; right: 12px; z-index: 2;
-      font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: #4b3324;
-      border: 0; border-radius: 10px; padding: 9px 14px; cursor: pointer;
-      box-shadow: 0 2px 10px rgba(0,0,0,.2);
+    .etikett small { color: var(--tekst-2); }
+    .etikett.skjult { opacity: 0; }
+    #handlinger { position: absolute; top: 12px; right: 12px; z-index: 2; display: flex; gap: 8px; align-items: center; }
+    #handlinger .knapp { box-shadow: var(--skygge); }
+    #lastNed { margin-top: 10px; background: transparent; border: 0; padding: 0; color: var(--tekst-2); font-size: 13px; text-decoration: underline; cursor: pointer; }
+    #lastNed:hover { color: var(--tekst); }
+    /* startsiden */
+    #start {
+      position: absolute; inset: 0; z-index: 5; display: grid; place-items: end start; padding: clamp(16px, 5vw, 56px);
+      background: linear-gradient(90deg, rgba(28,18,12,.78) 0%, rgba(28,18,12,.45) 45%, rgba(28,18,12,0) 75%);
+      color: #fff; transition: opacity .5s;
     }
-    #videoknapp:hover, #spillknapp:hover { background: #3a271b; }
-    #spillknapp {
-      position: absolute; top: 58px; right: 12px; z-index: 2; text-decoration: none;
-      font-size: 14px; font-weight: 600; color: #fff; background: #4b3324;
-      border-radius: 10px; padding: 9px 14px; box-shadow: 0 2px 10px rgba(0,0,0,.2);
+    #start.borte { opacity: 0; pointer-events: none; }
+    #start[hidden] { display: none; }
+    body.start #panel, body.start #handlinger { opacity: 0; pointer-events: none; }
+    #panel, #handlinger { transition: opacity .4s; }
+    #start .innhold { max-width: 520px; }
+    #start .over { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--aksent-lys); margin: 0 0 10px; }
+    #start h1 { font-family: var(--overskrift); font-size: clamp(44px, 9vw, 84px); line-height: .95; margin: 0; letter-spacing: -.02em; }
+    #start .slagord { font-family: var(--overskrift); font-style: italic; font-weight: 600; font-size: clamp(18px, 3vw, 24px); color: var(--aksent-lys); margin: 10px 0 0; }
+    #start p.om { font-size: 16px; line-height: 1.5; color: rgba(255,255,255,.86); margin: 16px 0 24px; max-width: 440px; }
+    #start .valg { display: flex; flex-wrap: wrap; gap: 10px; }
+    #start .knapp:not(.primær) { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.35); }
+    #start .knapp:not(.primær):hover { background: rgba(255,255,255,.24); }
+    #start .knapp.primær { background: var(--aksent); border-color: var(--aksent); color: var(--primær-mørk); }
+    #start .knapp.primær:hover { background: #efb851; }
+    @media (max-width: 640px) {
+      #start { background: linear-gradient(0deg, rgba(28,18,12,.85) 0%, rgba(28,18,12,.55) 55%, rgba(28,18,12,.1) 100%); }
+      #handlinger .tekst::after { content: ' inn'; }
+      #handlinger .lang { display: none; }
+      .panel { width: auto; }
     }
     #video {
       width: 100vw; height: 100vh; max-width: none; max-height: none;
       margin: 0; padding: 0; border: 0; background: transparent;
     }
     #video[open] { display: flex; flex-direction: column; gap: 12px; align-items: center; justify-content: center; }
-    #video::backdrop { background: rgba(20,14,10,.78); }
+    #video::backdrop { background: rgba(20,14,10,.82); }
     #video video { width: min(92vw, 150vh); max-height: 80vh; border-radius: 12px; background: #000; }
     #videovalg { display: flex; gap: 6px; background: rgba(255,255,255,.12); padding: 4px; border-radius: 10px; }
     #videovalg button {
-      font: inherit; font-size: 14px; font-weight: 600; color: #fff; background: transparent;
+      font-size: 14px; font-weight: 600; color: #fff; background: transparent;
       border: 0; border-radius: 7px; padding: 7px 14px; cursor: pointer;
     }
-    #videovalg button[aria-pressed="true"] { background: #fff; color: #2a1d14; }
+    #videovalg button[aria-pressed="true"] { background: #fff; color: var(--tekst); }
     #lukkVideo {
-      position: fixed; top: 12px; right: 12px; font: inherit; font-size: 22px; line-height: 1;
+      position: fixed; top: 12px; right: 12px; font-size: 22px; line-height: 1;
       width: 40px; height: 40px; border-radius: 50%; border: 0; background: #fff; cursor: pointer;
     }
   </style>
@@ -65,29 +75,55 @@
   </script>
 </head>
 <body>
-  <div id="panel">
-    <h1>Huldervegen</h1>
-    <div class="rad">
-      <button id="etg1">1. etasje</button>
-      <button id="etg2">2. etasje</button>
-      <button id="etg3" class="på">3. etasje</button>
+  <section id="start" aria-labelledby="startTittel">
+    <div class="innhold">
+      <p class="over">Rekkehus på Ranheim · tre etasjer</p>
+      <h1 id="startTittel">Huldervegen</h1>
+      <p class="slagord">Ranheims svar på Mekka</p>
+      <p class="om">Se hele huset som en 3D-modell, eller gå inn og bo i det: lag kaffe, spill piano, se Netflix
+        og gå rundt sammen med de andre som er innom.</p>
+      <div class="valg">
+        <a class="knapp stor primær" href="spill.html">🚶 Gå inn i huset</a>
+        <button class="knapp stor" id="utforsk">Utforsk modellen</button>
+        <button class="knapp stor" id="startVideo">▶ Se video</button>
+      </div>
     </div>
-    <div class="rad" style="margin-top:6px">
-      <button id="vis3d" class="på">3D</button>
-      <button id="ovenfra">Ovenfra</button>
-      <button id="lave">Lave vegger</button>
-      <button id="tak">Tak</button>
-      <button id="etiketter" class="på">Etiketter</button>
+  </section>
+
+  <div id="panel" class="panel">
+    <div class="topp">
+      <p class="merke">Huldervegen<small>3D-modell</small></p>
+      <button id="meny" class="knapp rund" aria-label="Vis eller skjul menyen" aria-expanded="true">☰</button>
     </div>
-    <div class="rad" style="margin-top:6px">
-      <button id="lastNed" title="Lag og last ned 3D-modellen (.glb) – kan åpnes i SketchUp, Blender o.l.">⬇ Last ned 3D-modell</button>
+    <div class="gruppe">
+      <p class="tittel">Etasje</p>
+      <div class="segment" role="group" aria-label="Etasje">
+        <button id="etg1">1. etg</button><button id="etg2">2. etg</button><button id="etg3" class="på">3. etg</button>
+      </div>
     </div>
-    <p>Dra for å rotere, høyreklikk/to fingre for å flytte, scroll for zoom.<br>
-       Mål fra planskisse (ca.), ikke oppmålt.</p>
+    <div class="gruppe">
+      <p class="tittel">Visning</p>
+      <div class="segment" role="group" aria-label="Visning">
+        <button id="vis3d" class="på">3D</button><button id="ovenfra">Ovenfra</button>
+      </div>
+    </div>
+    <div class="gruppe">
+      <p class="tittel">Vis</p>
+      <div class="brytere">
+        <button id="lave" class="bryter" aria-pressed="false">Lave vegger</button>
+        <button id="tak" class="bryter" aria-pressed="false">Tak</button>
+        <button id="etiketter" class="bryter på" aria-pressed="true">Romnavn</button>
+      </div>
+    </div>
+    <p class="hjelpetekst">Dra for å rotere, høyreklikk eller to fingre for å flytte, scroll eller knip for å zoome.
+      Målene er fra planskissen og omtrentlige.</p>
+    <button id="lastNed" title="Lag og last ned 3D-modellen (.glb) – kan åpnes i SketchUp, Blender o.l.">⬇ Last ned 3D-modellen (.glb)</button>
   </div>
 
-  <button id="videoknapp" aria-haspopup="dialog">▶ Se video</button>
-  <a id="spillknapp" href="spill.html">🚶 Gå rundt i huset</a>
+  <div id="handlinger">
+    <button id="videoknapp" class="knapp rund" aria-haspopup="dialog" aria-label="Se video" title="Se video">▶</button>
+    <a id="spillknapp" class="knapp primær" href="spill.html">🚶 <span class="tekst">Gå</span><span class="lang">&nbsp;inn i huset</span></a>
+  </div>
   <dialog id="video" aria-label="Video: gjennomgang av huset">
     <button id="lukkVideo" aria-label="Lukk" autofocus>×</button>
     <div id="videovalg">
@@ -105,7 +141,8 @@
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
     import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
     import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-    import { F, scene, midt, vis, oppdater, tak3 } from './hus.js';
+    import { F, scene, midt, vis, oppdater, tak3, sol, etiketter } from './hus.js';
+    import { lagHimmel } from './himmel.js';
 
     // ---------- Renderer, scene, kamera ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -163,7 +200,33 @@
       };
     }
     for (const id of ['lave', 'tak', 'etiketter']) {
-      knapp(id).onclick = e => { vis[id] = e.currentTarget.classList.toggle('på'); oppdater(); };
+      knapp(id).onclick = e => { vis[id] = e.currentTarget.classList.toggle('på'); e.currentTarget.setAttribute('aria-pressed', vis[id]); oppdater(); };
+    }
+    // menyen: lukket på mobil fra start
+    const panel = knapp('panel');
+    const settMeny = åpen => { panel.classList.toggle('lukket', !åpen); knapp('meny').setAttribute('aria-expanded', åpen); };
+    knapp('meny').onclick = () => settMeny(panel.classList.contains('lukket'));
+    if (matchMedia('(max-width: 640px)').matches) settMeny(false);
+    // startsiden: vises første gang i økta; modellen snurrer sakte bak den
+    const start = knapp('start');
+    let viserStart = true;
+    try { if (sessionStorage.getItem('huldervegen-start')) viserStart = false; } catch { /* privat modus */ }
+    const lukkStart = () => { viserStart = false; start.classList.add('borte'); document.body.classList.remove('start'); try { sessionStorage.setItem('huldervegen-start', '1'); } catch { /* */ } };
+    if (!viserStart) start.hidden = true; else document.body.classList.add('start');
+    knapp('utforsk').onclick = lukkStart;
+    knapp('startVideo').onclick = () => { lukkStart(); knapp('videoknapp').click(); };
+    addEventListener('keydown', e => { if (e.key === 'Escape' && viserStart) lukkStart(); });
+    // romnavn som overlapper hverandre skjules (det som er nærmest kameraet vinner)
+    let etikettTid = 0;
+    function ryddEtiketter() {
+      const synlige = etiketter.filter(o => o.visible).map(o => ({ o, el: o.element, d: o.getWorldPosition(new THREE.Vector3()).distanceTo(camera.position) }));
+      synlige.sort((a, b) => a.d - b.d);
+      const brukt = [];
+      for (const s of synlige) {
+        const r = s.el.getBoundingClientRect(), over = r.width && brukt.some(b => r.left < b.right + 4 && r.right > b.left - 4 && r.top < b.bottom + 2 && r.bottom > b.top - 2);
+        s.el.classList.toggle('skjult', over);
+        if (!over && r.width) brukt.push(r);
+      }
     }
 
     knapp('lastNed').onclick = async e => {
@@ -218,8 +281,15 @@
     settStørrelse();
     window.addEventListener('resize', settStørrelse);
 
+    const himmel = lagHimmel(scene, sol, midt);                            // samme himmel som i spillet
+    const klokke = new THREE.Clock();
     const tegn = () => { composer.render(); etikettRenderer.render(scene, camera); };
-    renderer.setAnimationLoop(() => { controls.update(); tegn(); });
+    renderer.setAnimationLoop(() => {
+      const dt = Math.min(0.05, klokke.getDelta());
+      if (viserStart) { controls.autoRotate = true; controls.autoRotateSpeed = 0.6; } else controls.autoRotate = false;
+      controls.update(); himmel.oppdater(dt, camera); tegn();
+      if ((etikettTid += dt) > 0.3) { etikettTid = 0; ryddEtiketter(); }
+    });
 
     // Brukes av opptaksskriptet for videoen (styrer kamera og visning bilde for bilde).
     window.huldervegen = { THREE, scene, camera, renderer, controls, vis, oppdater, tak3, F, composer, tegn };

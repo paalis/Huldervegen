@@ -1,0 +1,85 @@
+/* Felles utseende for 3D-visningen (index.html) og spillet (spill.html).
+   Fargeroller: --primær (hovedhandling, valgt), --aksent (fokus, kø, det som er «på»), --fare (stopp),
+   --flate (paneler og kort), --tekst / --tekst-2 (vanlig og dempet tekst), --linje (kanter). */
+:root {
+  --primær: #4b3324; --primær-mørk: #33231a; --primær-lys: #6b4c38;
+  --aksent: #e2a63b; --aksent-lys: #f6dfaf;
+  --fare: #b8382a;
+  --flate: rgba(255, 251, 245, .94); --flate-hel: #fffbf5; --flate-mørk: rgba(38, 26, 19, .88);
+  --tekst: #2a1d14; --tekst-2: #5f4e42; --linje: #d8ccbe;
+  --skygge: 0 6px 24px rgba(40, 24, 12, .18), 0 1px 3px rgba(40, 24, 12, .12);
+  --runding: 14px;
+  --overskrift: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --brødtekst: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light;
+}
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: #dfe7ee; font-family: var(--brødtekst); color: var(--tekst); }
+/* siden står fast (ellers zoomer mobilnettlesere ut når noe havner utenfor kanten) */
+body { position: fixed; inset: 0; width: 100%; }
+canvas { display: block; }
+button, a.knapp, input, select { font: inherit; }
+
+/* panelet øverst til venstre */
+.panel {
+  position: absolute; top: 12px; left: 12px; z-index: 2; box-sizing: border-box;
+  background: var(--flate); border-radius: var(--runding); padding: 12px 14px; box-shadow: var(--skygge);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); max-width: calc(100vw - 24px);
+}
+.panel .topp { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.merke { font-family: var(--overskrift); font-weight: 700; font-size: 20px; letter-spacing: -.01em; margin: 0; line-height: 1.1; }
+.merke small { display: block; font-family: var(--brødtekst); font-weight: 500; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--tekst-2); margin-top: 2px; }
+.panel .gruppe { margin-top: 12px; }
+.panel .gruppe > .tittel { font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--tekst-2); margin: 0 0 6px; }
+.panel.lukket > :not(.topp) { display: none; }
+
+/* knapper */
+.knapp {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--linje);
+  background: var(--flate-hel); color: var(--tekst); font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer;
+  transition: background .15s, border-color .15s, transform .08s; -webkit-tap-highlight-color: transparent;
+}
+.knapp:hover { border-color: var(--primær-lys); }
+.knapp:active { transform: scale(.97); }
+.knapp.primær { background: var(--primær); border-color: var(--primær); color: #fff; font-weight: 600; }
+.knapp.primær:hover { background: var(--primær-mørk); }
+.knapp.stor { padding: 12px 20px; font-size: 16px; border-radius: 12px; }
+.knapp.rund { width: 38px; height: 38px; padding: 0; justify-content: center; border-radius: 50%; font-size: 17px; }
+.knapp.liten { padding: 4px 9px; font-size: 13px; }
+
+/* segmentert valg (etasjer, visning): én valgt av flere */
+.segment { display: inline-flex; background: rgba(75, 51, 36, .08); border-radius: 11px; padding: 3px; gap: 2px; }
+.segment button {
+  border: 0; background: transparent; color: var(--tekst-2); padding: 6px 12px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .15s, color .15s; -webkit-tap-highlight-color: transparent;
+}
+.segment button:hover { color: var(--tekst); }
+.segment button.på { background: var(--primær); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+
+/* av/på-brytere (lag som vises): pille med prikk */
+.brytere { display: flex; flex-wrap: wrap; gap: 6px; }
+.bryter {
+  display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--linje); background: var(--flate-hel); color: var(--tekst-2);
+  border-radius: 999px; padding: 5px 11px 5px 8px; font-size: 13px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.bryter::before { content: ''; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--linje); box-sizing: border-box; transition: .15s; }
+.bryter.på { color: var(--tekst); border-color: var(--aksent); background: #fff8ea; }
+.bryter.på::before { background: var(--aksent); border-color: var(--aksent); }
+
+.hjelpetekst { font-size: 13px; line-height: 1.45; color: var(--tekst-2); margin: 10px 0 0; }
+
+/* tastaturfokus synlig overalt */
+:focus-visible { outline: 3px solid var(--aksent); outline-offset: 2px; }
+
+/* kort og dialoger */
+.lag { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; background: rgba(30, 20, 14, .45); padding: 16px; }
+.lag[hidden] { display: none; }
+.kort {
+  background: var(--flate-hel); border-radius: 18px; box-shadow: 0 18px 50px rgba(30, 18, 10, .35); color: var(--tekst);
+  width: min(420px, 100%); max-height: calc(100vh - 32px); overflow: auto; box-sizing: border-box; padding: 20px 22px;
+}
+.kort h2 { font-family: var(--overskrift); font-size: 24px; margin: 0 0 6px; letter-spacing: -.01em; }
+.kort h3 { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--tekst-2); margin: 18px 0 8px; }
+.kort p { line-height: 1.5; }
+.kort .knapper { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; } }
