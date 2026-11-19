@@ -24,6 +24,7 @@ import { finnRom } from './rom.js';
 import { lagDag } from './dag.js';
 import { lagLys } from './lys.js';
 import { lagMusikk } from './musikk.js';
+import { lagLyd } from './lyder.js';
 import { toneHvert, visAlt, toning } from './toning.js';
 import { lagHåndting, lagStratocaster, koppMaskin, middag, visDamp, damp, vann, oppdaterVann, panne, zzz } from './rekvisitter.js';
 
@@ -89,7 +90,8 @@ function velgKlipp(handlingId, går, fart, løper) {
     if (KLIPP_HANDLING[handlingId]) return { klipp: KLIPP_HANDLING[handlingId], h };
     if (h.holdning === 'sitt') return { klipp: 'setter_seg', h, armer: !!h.armer };
     if (h.holdning === 'ligg') return { klipp: 'ligger', h };
-    return { klipp: null, h };                                             // egne bevegelser (kaffe, dusj, ...)
+    // egne bevegelser (kaffe, dusj, ...): kroppen står som i stå-animasjonen (pust, vekt), armene og hodet fra handlingen
+    return h.holdning === 'stå' ? { klipp: 'stå', h, armer: true } : { klipp: null, h };
   }
   if (går) return løper ? { klipp: 'løp', tempo: Math.min(1.6, Math.max(0.7, fart / 3.3)) } : { klipp: 'gå', tempo: Math.min(1.7, Math.max(0.55, fart / 1.35)) };
   return { klipp: 'stå' };
@@ -232,11 +234,16 @@ const π = Math.PI;
 const sittArmer = (tt) => {                                               // hendene hviler på lårene
   for (const a of [armV, armH]) { a.skulder.rotation.x = -0.55; a.albue.rotation.x = -0.65; }
 };
-const vaskeArmer = (tt) => {                                              // gnir hendene under kranen
-  armV.skulder.rotation.x = armH.skulder.rotation.x = -0.75;
+const vaskeArmer = (tt) => {                                              // bøyer seg litt og gnir hendene under kranen
+  armV.skulder.rotation.x = armH.skulder.rotation.x = -0.75;               // (den tegnede figuren uten 3D-modell)
   armV.albue.rotation.x = armH.albue.rotation.x = -0.75;
   armV.skulder.rotation.z = 0.28 + Math.sin(tt * 10) * 0.06;
   armH.skulder.rotation.z = -0.28 - Math.sin(tt * 10) * 0.06;
+  const [fram, høyre] = retninger(), p = fot(), kran = p.clone().addScaledVector(fram, 0.36).setY(p.y + 0.97);
+  const gni = Math.sin(tt * 9) * 0.025;
+  rekkMot(armV, kran.clone().addScaledVector(høyre, 0.05 + gni).addScaledVector(fram, -gni * 0.6));
+  rekkMot(armH, kran.clone().addScaledVector(høyre, -0.05 + gni).addScaledVector(fram, gni * 0.6));
+  rigg.bøy = 0.35; rigg.blikkMål = kran;
 };
 // to-ledds IK for armene til styreskjelettet: legg håndleddet på et punkt i verden (overarm 0,29, underarm
 // 0,27, albuen bøyer framover). Brukes når hendene skal treffe noe bestemt, som stekepanna.
@@ -602,10 +609,16 @@ function finnTing() {
   if (vaskeluke) vaskLukeX = vaskeluke.position.x;
 }
 let lyd = null;
+// lydfila til handlingen; mangler den, lages en lyd i nettleseren i stedet (spill/lyder.js)
+const LAGET_LYD = { dusj: 'dusj', tannpuss: 'tenner', kaffe: 'kaffe', middag: 'middag', netflix: 'netflix', garderobe: 'klær', jakke: 'jakke', ute: 'ute', takterrasse: 'takterrasse', utsikt: 'utsikt' };
 function spillLyd(h) {
   stoppLyd();
   const l = new Audio(h.lyd); l.loop = !!h.gjenta;
-  l.addEventListener('error', () => { if (lyd === l) lyd = null; });
+  l.addEventListener('error', () => {
+    if (lyd !== l) return;
+    const navn = LAGET_LYD[h.lyd.replace(/^.*\/|\.mp3$/g, '')];
+    lyd = navn && tilstand.handling ? lagLyd(navn) : null;
+  });
   l.play().catch(() => {});
   return (lyd = l);
 }
@@ -1809,4 +1822,4 @@ function følgYtelse() {
 }
 
 // for testing og opptak
-window.spill = { tegnForhånd, startIntro, visHjelp, responsTikk, respons, trinnHøyde, stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };
+window.spill = { lydNå: () => lyd ? (lyd instanceof Audio ? 'fil ' + lyd.src.split('/').pop() : 'laget') : 'ingen', tegnForhånd, startIntro, visHjelp, responsTikk, respons, trinnHøyde, stille, vis, oppdater, GREP, speil: () => speil, oppdaterSpeil, dag: () => dag, lys: () => lys, musikk: () => musikk, ANLEGG, dører, oppdaterDører: dørerTikk, tegnAndre, glassFlater, skjultTil: () => skjultTil, høye: () => høye, himmel: () => himmel, animerMeg, stikke, ikoner, kvalitet, FERDIGE, andre, meg, byttUtseende, flerTikk, fler: () => fler, THREE, scene, camera, renderer, controls, composer, tilstand, gåTil, steg, følg, visEtasje, gangbar, celle, gulv, sperret, settKamera, taster, kamera, planlegg, stoppHandling, HANDLINGER };

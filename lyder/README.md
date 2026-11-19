@@ -26,3 +26,7 @@ i `spill.html`. Mp3 virker i alle nettlesere. Mangler en fil, kjører handlingen
 
 Vil du ha egne lyder per toalett, vask eller seng, andre filnavn, loop eller lengde,
 endres det i `HANDLINGER` i handlingsdelen av `spill.html` (`lyd`, `gjenta`, `varighet`).
+
+Mangler en fil, lager spillet en enkel lyd selv i nettleseren (`spill/lyder.js`): vannbrus i dusjen,
+børstestrøk, kaffekvern og kaffe som renner, bestikk, stemmer fra TV-en, skapdør og tøy som rasler, og
+vind og fugler ute. Legger du inn en ekte fil med riktig navn, brukes den i stedet.
