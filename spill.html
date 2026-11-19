@@ -4,139 +4,171 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Huldervegen – gå rundt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="stil.css">
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #e9eef2; font-family: system-ui, sans-serif; }
-    canvas { display: block; touch-action: none; }
-    #panel {
-      position: absolute; top: 12px; left: 12px; z-index: 2;
-      background: rgba(255,255,255,.92); border-radius: 10px; padding: 10px 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15); max-width: calc(100vw - 48px);
+    canvas { touch-action: none; }
+    #ikoner { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+    #ikoner .hikon { pointer-events: auto; }
+    .panel { width: 290px; z-index: 3; }
+    .panel .topp .knapper { display: flex; gap: 6px; }
+    .panel .lenker { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    /* statusstripa: rommet, klokka og musikken samlet nederst */
+    #stripe {
+      position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 2; display: flex; align-items: center;
+      background: var(--flate); border-radius: 999px; box-shadow: var(--skygge); padding: 4px; gap: 2px;
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); max-width: calc(100vw - 24px);
     }
-    #panel h1 { font-size: 15px; margin: 0 0 8px; }
-    #panel .rad { display: flex; flex-wrap: wrap; gap: 6px; }
-    #panel button, #panel a.knapp {
-      font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px; text-decoration: none; color: inherit;
-      border: 1px solid #b9b2a8; background: #fff; cursor: pointer;
+    #rom { padding: 6px 12px; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #rom small { font-weight: 500; color: var(--tekst-2); margin-left: 6px; }
+    #stripe .skille { width: 1px; align-self: stretch; margin: 6px 2px; background: var(--linje); }
+    #stripe button {
+      border: 0; background: transparent; border-radius: 999px; padding: 6px 11px; color: var(--tekst); cursor: pointer;
+      font: 600 14px var(--brødtekst); font-variant-numeric: tabular-nums; white-space: nowrap; -webkit-tap-highlight-color: transparent;
     }
-    #panel button.på { background: #4b3324; color: #fff; border-color: #4b3324; }
-    #panel p { font-size: 11px; color: #666; margin: 8px 0 0; }
-    #rom {
-      position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 2;
-      background: rgba(255,255,255,.94); border-radius: 999px; padding: 7px 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15); font-size: 14px; font-weight: 600; color: #2a1d14;
-      white-space: nowrap; pointer-events: none; transition: opacity .3s;
-    }
-    #rom small { font-weight: 400; color: #8a6a55; margin-left: 6px; }
-    #status { position: absolute; right: 12px; bottom: 18px; z-index: 2; display: flex; gap: 6px; }
-    #status button {
-      border: none; border-radius: 999px; padding: 7px 12px; background: rgba(255,255,255,.94); color: #2a1d14;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15); font: 600 13px system-ui, sans-serif; cursor: pointer; touch-action: manipulation;
-      font-variant-numeric: tabular-nums;
-    }
-    #status button.på { background: #4b3324; color: #fff; }
+    #stripe button:hover { background: rgba(75,51,36,.08); }
+    #stripe button.på { background: var(--primær); color: #fff; }
     #beskjed {
-      position: absolute; left: 50%; bottom: 62px; transform: translate(-50%, 8px); z-index: 3; opacity: 0; pointer-events: none;
-      background: rgba(42,29,20,.88); color: #fff; border-radius: 999px; padding: 7px 14px; font-size: 13px; transition: opacity .25s, transform .25s;
+      position: absolute; left: 50%; bottom: 70px; transform: translate(-50%, 8px); z-index: 3; opacity: 0; pointer-events: none;
+      background: var(--flate-mørk); color: #fff; border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 500;
+      transition: opacity .25s, transform .25s; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis;
     }
     #beskjed.vis { opacity: 1; transform: translate(-50%, 0); }
     #online {
       position: absolute; top: 12px; right: 12px; z-index: 2; max-width: 220px;
-      background: rgba(255,255,255,.92); border-radius: 10px; padding: 8px 12px; font-size: 12px; color: #2a1d14;
-      box-shadow: 0 2px 10px rgba(0,0,0,.15);
+      background: var(--flate); border-radius: var(--runding); padding: 10px 14px; font-size: 13px; box-shadow: var(--skygge);
     }
-    #online b { display: block; font-size: 13px; margin-bottom: 3px; }
-    #online span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #online b { display: block; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--tekst-2); margin-bottom: 4px; }
+    #online span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.6; }
     #online i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
-    /* ikoner for handlingene, der de skjer i rommet */
+    /* ikonene der handlingene skjer: store for handlinger, små og lyse for lys og musikk */
     .hikon {
-      position: absolute; left: 0; top: 0; z-index: 1; width: 42px; height: 42px; margin: 0; padding: 0;
-      border-radius: 50%; border: 2px solid #fff; background: rgba(75, 51, 36, .82); color: #fff; font-size: 21px;
-      display: grid; place-items: center; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3);
-      transition: opacity .25s, background .2s; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+      position: absolute; left: 0; top: 0; z-index: 1; width: 46px; height: 46px; margin: 0; padding: 0;
+      border-radius: 50%; border: 2.5px solid #fff; background: rgba(75, 51, 36, .9); color: #fff; font-size: 22px;
+      display: grid; place-items: center; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,.3);
+      transition: opacity .25s, background .2s, scale .1s; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
     }
-    .hikon:hover { background: #4b3324; }
-    .hikon.aktiv { background: #c0392b; }
-    .hikon.kø { background: #4b3324; outline: 2px solid #f2c14e; }
+    .hikon:hover { background: var(--primær); }
+    .hikon:active { scale: .88; }
+    .hikon.liten { width: 34px; height: 34px; font-size: 16px; border-width: 2px; background: rgba(255, 251, 245, .92); color: var(--tekst); }
+    .hikon.liten.på { background: var(--aksent); }
+    .hikon.aktiv { background: var(--fare); animation: puls 1.6s ease-in-out infinite; }
+    @keyframes puls { 0%, 100% { box-shadow: 0 0 0 0 rgba(184,56,42,.5), 0 3px 10px rgba(0,0,0,.3); } 50% { box-shadow: 0 0 0 9px rgba(184,56,42,0), 0 3px 10px rgba(0,0,0,.3); } }
+    .hikon.kø { background: var(--primær); outline: 3px solid var(--aksent); }
     .hikon.kø::after {
-      content: attr(data-kø); position: absolute; top: -4px; right: -4px; width: 17px; height: 17px; border-radius: 50%;
-      background: #f2c14e; color: #2a1d14; font: 700 11px/17px system-ui, sans-serif; text-align: center;
+      content: attr(data-kø); position: absolute; top: -6px; right: -6px; width: 19px; height: 19px; border-radius: 50%;
+      background: var(--aksent); color: var(--primær-mørk); font: 700 12px/19px var(--brødtekst); text-align: center;
     }
-    .hikon.kø .navn { opacity: 1; }
     .hikon.opptatt { background: rgba(120,120,120,.75); cursor: default; filter: grayscale(1); }
     .hikon .navn {
-      position: absolute; top: 46px; left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none;
-      background: rgba(255,255,255,.95); color: #2a1d14; font-size: 12px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
-      box-shadow: 0 1px 5px rgba(0,0,0,.2); opacity: 0; transition: opacity .15s;
+      position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); white-space: nowrap; pointer-events: none;
+      background: var(--flate-hel); color: var(--tekst); font-size: 13px; font-weight: 600; padding: 4px 9px; border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.2); opacity: 0; transition: opacity .15s;
     }
-    .hikon:hover .navn, .hikon.aktiv .navn { opacity: 1; }
-    /* sammenleggbart panel og mobilkontroller */
-    #panel h1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    #meny { font: inherit; font-size: 16px; line-height: 1; padding: 3px 8px; border-radius: 6px; border: 1px solid #b9b2a8; background: #fff; cursor: pointer; }
-    #panel.lukket > :not(h1) { display: none; }
-    #panel.lukket h1 { margin: 0; }
-    #hurtig { position: absolute; right: 12px; bottom: 70px; z-index: 2; display: none; flex-direction: column; gap: 8px; }
+    .hikon .navn em { font-style: normal; color: var(--primær-lys); font-weight: 500; }
+    .hikon:hover .navn, .hikon:focus-visible .navn, .hikon.aktiv .navn, .hikon.kø .navn, .hikon.nær .navn { opacity: 1; }
+    /* mobil: etasjer og kamera langs høyre kant, flytende styrespak der tommelen trykker */
+    #hurtig { position: absolute; right: 12px; bottom: 76px; z-index: 2; display: none; flex-direction: column; align-items: center; gap: 6px;
+      background: var(--flate); border-radius: 999px; padding: 6px 5px; box-shadow: var(--skygge); }
+    #hurtig .tittel { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--tekst-2); }
     #hurtig button {
-      width: 48px; height: 48px; border-radius: 50%; border: none; background: rgba(255,255,255,.92); color: #2a1d14;
-      font: 600 16px system-ui, sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,.2); touch-action: manipulation;
+      width: 42px; height: 42px; border-radius: 50%; border: none; background: transparent; color: var(--tekst);
+      font: 700 16px var(--brødtekst); touch-action: manipulation; display: grid; place-items: center; line-height: 1;
     }
-    #hurtig button.på { background: #4b3324; color: #fff; }
+    #hurtig button.på { background: var(--primær); color: #fff; }
+    #hurtig .skille { width: 26px; height: 1px; background: var(--linje); }
+    #hurtig #hurtig-kamera { font-size: 18px; }
+    #hurtig #hurtig-kamera small { display: block; font-size: 9px; font-weight: 600; margin-top: 1px; }
     #stikke {
-      position: absolute; left: 22px; bottom: 30px; z-index: 2; width: 120px; height: 120px; border-radius: 50%; display: none;
-      background: rgba(255,255,255,.28); border: 2px solid rgba(255,255,255,.7); touch-action: none; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+      position: absolute; left: 0; top: 0; z-index: 2; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; display: none;
+      background: rgba(255,255,255,.22); border: 2px solid rgba(255,255,255,.75); pointer-events: none; box-shadow: 0 2px 10px rgba(0,0,0,.15);
     }
+    #stikke.vis { display: block; }
     #stikke i {
       position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%;
-      background: rgba(255,255,255,.92); box-shadow: 0 2px 8px rgba(0,0,0,.25); pointer-events: none;
+      background: rgba(255,255,255,.95); box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    #stikkeHint {
+      position: absolute; left: 22px; bottom: 26px; z-index: 1; display: none; width: 96px; height: 96px; border-radius: 50%;
+      border: 2px dashed rgba(255,255,255,.7); color: #fff; font-size: 11px; font-weight: 600; text-align: center; place-items: center;
+      text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none; transition: opacity .4s;
     }
     @media (pointer: coarse) {
       #hurtig { display: flex; }
-      #stikke { display: block; }
-      #rom { bottom: auto; top: 62px; left: 12px; transform: none; font-size: 13px; padding: 6px 12px; }
-      #status { bottom: auto; top: 62px; right: 12px; }
-      #status button { padding: 6px 10px; font-size: 12px; }
-      body.innlogget #status { top: 108px; }
-      #online { top: 12px; }
-      #panel h1 .lang { display: none; }
+      #stikkeHint { display: grid; }
+      body.styrt #stikkeHint { opacity: 0; }
+      .panel { width: auto; }
+      #stripe { left: 12px; right: 12px; transform: none; bottom: auto; top: 70px; justify-content: space-between; }
+      #beskjed { bottom: auto; top: 122px; }
+      body.innlogget #stripe { top: 116px; }
+      .panel .merke small { display: none; }
     }
     .navnelapp {
       position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; white-space: nowrap;
-      background: rgba(255,255,255,.92); border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 13px; font-weight: 600;
-      color: #2a1d14; box-shadow: 0 1px 6px rgba(0,0,0,.18);
+      background: var(--flate-hel); border-radius: 999px; padding: 3px 10px 3px 8px; font-size: 13px; font-weight: 600;
+      color: var(--tekst); box-shadow: 0 1px 6px rgba(0,0,0,.18);
     }
     .navnelapp i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
-    #fler {
-      position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(30,22,16,.35);
+    /* figur og innlogging */
+    #fler .kort { width: min(460px, 100%); }
+    #fler p { margin: 6px 0; color: var(--tekst-2); font-size: 14px; }
+    #fler input[type=password], #fler input[type=text] {
+      font-size: 15px; padding: 9px 11px; border: 1px solid var(--linje); border-radius: 10px; width: 100%; box-sizing: border-box; margin: 4px 0; background: #fff;
     }
-    #fler[hidden] { display: none; }
-    #fler .kort {
-      background: #fff; border-radius: 12px; padding: 16px 18px; width: min(380px, calc(100vw - 48px));
-      max-height: calc(100vh - 48px); overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,.25); font-size: 13px; color: #2a1d14;
+    #fler .rad { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    #fler .figur { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: start; }
+    #forhånd { height: 210px; border-radius: 14px; background: radial-gradient(circle at 50% 40%, rgba(255,255,255,.0), rgba(75,51,36,.08)); position: relative; }
+    #forhånd::after { content: ''; position: absolute; left: 20%; right: 20%; bottom: 10px; height: 10px; border-radius: 50%; background: rgba(0,0,0,.12); filter: blur(3px); }
+    #ferdige { display: flex; flex-direction: column; gap: 6px; }
+    #ferdige button {
+      display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--linje); background: #fff; border-radius: 12px;
+      padding: 8px 10px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--tekst);
     }
-    #fler h2 { font-size: 17px; margin: 0 0 10px; }
-    #fler h3 { font-size: 14px; margin: 14px 0 8px; }
-    #fler p { margin: 6px 0; color: #555; }
-    #fler button {
-      font: inherit; padding: 6px 11px; border-radius: 6px; border: 1px solid #b9b2a8; background: #fff; cursor: pointer; margin: 2px 4px 2px 0;
-    }
-    #fler button.hoved { background: #4b3324; color: #fff; border-color: #4b3324; }
-    #fler input[type=email], #fler input[type=password], #fler input[type=text] {
-      font: inherit; padding: 6px 8px; border: 1px solid #b9b2a8; border-radius: 6px; width: 100%; box-sizing: border-box; margin: 3px 0;
-    }
-    #fler .felt { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; align-items: center; }
+    #ferdige button:hover { border-color: var(--primær-lys); }
+    #ferdige button.på { border-color: var(--aksent); background: #fff8ea; }
+    #ferdige .prikk { width: 28px; height: 28px; border-radius: 50%; flex: none; box-shadow: inset 0 -6px 0 rgba(0,0,0,.12); }
+    #fler details { margin-top: 12px; border-top: 1px solid var(--linje); padding-top: 10px; }
+    #fler summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--tekst-2); }
+    #fler .felt { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; align-items: center; margin-top: 10px; font-size: 14px; }
     #fler label { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-    #fler input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid #b9b2a8; border-radius: 5px; background: none; }
-    #fler select { font: inherit; padding: 3px; }
-    #fler .feil { color: #a3261b; min-height: 1em; }
-    #fler .knapper { display: flex; justify-content: flex-end; margin-top: 14px; flex-wrap: wrap; }
-    #laster {
-      position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; z-index: 5;
-      background: #e9eef2; color: #4b3324; font-size: 15px; font-weight: 600; transition: opacity .4s;
+    #fler input[type=color] { width: 40px; height: 28px; padding: 0; border: 1px solid var(--linje); border-radius: 8px; background: none; }
+    #fler select { padding: 4px 6px; border-radius: 8px; border: 1px solid var(--linje); background: #fff; }
+    #fler .feil { color: var(--fare); min-height: 1em; }
+    #fler .stille { font-size: 13px; }
+    @media (max-width: 480px) { #fler .figur { grid-template-columns: 1fr; } #forhånd { height: 170px; } }
+    /* hjelp og introduksjon */
+    #hjelp dl { display: grid; grid-template-columns: auto 1fr; gap: 10px 14px; margin: 12px 0 0; font-size: 14px; line-height: 1.45; }
+    #hjelp dt { font-size: 22px; text-align: center; }
+    #hjelp dd { margin: 0; color: var(--tekst-2); }
+    #hjelp dd b { color: var(--tekst); }
+    kbd { display: inline-block; min-width: 1.4em; padding: 1px 6px; border: 1px solid var(--linje); border-bottom-width: 2px; border-radius: 6px; background: #fff; font: 600 12px var(--brødtekst); text-align: center; }
+    #hjelp .innstilling { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; font-size: 14px; }
+    #intro { position: absolute; inset: 0; z-index: 7; pointer-events: none; }
+    #intro[hidden] { display: none; }
+    #intro .boble {
+      position: absolute; pointer-events: auto; background: var(--flate-hel); color: var(--tekst); border-radius: 16px; box-shadow: 0 14px 40px rgba(30,18,10,.35);
+      padding: 16px 18px; width: min(320px, calc(100vw - 32px)); box-sizing: border-box; transition: left .35s, top .35s;
     }
-    #laster h2 { margin: 0; font-size: 22px; letter-spacing: .02em; }
-    #laster .stolpe { width: min(260px, 70vw); height: 8px; border-radius: 4px; background: #d3d9de; overflow: hidden; }
-    #laster .stolpe > i { display: block; height: 100%; width: 0; background: #4b3324; border-radius: 4px; transition: width .2s; }
-    #laster .tekst { font-weight: 500; font-size: 13px; color: #6b5a4c; }
+    #intro .boble h2 { font-family: var(--overskrift); font-size: 21px; margin: 0 0 6px; }
+    #intro .boble p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--tekst-2); }
+    #intro .bunn { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+    #intro .prikker { display: flex; gap: 5px; }
+    #intro .prikker i { width: 7px; height: 7px; border-radius: 50%; background: var(--linje); }
+    #intro .prikker i.på { background: var(--primær); }
+    #intro .ring { position: absolute; border: 3px solid var(--aksent); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(20,12,8,.35); transition: all .35s; pointer-events: none; }
+    #laster {
+      position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; z-index: 8;
+      background: radial-gradient(circle at 50% 35%, #fbf4ea, #e4d6c4); color: var(--primær); transition: opacity .4s;
+    }
+    #laster h2 { margin: 0; font-family: var(--overskrift); font-size: 40px; letter-spacing: -.01em; }
+    #laster .slagord { margin: -8px 0 6px; font-family: var(--overskrift); font-style: italic; color: var(--primær-lys); }
+    #laster .stolpe { width: min(260px, 70vw); height: 6px; border-radius: 3px; background: rgba(75,51,36,.15); overflow: hidden; }
+    #laster .stolpe > i { display: block; height: 100%; width: 0; background: var(--primær); border-radius: 3px; transition: width .2s; }
+    #laster .tekst { font-weight: 500; font-size: 13px; color: var(--tekst-2); }
     #laster.borte { opacity: 0; pointer-events: none; }
+    body.rolig .hikon.aktiv { animation: none; }
   </style>
   <script type="importmap">
     {
@@ -148,77 +180,114 @@
   </script>
 </head>
 <body>
-  <div id="laster" role="status"><h2>Huldervegen</h2><div class="stolpe"><i></i></div><div class="tekst">Bygger huset …</div></div>
-  <div id="panel">
-    <h1><span>Huldervegen<span class="lang"> – gå rundt</span></span> <button id="meny" title="Vis/skjul menyen">☰</button></h1>
-    <div class="rad">
-      <button id="etg1">1. etasje</button>
-      <button id="etg2">2. etasje</button>
-      <button id="etg3">3. etasje</button>
+  <div id="laster" role="status"><h2>Huldervegen</h2><p class="slagord">Ranheims svar på Mekka</p><div class="stolpe"><i></i></div><div class="tekst">Bygger huset …</div></div>
+  <div id="panel" class="panel">
+    <div class="topp">
+      <p class="merke">Huldervegen<small>Gå rundt i huset</small></p>
+      <div class="knapper">
+        <button id="hjelpknapp" class="knapp rund" aria-label="Hjelp" title="Hjelp">?</button>
+        <button id="meny" class="knapp rund" aria-label="Vis eller skjul menyen" aria-expanded="false">☰</button>
+      </div>
     </div>
-    <div class="rad" style="margin-top:6px">
-      <button id="bak">Kamera bak figuren</button>
-      <button id="lave" class="på">Lave vegger</button>
+    <div class="gruppe">
+      <p class="tittel">Etasje</p>
+      <div class="segment" role="group" aria-label="Etasje">
+        <button id="etg1">1. etg</button><button id="etg2">2. etg</button><button id="etg3">3. etg</button>
+      </div>
+    </div>
+    <div class="gruppe">
+      <p class="tittel">Kamera</p>
+      <div class="segment" role="group" aria-label="Kamera">
+        <button id="bak">Bak figuren</button><button id="ovenfraKnapp">Ovenfra</button>
+      </div>
+    </div>
+    <div class="gruppe">
+      <p class="tittel">Vis</p>
+      <div class="brytere"><button id="lave" class="bryter på" aria-pressed="true">Lave vegger</button><button id="rolig" class="bryter" aria-pressed="false">Mindre bevegelse</button></div>
+    </div>
+    <div class="lenker">
+      <button id="flerknapp" class="knapp primær">👥 Spill med andre</button>
       <a class="knapp" href="./">Til 3D-modellen</a>
-      <button id="flerknapp">👥 Spill med andre</button>
     </div>
-    <p>Klikk eller trykk på gulvet for å gå dit, også i en annen etasje.<br>
-       Piltaster/WASD: med kamera bak figuren går ↑ fram, ↓ bak og ← → snur. Shift: løp. C bytter kamera.<br>
-       Dra med musa for å se rundt figuren.<br>
-       Ovenfra: dra for å snu kameraet. Scroll/knip for zoom. På mobil: styrespaken nede til venstre.<br>
-       Handlinger: trykk på ikonene i rommet, eller E når figuren står i nærheten. Trykk på flere mens figuren
-       gjør noe (eller Shift+klikk), så gjøres de etter tur. På mobil: hold fingeren på gulvet for å gå mot den.</p>
   </div>
-  <div id="rom"></div>
-  <div id="status"><button id="klokke" title="Klokka. Trykk for å bytte mellom rask dag, ekte tid og alltid dag.">☀️ 13:00</button><button id="musikk" title="Musikk">🎵</button></div>
+  <div id="stripe">
+    <div id="rom"></div><span class="skille"></span>
+    <button id="klokke" title="Klokka. Trykk for å bytte mellom rask dag, ekte tid og alltid dag.">☀️ 13:00</button>
+    <button id="musikk" title="Musikk" aria-label="Musikk">🎵</button>
+  </div>
   <div id="beskjed" role="status" aria-live="polite"></div>
   <div id="ikoner"></div>
-  <div id="hurtig">
-    <button data-etg="3">3</button><button data-etg="2">2</button><button data-etg="1">1</button>
-    <button id="hurtig-kamera" title="Bytt kamera">🎥</button>
+  <div id="hurtig" aria-label="Etasje og kamera">
+    <span class="tittel">Etg</span>
+    <button data-etg="3" aria-label="3. etasje">3</button><button data-etg="2" aria-label="2. etasje">2</button><button data-etg="1" aria-label="1. etasje">1</button>
+    <span class="skille"></span>
+    <button id="hurtig-kamera" aria-label="Bytt kamera">🎥</button>
   </div>
+  <div id="stikkeHint">Dra her<br>for å gå</div>
   <div id="stikke"><i></i></div>
+  <div id="hjelp" class="lag" hidden>
+    <div class="kort" role="dialog" aria-modal="true" aria-labelledby="hjelpTittel">
+      <h2 id="hjelpTittel">Slik spiller du</h2>
+      <dl>
+        <dt>👆</dt><dd><b>Gå:</b> klikk eller trykk på gulvet, også i en annen etasje. Med tastaturet: <kbd>↑</kbd><kbd>↓</kbd> går og <kbd>←</kbd><kbd>→</kbd> snur (<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> virker også), <kbd>Shift</kbd> løper. På mobil: dra på venstre halvdel av skjermen.</dd>
+        <dt>☕</dt><dd><b>Gjør noe:</b> trykk på de runde ikonene i rommet (eller <kbd>E</kbd> i nærheten). Det røde ikonet stopper.</dd>
+        <dt>➕</dt><dd><b>Neste:</b> trykker du på et nytt ikon mens figuren gjør noe som tar slutt av seg selv, settes det i kø. Gjør den noe som varer (sofa, seng, piano), bytter den med en gang. <kbd>Shift</kbd>+klikk setter alltid i kø.</dd>
+        <dt>💡</dt><dd><b>Lys og musikk:</b> de små lyse ikonene ved dørene og anleggene. Er dere flere i huset, ser og hører alle det samme.</dd>
+        <dt>🎥</dt><dd><b>Kamera:</b> dra for å se rundt figuren, scroll eller knip for zoom. <kbd>C</kbd> bytter mellom bak figuren og ovenfra.</dd>
+        <dt>🕗</dt><dd><b>Klokka</b> nede (oppe på mobil) bytter mellom rask dag, ekte tid og alltid dag.</dd>
+      </dl>
+      <div class="knapper"><button id="introIgjen" class="knapp">Vis omvisningen igjen</button><button id="hjelpLukk" class="knapp primær">Skjønner</button></div>
+    </div>
+  </div>
+  <div id="intro" hidden><div class="ring"></div><div class="boble" role="dialog" aria-live="polite"><h2></h2><p></p>
+    <div class="bunn"><div class="prikker"></div><div><button class="knapp liten" data-hopp>Hopp over</button> <button class="knapp liten primær" data-neste>Neste</button></div></div></div></div>
   <div id="online" hidden></div>
-  <div id="fler" hidden>
-    <div class="kort">
-      <h2>Spill med andre</h2>
+  <div id="fler" class="lag" hidden>
+    <div class="kort" role="dialog" aria-modal="true" aria-labelledby="flerTittel">
+      <h2 id="flerTittel">Spill med andre</h2>
       <div id="fler-av">
-        <p>Flerspiller er ikke satt opp ennå. Når Firebase er satt opp (se <b>FLERSPILLER.md</b>), kan dere logge inn
-           og gå rundt i huset sammen. Du kan likevel lage din egen figur her.</p>
+        <p class="stille">Det går ikke å spille sammen med andre akkurat nå. Du kan likevel lage din egen figur.</p>
       </div>
       <div id="fler-ut" hidden>
         <p>Logg inn for å gå rundt sammen med de andre som er i huset nå.</p>
-        <button id="google" class="hoved">Logg inn med Google</button>
-        <p>eller med brukernavn og passord:</p>
+        <div class="rad"><button id="google" class="knapp primær">Logg inn med Google</button></div>
+        <p style="margin-top:12px">eller med brukernavn og passord:</p>
         <input id="brukernavn" type="text" placeholder="Brukernavn" autocomplete="username" maxlength="20">
         <input id="passord" type="password" placeholder="Passord (minst 6 tegn)" autocomplete="current-password">
-        <div><button id="logginn">Logg inn</button><button id="nykonto">Lag ny bruker</button></div>
-        <p style="font-size:11px">Første gang: skriv et brukernavn og et passord og trykk «Lag ny bruker».</p>
+        <div class="rad"><button id="logginn" class="knapp">Logg inn</button><button id="nykonto" class="knapp">Lag ny bruker</button></div>
+        <p class="stille">Første gang: skriv et brukernavn og et passord og trykk «Lag ny bruker».</p>
         <p class="feil" id="fler-feil"></p>
       </div>
       <div id="fler-inne" hidden>
-        <p>Innlogget som <b id="megnavn"></b>. Du er i huset, og andre som er logget inn ser deg.
-           <button id="loggut">Logg ut</button></p>
+        <p>Innlogget som <b id="megnavn"></b>. Du er i huset, og de andre ser deg. <button id="loggut" class="knapp liten">Logg ut</button></p>
       </div>
       <h3>Din figur</h3>
-      <p style="margin-top:0">Ferdige figurer: <span id="ferdige"></span></p>
-      <label style="margin-bottom:8px">Navn <input id="u-navn" type="text" maxlength="20" placeholder="Navnet over hodet" style="width:65%"></label>
-      <div class="felt">
-        <label>Hud <input id="u-hud" type="color"></label>
-        <label>Hår <input id="u-hår" type="color"></label>
-        <label>T-skjorte <input id="u-skjorte" type="color"></label>
-        <label>Bukse <input id="u-bukse" type="color"></label>
-        <label>Sko <input id="u-sko" type="color"></label>
-        <label>Frisyre <select id="u-frisyre"><option value="kort">Kort</option><option value="langt">Langt</option><option value="skallet">Skallet</option></select></label>
-        <label>Skjegg <select id="u-skjegg"><option value="ingen">Ingen</option><option value="stubb">Stubb</option><option value="skjegg">Fullskjegg</option></select></label>
-        <label style="grid-column: 1 / -1">Figur <select id="u-modell"><option value="">Tegnet figur (farger under)</option><option value="figurer/pablo.glb">3D-modell: Pablo Andrés</option></select></label>
-        <label>Kropp <select id="u-kropp"><option value="mann">Mann</option><option value="kvinne">Kvinne</option></select></label>
-        <label>Høyde <span><input id="u-høyde" type="range" min="150" max="200" step="1" style="width:80px"> <span id="u-høyde-tekst"></span></span></label>
+      <div class="figur">
+        <div id="forhånd" aria-hidden="true"></div>
+        <div>
+          <div id="ferdige"></div>
+          <label style="margin-top:10px; display:block">Navn over hodet <input id="u-navn" type="text" maxlength="20" placeholder="Navnet ditt"></label>
+        </div>
       </div>
+      <details>
+        <summary>Lag din egen</summary>
+        <div class="felt">
+          <label style="grid-column: 1 / -1">Figur <select id="u-modell"><option value="">Tegnet figur (farger under)</option><option value="figurer/pablo.glb">3D-modell: Pablo Andrés</option></select></label>
+          <label>Hud <input id="u-hud" type="color"></label>
+          <label>Hår <input id="u-hår" type="color"></label>
+          <label>T-skjorte <input id="u-skjorte" type="color"></label>
+          <label>Bukse <input id="u-bukse" type="color"></label>
+          <label>Sko <input id="u-sko" type="color"></label>
+          <label>Kropp <select id="u-kropp"><option value="mann">Mann</option><option value="kvinne">Kvinne</option></select></label>
+          <label>Frisyre <select id="u-frisyre"><option value="kort">Kort</option><option value="langt">Langt</option><option value="skallet">Skallet</option></select></label>
+          <label>Skjegg <select id="u-skjegg"><option value="ingen">Ingen</option><option value="stubb">Stubb</option><option value="skjegg">Fullskjegg</option></select></label>
+          <label style="grid-column: 1 / -1">Høyde <span><input id="u-høyde" type="range" min="150" max="200" step="1" style="width:140px"> <span id="u-høyde-tekst"></span></span></label>
+        </div>
+      </details>
       <div class="knapper">
-        <button id="u-tilfeldig">🎲 Tilfeldig</button>
-        <button id="u-standard">Tilbakestill</button>
-        <button id="fler-lukk" class="hoved">Ferdig</button>
+        <button id="u-tilfeldig" class="knapp">🎲 Tilfeldig</button>
+        <button id="u-standard" class="knapp">Tilbakestill</button>
+        <button id="fler-lukk" class="knapp primær">Ferdig</button>
       </div>
     </div>
   </div>

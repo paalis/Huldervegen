@@ -2,7 +2,8 @@
 
 Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 
-- `index.html` – 3D-modellen med knapper for etasjer, visninger og video, og «⬇ Last ned 3D-modell»
+- `stil.css` – felles utseende (farger, font, knapper) for 3D-visningen og spillet
+- `index.html` – startside og 3D-modellen med knapper for etasjer, visninger og video, og «⬇ Last ned 3D-modell»
   (`eksport.js` lager en .glb av huset i nettleseren, til SketchUp, Blender o.l.)
 - `spill.html` – gå rundt i huset med en figur (klikk for å gå, piltaster/WASD, trapper mellom etasjene)
   og handlinger: piano, gitar, PlayStation, Netflix (1. og 3. etasje), vaskemaskin, gå på do, vaske hendene, steke mat, sove,
@@ -14,7 +15,7 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
   - Koden ligger i `spill/`: `main.js` (oppsett, handlinger, kamera og flerspiller), `gangkart.js` (gangbare
     ruter, trapper og veifinning), `figur.js` (figurer og 3D-modell), `animasjon.js` (Mixamo-animasjoner),
     `hender.js` (ting i hånda og arm-IK), `rekvisitter.js`, `dorer.js`, `rom.js`, `dag.js`, `lys.js`,
-    `musikk.js`, `toning.js` (kamerakuttet toner ting ut), `ytelse.js` (slår sammen faste deler) og `laster.js`
+    `musikk.js`, `lyder.js` (lyder som lages når lydfila mangler), `toning.js` (kamerakuttet toner ting ut), `ytelse.js` (slår sammen faste deler) og `laster.js`
 - `flerspiller.js`, `firebase-config.js`, `database.rules.json` – flerspiller: logg inn og gå rundt sammen med andre,
   med egen figur (se `FLERSPILLER.md` for oppsett av Firebase)
 - `figurer/` – 3D-modeller av figurer (GLB med Mixamo-skjelett, f.eks. fra Avaturn) som kan velges i spillet

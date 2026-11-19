@@ -44,7 +44,7 @@ export function lagDag({ scene, sol, himmel, midt }) {
     sol.target.position.copy(midt); sol.target.updateMatrixWorld();
     sol.intensity = dagSol * glatt(-1, 8, grader);
     sol.color.copy(solFarge).lerp(new THREE.Color(0xffa860), tilstand.gylden * 0.8);
-    hemi.intensity = 0.16 + (dagHemi - 0.16) * tilstand.dagslys;
+    hemi.intensity = 0.42 + (dagHemi - 0.42) * tilstand.dagslys;                // natta er mørk, men man ser fortsatt huset og figuren
     hemi.color.setRGB(0.55 + 0.45 * tilstand.dagslys, 0.62 + 0.38 * tilstand.dagslys, 0.85 + 0.15 * tilstand.dagslys);
     if (bakgrunn) scene.background.copy(new THREE.Color(0x0b1226)).lerp(bakgrunn, tilstand.dagslys);
     himmel?.settDag(tilstand.dagslys, tilstand.gylden, tilstand.retning);

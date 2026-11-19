@@ -141,6 +141,8 @@ function animer(r, valg, dt) {
   overførAnimasjon(r);
   // plassering: modellen står på gulvet; i sofaen/senga legges hoftene på setet eller madrassen
   const f = r.figur, rot = r.avatar.rot, s = rot.scale.x, fs = f.scale.x, ank = A.anker[valg.klipp], h = valg.h;
+  // står figuren i en egen handling (vaske hender, steke …), blir handlingens foroverhelning en bøy i ryggen (se hender.js)
+  if (valg.armer && valg.klipp === 'stå' && f.rotation.x > 0.02) r.bøy = Math.max(r.bøy || 0, f.rotation.x * 1.3);
   f.rotation.x = 0; f.rotation.z = 0; f.position.y = valg.y;
   rot.position.set(0, 0, 0);
   if (h?.holdning === 'sitt' || valg.klipp === 'reiser_seg') {

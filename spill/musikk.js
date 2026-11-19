@@ -117,6 +117,14 @@ export function lagMusikk({ anlegg }) {
     anlegg, STASJONER,
     stasjon: a => STASJONER[a.stasjon],
     // neste stasjon på anlegget (av → lo-fi → jazz → egen → av); egen hoppes over om musikk/liste.json mangler
+    // sett en bestemt stasjon (når en annen spiller har byttet); lyd krever at siden har fått et trykk
+    async sett(a, i) {
+      if (a.stasjon === i) return;
+      a.stasjon = i;
+      if (STASJONER[i].id === 'av') { stopp(a); if (a.led) a.led.material.emissiveIntensity = 0; return; }
+      if (a.led) a.led.material.emissiveIntensity = 2;
+      try { lag(); await spill(a); } catch { /* lyd ikke tillatt ennå */ }
+    },
     async neste(a) {
       lag();
       for (let forsøk = 0; forsøk < STASJONER.length; forsøk++) {
