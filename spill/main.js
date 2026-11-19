@@ -1224,6 +1224,7 @@ function lagAnlegg() {
 }
 async function byttMusikk(a) {
   const st = await musikk.neste(a);
+  husEndret('mus', a.id, a.stasjon);
   visBeskjed(st.id === 'av' ? `🎵 Musikken ${a.i} er av` : `🎵 ${st.navn} ${a.i}`);
   knapp('musikk').classList.toggle('på', ANLEGG.some(x => x.stasjon));
 }
@@ -1246,9 +1247,30 @@ function leggTilBrytere() {
       armer: tt => {
         const inn = Math.sin(Math.min(1, tt / 0.8) * π);                     // hånda fram til bryteren og tilbake
         rekkMot(armV, fot().add(new THREE.Vector3(0, 1.0, 0)).lerp(trykk, inn));
-        if (lokal() && tt > 0.4 && !tilstand.handling.trykket) { tilstand.handling.trykket = true; lys.vipp(b.rom); }
+        if (lokal() && tt > 0.4 && !tilstand.handling.trykket) { tilstand.handling.trykket = true; lys.vipp(b.rom); husEndret('lys', b.rom, lys.erPå(b.rom)); }
       },
     };
+  }
+}
+// Lys og musikk deles med de andre i huset: hver spiller sender sine siste trykk (med tid) i sin egen node,
+// og alle bruker det nyeste trykket for hvert rom og hvert anlegg.
+const husValg = { lys: {}, mus: {} }, husBrukt = { lys: {}, mus: {} };
+function husEndret(type, nøkkel, verdi) {
+  const tid = Date.now();
+  husValg[type][nøkkel] = [verdi, tid]; husBrukt[type][nøkkel] = tid;
+  if (iHuset) fler.send({ hus: husValg });
+}
+function brukHus(hus) {
+  for (const [nøkkel, [verdi, tid]] of Object.entries(hus?.lys ?? {})) {
+    if (tid <= (husBrukt.lys[nøkkel] ?? 0)) continue;
+    husBrukt.lys[nøkkel] = tid;
+    if (lys && lys.erPå(nøkkel) !== verdi) lys.vipp(nøkkel);
+  }
+  for (const [nøkkel, [verdi, tid]] of Object.entries(hus?.mus ?? {})) {
+    if (tid <= (husBrukt.mus[nøkkel] ?? 0)) continue;
+    husBrukt.mus[nøkkel] = tid;
+    const a = ANLEGG.find(x => x.id === nøkkel);
+    if (a && musikk) musikk.sett(a, verdi).then(() => knapp('musikk').classList.toggle('på', ANLEGG.some(x => x.stasjon)));
   }
 }
 // kort beskjed nederst på skjermen
@@ -1465,6 +1487,7 @@ function håndterSpiller(hva, uid, d) {
     r.fot = a.pos;                                                         // (se fot)
     andre.set(uid, a);
   }
+  if (d.hus) brukHus(d.hus);
   const uj = JSON.stringify(d.utseende || {});
   if (uj !== a.uj) { settUtseende(a.rigg, d.utseende || {}); a.uj = uj; a.navn = ''; }
   if (d.navn !== a.navn) { a.navn = d.navn; a.lapp.skriv(d.navn || '?', a.rigg.utseende.skjorte); oppdaterOnline(); }
@@ -1549,7 +1572,7 @@ setInterval(() => { if (iHuset && document.hidden) flerTikk(5); }, 4000);   // l
 async function gåInnIHuset() {
   if (iHuset || !bruker) return;
   const t = tilstand;
-  await fler.bliMed(bruker.uid, { navn: mittNavn(), utseende: meg.utseende, f: t.f, x: rund(t.pos.x), y: rund(t.pos.y), z: rund(t.pos.z), r: rund(figur.rotation.y), h: null, ht: 0, b: 0, j: harJakke() ? 1 : 0 });
+  await fler.bliMed(bruker.uid, { navn: mittNavn(), utseende: meg.utseende, f: t.f, x: rund(t.pos.x), y: rund(t.pos.y), z: rund(t.pos.z), r: rund(figur.rotation.y), h: null, ht: 0, b: 0, j: harJakke() ? 1 : 0, hus: husValg });
   iHuset = true; sistSendt = '';
   if (!lytter) { lytter = true; fler.lytt(håndterSpiller); }
   oppdaterOnline();
