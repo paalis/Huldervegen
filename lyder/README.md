@@ -1,7 +1,7 @@
 # Lyder til handlingene i spillet
 
 Legg lydfilene her med disse navnene, så spilles de av når figuren gjør handlingen
-i `spill.html`. Mp3 virker i alle nettlesere. Mangler en fil, kjører handlingen uten lyd.
+i `spill.html`. Mp3 virker i alle nettlesere. Mangler en fil, brukes en enkel lyd som lages i nettleseren (se under), eller ingen lyd.
 
 | Fil                 | Handling                                   | Spilles                                          |
 |---------------------|--------------------------------------------|--------------------------------------------------|
