@@ -28,6 +28,14 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
 - `kilder/` – originale tegninger og bilder. Ligger lokalt og er ignorert av git (se `.gitignore`)
 - `video/` – videoer laget med `/brag-slim` fra selve 3D-modellen, åpnes med knappen «Se video» øverst til høyre:
   omvisning i øyehøyde fra hoveddøra gjennom alle rom (1:31) og en kort presentasjon (0:22)
+  - `video/tv-fjord.mp4` – dronefilm over en fjord (laget med Higgsfield) som vises på TV-ene når noen ser Netflix;
+    lyset fra skjermen får fargen bildet har
+- `bilder/` – bilder i huset og rundt det:
+  - `kunst.jpg` – fire malerier i ett bilde (2 × 2, Higgsfield): over sofaen, over pianoet og over senga i soverom 12
+  - `nordlys.jpg` – nordlys (Higgsfield) som tones inn på himmelen mot nord om natta (`himmel.js`)
+  - `omgivelser.jpg` – panorama av et rekkehusnabolag (Higgsfield), brukt som miljøkart så blanke flater speiler
+    omgivelsene; dempes om natta
+  - `love.jpg`, `hommelvik.jpg`, `levanger.jpg` – løvebildet og kartplakatene
 
 ### Status
 

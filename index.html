@@ -142,7 +142,7 @@
     import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
     import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
     import { F, scene, midt, vis, oppdater, tak3, sol, etiketter } from './hus.js';
-    import { lagHimmel } from './himmel.js';
+    import { lagHimmel, lagOmgivelser } from './himmel.js';
 
     // ---------- Renderer, scene, kamera ----------
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -282,6 +282,7 @@
     window.addEventListener('resize', settStørrelse);
 
     const himmel = lagHimmel(scene, sol, midt);                            // samme himmel som i spillet
+    lagOmgivelser(renderer, scene);                                        // refleksjoner av nabolaget i blanke flater
     const klokke = new THREE.Clock();
     const tegn = () => { composer.render(); etikettRenderer.render(scene, camera); };
     renderer.setAnimationLoop(() => {

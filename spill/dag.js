@@ -48,6 +48,10 @@ export function lagDag({ scene, sol, himmel, midt }) {
     hemi.color.setRGB(0.55 + 0.45 * tilstand.dagslys, 0.62 + 0.38 * tilstand.dagslys, 0.85 + 0.15 * tilstand.dagslys);
     if (bakgrunn) scene.background.copy(new THREE.Color(0x0b1226)).lerp(bakgrunn, tilstand.dagslys);
     himmel?.settDag(tilstand.dagslys, tilstand.gylden, tilstand.retning);
+    if (scene.userData.miljøStyrke) {                                       // refleksjonene av nabolaget dempes om natta
+      scene.userData.miljøNå = scene.userData.miljøStyrke * (0.12 + 0.88 * tilstand.dagslys);
+      if (scene.environment) scene.environmentIntensity = scene.userData.miljøNå;
+    }
   }
   const tekst = () => {
     const t = tilstand.time, hh = Math.floor(t), mm = Math.floor((t - hh) * 60);

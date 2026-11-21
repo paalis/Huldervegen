@@ -105,7 +105,6 @@ const M = {
   pianoSvart: mat(0x151516, { roughness: 0.35 }),
   tangent:   mat(0xf4f3ee, { roughness: 0.3 }),
   blad:      mat(0x4f6b3c, { roughness: 0.8 }),
-  plakat:    mat(0x6f8a7c),
 };
 
 // ---------- Hjelpere ----------
@@ -144,6 +143,20 @@ function rund(x1, y1, z1, x2, y2, z2, m, r = 0.02, forelder = mål) {
   mesh.castShadow = mesh.receiveShadow = true;
   forelder.add(mesh);
   return mesh;
+}
+// Malerier: fire motiver i ett bilde (bilder/kunst.jpg, 2 × 2). nr: 0 abstrakt, 1 fjord, 2 bjørkeblader, 3 hytte i snø.
+// Lerretet legges flatt på veggen x (mot +x, inn i rommet) og beskjæres midt i ruten etter formatet b × h.
+const kunstAtlas = new THREE.TextureLoader().load('bilder/kunst.jpg');
+kunstAtlas.colorSpace = THREE.SRGBColorSpace; kunstAtlas.anisotropy = 4;
+function maleri(nr, x, ym, zm, b, h, forelder = mål) {
+  const t = kunstAtlas.clone(), forhold = b / h;
+  const rb = forhold < 1 ? 0.5 * forhold : 0.5, rh = forhold < 1 ? 0.5 : 0.5 / forhold;     // del av atlaset som vises
+  t.repeat.set(rb * 0.96, rh * 0.96);
+  t.offset.set((nr % 2) * 0.5 + (0.5 - rb * 0.96) / 2, (nr < 2 ? 0.5 : 0) + (0.5 - rh * 0.96) / 2);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(b, h), new THREE.MeshStandardMaterial({ map: t, roughness: 0.55 }));
+  m.rotation.y = Math.PI / 2; m.position.set(x, ym, zm); m.receiveShadow = true;
+  forelder.add(m);
+  return m;
 }
 // Loddrett sylinder med senter (x, z) fra y1 til y2.
 function sylinder(x, z, y1, y2, rTopp, m, rBunn = rTopp, seg = 20, forelder = mål) {
@@ -618,9 +631,10 @@ sofa(1.20, 2.95, 2.05, 3.90);
 oval(1.85, 2.15, 0.33, 0.62, 0.40, 0.44, M.mørkEik);
 for (const z of [1.80, 2.50]) boks(1.70, 0, z - 0.02, 2.00, 0.40, z + 0.02, M.mørkEik);
 // to bilder over sofaen
-for (const z of [2.05, 2.75]) {
+for (const [z, nr] of [[2.05, 0], [2.75, 2]]) {                    // abstrakt og bjørkeblader, med hvitt passepartout
   boks(T, 1.30, z, T + 0.025, 2.05, z + 0.55, M.svart);
   boks(T + 0.025, 1.33, z + 0.03, T + 0.03, 2.02, z + 0.52, M.hvit);
+  maleri(nr, T + 0.032, 1.675, z + 0.275, 0.39, 0.57);
 }
 // lyse gardiner på stang, og radiator under vinduet
 boks(0.60, 2.40, 0.24, 4.60, 2.42, 0.26, M.svart);
@@ -900,6 +914,11 @@ seng(T + 0.02, 7.82, 2.20, 9.22, M.sengetøy);
 for (const [z1, z2] of [[7.38, 7.78], [9.26, 9.63]])               // nattbord på hver side
   boks(T + 0.02, F, z1, 0.62, F + 0.45, z2, M.finer);
 boks(1.05, F + 0.12, 9.58, 3.10, F + 0.42, 9.65, M.hvit);         // radiator
+{                                                                 // maleri av hytta i snøen over senga
+  const g = new THREE.Group(); mål.add(g); veggpynt.push({ o: g, y1: F + 1.15 });
+  boks(T, F + 1.15, 8.07, T + 0.03, F + 1.85, 9.07, M.mørkEik, g);
+  maleri(3, T + 0.032, F + 1.50, 8.57, 0.92, 0.62, g);
+}
 boks(2.60, F + 0.65, 7.55, 2.64, F + 1.40, 8.80, M.svart);        // TV på stativ
 boks(2.70, F, 8.15, 2.74, F + 0.65, 8.20, M.svart);
 boks(0.60, F + 2.30, 9.56, 4.30, F + 2.32, 9.58, M.stål);         // gardinstang
@@ -1092,7 +1111,7 @@ boks(3.73, G, 7.36, 3.77, G + 2.03, 8.05, M.hvitDør);             // dørblad v
   // bilde over pianoet: svart ramme, passepartout og plakat
   rund(T, G + 1.35, 5.65, T + 0.025, G + 2.05, 6.15, M.svart, 0.004);
   boks(T + 0.025, G + 1.38, 5.68, T + 0.028, G + 2.02, 6.12, M.hvit);
-  boks(T + 0.028, G + 1.50, 5.74, T + 0.03, G + 1.95, 6.06, M.plakat);
+  maleri(1, T + 0.03, G + 1.725, 5.90, 0.32, 0.45);                                // fjorden i solnedgang
 
   // TV-benk i eik med to skuffer, TV på tynne V-ben
   rund(1.70, G + 0.06, 6.45, 2.85, G + 0.45, 6.89, M.lysEik, 0.015);

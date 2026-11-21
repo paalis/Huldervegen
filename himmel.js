@@ -1,5 +1,5 @@
 // Himmel for spillet: blå himmel med gradient, sol i samme retning som sollyset, skyer som driver sakte,
-// og et lite fly som av og til flyr rundt huset med et banner: «Huldervegen – Ranheims svar på Mekka!».
+// nordlys om natta, og et lite fly som av og til flyr rundt huset med et banner: «Huldervegen – Ranheims svar på Mekka!».
 // Alt her er bare pynt: det kaster ikke skygge, kan ikke klikkes på og stenger ikke veien for figuren.
 import * as THREE from 'three';
 
@@ -79,6 +79,26 @@ export function lagHimmel(scene, sol, midt) {
     g.fillStyle = gr; g.fillRect(0, 0, b, b);
   }), 22, 22, 0);
   måne.renderOrder = -9; gruppe.add(måne);
+  // nordlys om natta (bilder/nordlys.jpg): en bue på himmelen mot nord (+z), som lyser opp (legges til) og
+  // blafrer sakte; kantene tones ut, så det ikke synes hvor bildet slutter
+  const nordlysKart = new THREE.TextureLoader().load('bilder/nordlys.jpg'); nordlysKart.colorSpace = THREE.SRGBColorSpace;
+  const nordlys = new THREE.Mesh(new THREE.CylinderGeometry(150, 150, 115, 48, 1, true, -1.9, 3.8), new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending, fog: false, toneMapped: false,
+    uniforms: { kart: { value: nordlysKart }, styrke: { value: 0 }, tid: { value: 0 } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform sampler2D kart; uniform float styrke; uniform float tid; varying vec2 vUv;
+      void main() {
+        vec2 uv = vUv;
+        uv.x += sin(uv.y * 7.0 + tid * 0.35) * 0.008 + sin(uv.y * 3.0 - tid * 0.2) * 0.006;   // gardinene bølger
+        vec3 c = max(texture2D(kart, uv).rgb - 0.03, 0.0);                     // himmelen i bildet blir svart
+        float kant = smoothstep(0.0, 0.15, vUv.x) * smoothstep(1.0, 0.85, vUv.x) * smoothstep(0.0, 0.25, vUv.y) * smoothstep(1.0, 0.8, vUv.y);
+        float puls = 0.8 + 0.2 * sin(tid * 0.6 + vUv.x * 9.0) * sin(tid * 0.23 + vUv.x * 4.0);
+        gl_FragColor = vec4(c * kant * puls * styrke * 1.15, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  }));
+  nordlys.renderOrder = -9; nordlys.frustumCulled = false; nordlys.visible = false; gruppe.add(nordlys);
+  let nordlysTid = 0;
   // fargene på himmelen: dag, solnedgang og natt (topp, horisont, bunn)
   const PALETT = {
     dag: ['#3f86d8', '#d4e8f6', '#a9b99c'], gylden: ['#4d6fb8', '#f4b77a', '#8a8a74'], natt: ['#060b1d', '#1c2a4a', '#10140f'],
@@ -134,15 +154,19 @@ export function lagHimmel(scene, sol, midt) {
       const u = kuppel.material.uniforms;
       ['topp', 'horisont', 'bunn'].forEach((n, i) => u[n].value.copy(farge('natt', i)).lerp(farge('dag', i), lys).lerp(farge('gylden', i), gylden * 0.85));
       solskive.material.opacity = Math.min(1, Math.max(0, (solRetning.y + 0.05) * 8));
-      for (const m of skyMat) m.color.setRGB(0.25 + 0.75 * lys, 0.27 + 0.73 * lys - 0.15 * gylden, 0.35 + 0.65 * lys - 0.3 * gylden);
+      for (const m of skyMat) m.color.setRGB(0.1 + 0.9 * lys, 0.11 + 0.89 * lys - 0.15 * gylden, 0.16 + 0.84 * lys - 0.3 * gylden);   // mørke skyer om natta, så nordlyset synes
       stjerner.material.opacity = Math.max(0, 1 - lys * 1.6);
       måne.material.opacity = Math.max(0, 1 - lys * 1.4);
+      nordlys.material.uniforms.styrke.value = Math.max(0, 1 - lys * 1.8);
+      nordlys.visible = nordlys.material.uniforms.styrke.value > 0.01;
     },
     oppdater(dt, kamera) {
       kuppel.position.copy(kamera.position);
       solskive.position.copy(kamera.position).addScaledVector(solRetning, 150);
       solskive.quaternion.copy(kamera.quaternion);
       stjerner.position.copy(kamera.position);
+      nordlysTid += dt; nordlys.material.uniforms.tid.value = nordlysTid;
+      nordlys.position.set(kamera.position.x, kamera.position.y + 62, kamera.position.z);
       måne.position.copy(kamera.position).addScaledVector(new THREE.Vector3(-solRetning.x, Math.abs(solRetning.y) * 0.6 + 0.35, -solRetning.z).normalize(), 150);
       måne.quaternion.copy(kamera.quaternion);
       for (const sky of skyer) {
@@ -182,4 +206,18 @@ export function lagHimmel(scene, sol, midt) {
       tau.geometry.attributes.position.needsUpdate = true;
     },
   };
+}
+
+// Omgivelser til refleksjoner og mykt lys: et panorama av nabolaget (bilder/omgivelser.jpg) gjøres om til et
+// miljøkart, så blanke flater (speil, vinduer, lakk, metall) speiler hager, rekkehus og himmel. Styrken settes i
+// scene.userData.miljøStyrke og dempes om natta av dagsrytmen (spill/dag.js).
+export function lagOmgivelser(renderer, scene, styrke = 0.45) {
+  scene.userData.miljøStyrke = styrke;
+  new THREE.TextureLoader().load('bilder/omgivelser.jpg', t => {
+    t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.SRGBColorSpace;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromEquirectangular(t).texture;
+    scene.environmentIntensity = scene.userData.miljøNå ?? styrke;
+    t.dispose(); pmrem.dispose();
+  });
 }

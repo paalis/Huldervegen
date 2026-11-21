@@ -8,7 +8,7 @@ import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { F, M, scene, vis, oppdater, etiketter, sol, midt } from '../hus.js';
 import { kobleTil } from '../flerspiller.js';
-import { lagHimmel } from '../himmel.js';
+import { lagHimmel, lagOmgivelser } from '../himmel.js';
 import { firebaseConfig } from '../firebase-config.js';
 import { R, base, gulv, sperret, celle, byggKart, gangbar, høydeVed, trapper, åpneTrappeender, finnVei } from './gangkart.js';
 import { lagFigur, FERDIGE, settUtseende, figurdeler, figurHendelser } from './figur.js';
@@ -447,7 +447,7 @@ const HANDLINGER = {
     lyd: 'lyder/sove.mp3', gjenta: true },
   netflix: { navn: 'Se Netflix', rom: 'stua', ikon: '📺', f: 0, gå: [2.45, 2.15], pos: [0.78, 2.05], retning: π / 2, holdning: 'sitt', sete: 0.46,
     lyd: 'lyder/netflix.mp3', gjenta: true,
-    før: () => { fjernkontroll.visible = tvBilde.visible = true; }, etter: () => { fjernkontroll.visible = tvBilde.visible = false; },
+    før: () => { fjernkontroll.visible = tvBilde.visible = true; }, etter: () => { fjernkontroll.visible = tvBilde.visible = false; tvAv(); },
     armer: tt => {
       sittArmer(tt);
       armV.skulder.rotation.x = -0.75; armV.albue.rotation.x = -0.95;      // fjernkontrollen i høyre hånd
@@ -456,7 +456,7 @@ const HANDLINGER = {
     } },
   netflix3: { navn: 'Se Netflix', rom: 'stua', ikon: '📺', f: 2, gå: [2.30, 4.95], pos: [2.25, 3.95], retning: 0, holdning: 'sitt', sete: 0.45,
     lyd: 'lyder/netflix.mp3', gjenta: true,
-    før: () => { fjernkontroll.visible = tvBilde3.visible = true; }, etter: () => { fjernkontroll.visible = tvBilde3.visible = false; },
+    før: () => { fjernkontroll.visible = tvBilde3.visible = true; }, etter: () => { fjernkontroll.visible = tvBilde3.visible = false; tvAv(); },
     armer: tt => { HANDLINGER.netflix.armer(tt); } },
   middag: { navn: 'Spis middag', ikon: '🍽️', f: 0, gå: [2.55, 4.20], pos: [2.10, 4.62], retning: 0, holdning: 'sitt', sete: 0.49,
     lyd: 'lyder/middag.mp3', gjenta: true,
@@ -561,15 +561,18 @@ const tvLerret = document.createElement('canvas'); tvLerret.width = 320; tvLerre
 const tvTekstur = new THREE.CanvasTexture(tvLerret); tvTekstur.colorSpace = THREE.SRGBColorSpace;
 const tvBilde = new THREE.Mesh(new THREE.PlaneGeometry(1.46, 0.81), new THREE.MeshBasicMaterial({ map: tvTekstur, toneMapped: false }));
 tvBilde.position.set(5.015, G1 + 1.375, 1.90); tvBilde.rotation.y = -π / 2; tvBilde.visible = false; scene.add(tvBilde);
-function tegnTv(tt) {                                                    // logo først, så en «film» med rolig skiftende bilder
+function tegnTv(tt) {                                                    // logo først, så filmen (eller rolige fargebilder som reserve)
   const g = tvLerret.getContext('2d'), w = 320, h = 180;
   if (tt < 3) {
+    if (tvBilde.material.map !== tvTekstur) { tvBilde.material.map = tvTekstur; tvBilde.material.needsUpdate = true; }
+    tvLys.intensity = 0;
     g.fillStyle = '#000'; g.fillRect(0, 0, w, h);
     g.globalAlpha = Math.min(1, tt * 1.5, (3 - tt) * 2);
     g.font = 'bold 44px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = '#e50914'; g.fillText('NETFLIX', w / 2, h / 2);
     g.globalAlpha = 1;
-  } else {
+  } else if (tvFilmPå(tt)) return;
+  else {                                                                // reserve hvis filmen ikke kan spilles
     const klipp = Math.floor((tt - 3) / 6), u = (tt - 3) % 6 / 6;
     const hue = (klipp * 67 + 200) % 360;
     const gr = g.createLinearGradient(0, 0, w, h);
@@ -585,6 +588,34 @@ function tegnTv(tt) {                                                    // logo
 // TV-en i stua i 3. etasje viser det samme
 const tvBilde3 = new THREE.Mesh(tvBilde.geometry.clone().scale(0.86 / 1.46, 0.50 / 0.81, 1), tvBilde.material);
 tvBilde3.position.set(2.30, G3 + 0.81, 6.605); tvBilde3.rotation.y = π; tvBilde3.visible = false; scene.add(tvBilde3);
+// filmen etter logoen: en dronetur over en fjord (video/tv-fjord.mp4, spilles fram og tilbake i løkke), og lyset fra
+// skjermen faller på rommet i fargen bildet har akkurat nå
+const tvVideo = Object.assign(document.createElement('video'), { src: 'video/tv-fjord.mp4', muted: true, loop: true, playsInline: true, preload: 'none' });
+const tvFilm = new THREE.VideoTexture(tvVideo); tvFilm.colorSpace = THREE.SRGBColorSpace;
+const tvLys = new THREE.PointLight(0xa0b8d0, 0, 4.5, 2); tvLys.castShadow = false; scene.add(tvLys);
+const tvMåler = document.createElement('canvas'); tvMåler.width = tvMåler.height = 4;
+let tvMålt = 0;
+function tvFilmPå(tt) {
+  if (tvVideo.error) return false;
+  if (tvBilde.material.map !== tvFilm) {
+    tvBilde.material.map = tvFilm; tvBilde.material.needsUpdate = true;
+    tvVideo.currentTime = 0; tvVideo.play().catch(() => {});
+  }
+  const skjerm = tvBilde.visible ? tvBilde : tvBilde3;
+  tvLys.position.copy(skjerm.position).addScaledVector(skjerm.getWorldDirection(new THREE.Vector3()), 0.6);
+  if (tvVideo.readyState >= 2 && tt - tvMålt > 0.15) {                     // gjennomsnittsfargen, noen ganger i sekundet
+    tvMålt = tt;
+    const g = tvMåler.getContext('2d', { willReadFrequently: true }); g.drawImage(tvVideo, 0, 0, 4, 4);
+    const d = g.getImageData(0, 0, 4, 4).data; let r = 0, gr = 0, b = 0;
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; gr += d[i + 1]; b += d[i + 2]; }
+    const n = d.length / 4 * 255, lys = (r + gr + b) / (3 * n);
+    tvLys.color.setRGB(r / n, gr / n, b / n).multiplyScalar(1 / Math.max(0.2, lys) * 0.6).addScalar(0.15);
+    tvLys.userData.mål = 2 + lys * 5;
+  }
+  tvLys.intensity += ((tvLys.userData.mål ?? 0) * (0.92 + Math.random() * 0.08) - tvLys.intensity) * 0.2;   // svak flimring
+  return true;
+}
+function tvAv() { tvVideo.pause(); tvLys.intensity = 0; tvLys.userData.mål = 0; tvBilde.material.map = tvTekstur; tvBilde.material.needsUpdate = true; }
 // ting i hånda: hver figur har sitt eget sett (rekvisitter.js) i en gruppe på styreskjelettets hånd, som flyttes
 // til 3D-modellens hånd når den er lastet (oppdaterGrep), og sin egen gitar
 function giHåndting(r) {
@@ -1431,6 +1462,7 @@ requestAnimationFrame(() => setTimeout(() => {
   scene.traverse(o => { if (o.isMesh && o.material.transparent && o.material.opacity < 0.9 && !figurdeler.has(o) && o !== ring) glassFlater.push(o); });
   forberedKamera();
   himmel = lagHimmel(scene, sol, midt);                                 // sol, skyer og fly med banner (etter gangkartet)
+  lagOmgivelser(renderer, scene);                                       // refleksjoner av nabolaget i blanke flater
   lagSpeil();
   lagRespons();
   dag = lagDag({ scene, sol, himmel, midt }); dag.oppdater();            // klokka: sola, himmelen og lyset ute
