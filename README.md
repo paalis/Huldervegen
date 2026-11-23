@@ -35,6 +35,7 @@ Interaktiv 3D-visning av huset, bygget fra romtegninger og bilder.
   - `nordlys.jpg` – nordlys (Higgsfield) som tones inn på himmelen mot nord om natta (`himmel.js`)
   - `omgivelser.jpg` – panorama av et rekkehusnabolag (Higgsfield), brukt som miljøkart så blanke flater speiler
     omgivelsene; dempes om natta
+  - `start-pc.jpg`, `start-mobil.jpg` – kveldsbilder fra 3D-modellen med nordlys, bakgrunn på startsiden
   - `love.jpg`, `hommelvik.jpg`, `levanger.jpg` – løvebildet og kartplakatene
 
 ### Status
